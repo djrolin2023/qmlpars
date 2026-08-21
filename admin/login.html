@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理后台登录 - QMLPARS</title>
+  <link rel="stylesheet" href="css/base.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <h2>车牌识别管理后台</h2>
+      <div class="sub">QianMing License Plate Automatic Recognition System</div>
+      <label>管理密码</label>
+      <input id="pass" type="password" placeholder="请输入管理密码" autocomplete="current-password">
+      <button id="login-btn">登 录</button>
+    </div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script>
+    const passEl = document.getElementById('pass');
+
+    if (getToken()) { location.href = 'index.html'; }
+
+    async function doLogin() {
+      const password = passEl.value;
+      if (!password) { toast('请输入管理密码', 'error'); return; }
+      const btn = document.getElementById('login-btn');
+      btn.disabled = true; btn.textContent = '登录中...';
+      try {
+        const res = await fetch(API + '/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+        const data = await res.json();
+        if (data.success && data.data && data.data.token) {
+          setToken(data.data.token);
+          location.href = 'admin/index.html';
+        } else {
+          toast(data.message || '登录失败', 'error');
+          btn.disabled = false; btn.textContent = '登 录';
+        }
+      } catch (e) {
+        toast('登录请求失败：' + e.message, 'error');
+        btn.disabled = false; btn.textContent = '登 录';
+      }
+    }
+
+    document.getElementById('login-btn').onclick = doLogin;
+    passEl.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  </script>
+</body>
+</html>

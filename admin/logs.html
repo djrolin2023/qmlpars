@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>识别记录 - QMLPARS 管理后台</title>
+  <link rel="stylesheet" href="css/base.css">
+</head>
+<body class="embed">
+  <div class="main">
+    <div class="content">
+      <nav class="crumb" id="crumb"></nav>
+      <div class="toolbar">
+        <select id="channel"><option value="">全部渠道</option><option value="app">APP</option><option value="web">H5</option></select>
+        <input id="start" type="date" placeholder="开始日期">
+        <input id="end" type="date" placeholder="结束日期">
+        <button class="btn primary" id="query-btn">查询</button>
+        <button class="btn danger" id="clear-btn">清空全部</button>
+        <button class="btn danger" id="batch-del-btn">批量删除</button>
+        <span id="sel-count" style="color:var(--muted);font-size:13px;margin-left:4px"></span>
+      </div>
+
+      <div class="panel" style="padding:0;overflow:auto">
+        <table class="data">
+          <thead>
+            <tr><th style="width:42px"><input type="checkbox" id="check-all"></th><th>车牌</th><th>渠道</th><th>结果</th><th>置信度</th><th>已识别图片</th><th>时间</th><th>操作</th></tr>
+          </thead>
+          <tbody id="list"></tbody>
+        </table>
+        <div id="empty" class="empty" style="display:none">暂无记录</div>
+      </div>
+
+      <div class="pager" id="pager"></div>
+    </div>
+    <div class="page-footer" id="site-footer-text"></div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script src="js/logs.js"></script>
+  <script>
+    (async () => {
+      if (!(await checkAuth())) { location.replace('login.html'); return; }
+      initLogs();
+    })();
+  </script>
+</body>
+</html>

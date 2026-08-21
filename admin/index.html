@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QMLPARS 管理后台</title>
+  <link rel="stylesheet" href="css/base.css">
+</head>
+<body style="overflow:hidden">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">车牌识别后台<small>QMLPARS Admin</small></div>
+      <nav id="menu">
+        <a data-page="dashboard.html"><svg class="nav-ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>数据大屏</a>
+        <a data-page="vehicles.html"><svg class="nav-ic" viewBox="0 0 24 24"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11"/><path d="M3 11h18v5a1 1 0 0 1-1 1h-1v2h-3v-2H8v2H5v-2H4a1 1 0 0 1-1-1v-5z"/><circle cx="7.5" cy="16" r="1"/><circle cx="16.5" cy="16" r="1"/></svg>车辆管理</a>
+        <a data-page="logs.html"><svg class="nav-ic" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>识别记录</a>
+        <a data-page="ocr.html"><svg class="nav-ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>OCR 配置</a>
+        <a data-page="settings.html"><svg class="nav-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>系统设置</a>
+        <a data-page="about.html"><svg class="nav-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/></svg>关于系统</a>
+      </nav>
+      <div class="foot">
+        <div class="version" id="version-info">版本号：26.08.20.08</div>
+      </div>
+    </aside>
+
+    <div class="main-col">
+      <div class="topbar">
+        <span id="page-title">数据大屏</span>
+        <div class="tb-right">
+          <span class="time-now" id="time-now">--</span>
+          <div class="user-dropdown" id="user-dd">
+            <button class="tb-user" id="tb-user">管理员</button>
+            <div class="user-menu" id="user-menu">
+              <a id="menu-chg-pass">修改密码</a>
+              <a id="menu-logout">退出登录</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <iframe class="frame" id="frame" src="dashboard.html"></iframe>
+    </div>
+  </div>
+
+  <!-- 修改密码弹窗 -->
+  <div class="modal-mask" id="pass-modal">
+    <div class="modal">
+      <div class="modal-head">修改密码<span class="x" id="pass-close">×</span></div>
+      <div class="modal-body">
+        <div class="form-row"><label>旧密码</label><input id="pass-old" type="password" placeholder="当前管理密码"></div>
+        <div class="form-row"><label>新密码（至少6位）</label><input id="pass-new" type="password" placeholder="新密码"></div>
+        <div class="form-row"><label>确认新密码</label><input id="pass-confirm" type="password" placeholder="再次输入新密码"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="pass-cancel">取消</button>
+        <button class="btn primary" id="pass-save">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script>
+    (async () => {
+      if (!(await checkAuth())) { location.replace('login.html'); return; }
+      // 注意：checkAuth() 已自动把 #tb-user 填充为"当前登录用户：xxx"
+
+      // 时钟
+      const pad = n => String(n).padStart(2, '0');
+      const tick = () => {
+        const d = new Date();
+        const el = document.getElementById('time-now');
+        if (el) el.textContent = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+      };
+      tick(); setInterval(tick, 1000);
+
+      // 菜单切换
+      const frame = document.getElementById('frame');
+      const titleEl = document.getElementById('page-title');
+      const links = document.querySelectorAll('#menu a');
+      function activate(a) {
+        links.forEach(x => x.classList.toggle('active', x === a));
+        const page = a.dataset.page;
+        frame.src = page;
+        if (titleEl) titleEl.textContent = a.textContent.trim();
+      }
+      links.forEach(a => a.addEventListener('click', () => activate(a)));
+      // 默认高亮第一项
+      if (links.length) links[0].classList.add('active');
+
+      // 退出登录
+      const doLogoutFn = () => {
+        const tk = getToken();
+        if (tk) fetch(API + '/api/admin/logout', { method: 'POST', headers: authHeaders() }).catch(() => {});
+        setToken('');
+        localStorage.removeItem('qmlpars_admin_user');
+        location.href = 'login.html';
+      };
+
+      // 用户下拉菜单
+      const dd = document.getElementById('user-dd');
+      const menu = document.getElementById('user-menu');
+      const tbUser = document.getElementById('tb-user');
+      tbUser.addEventListener('click', e => {
+        e.stopPropagation();
+        menu.classList.toggle('show');
+      });
+      document.addEventListener('click', e => {
+        if (dd && !dd.contains(e.target)) menu.classList.remove('show');
+      });
+      document.getElementById('menu-logout').addEventListener('click', () => { menu.classList.remove('show'); doLogoutFn(); });
+
+      // 修改密码弹窗
+      const passModal = document.getElementById('pass-modal');
+      document.getElementById('menu-chg-pass').addEventListener('click', () => {
+        menu.classList.remove('show');
+        passModal.classList.add('show');
+        document.getElementById('pass-old').value = '';
+        document.getElementById('pass-new').value = '';
+        document.getElementById('pass-confirm').value = '';
+        document.getElementById('pass-old').focus();
+      });
+      document.getElementById('pass-cancel').addEventListener('click', () => passModal.classList.remove('show'));
+      document.getElementById('pass-close').addEventListener('click', () => passModal.classList.remove('show'));
+      passModal.addEventListener('click', e => { if (e.target === passModal) passModal.classList.remove('show'); });
+
+      async function submitChangePass() {
+        const oldPass = document.getElementById('pass-old').value;
+        const newPass = document.getElementById('pass-new').value;
+        const confirm = document.getElementById('pass-confirm').value;
+        if (!oldPass) { toast('请输入旧密码'); return; }
+        if (!newPass || newPass.length < 6) { toast('新密码至少6位'); return; }
+        if (newPass !== confirm) { toast('两次输入的新密码不一致'); return; }
+        const btn = document.getElementById('pass-save');
+        btn.disabled = true; btn.textContent = '保存中…';
+        try {
+          const r = await api('/api/admin/change-password', { method: 'POST', body: JSON.stringify({ oldPassword: oldPass, newPassword: newPass }) });
+          if (!r.success) throw new Error(r.message || '修改失败');
+          toast('密码已修改，请重新登录');
+          passModal.classList.remove('show');
+          setTimeout(doLogoutFn, 1200);
+        } catch (e) {
+          toast('修改失败：' + e.message);
+        } finally {
+          btn.disabled = false; btn.textContent = '保存';
+        }
+      }
+      document.getElementById('pass-save').addEventListener('click', submitChangePass);
+    })();
+  </script>
+</body>
+</html>

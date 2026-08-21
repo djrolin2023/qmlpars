@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>系统设置 - QMLPARS 管理后台</title>
+  <link rel="stylesheet" href="css/base.css">
+</head>
+<body class="embed">
+  <div class="main">
+    <div class="content">
+      <nav class="crumb" id="crumb"></nav>
+
+      <div class="panel">
+        <h3>备案信息</h3>
+        <div class="form-row">
+          <label>公司名称</label>
+          <input id="COMPANY_NAME" placeholder="如：丰顺校区物业">
+        </div>
+        <div class="form-row">
+          <label>ICP 备案号</label>
+          <input id="ICP_NO" placeholder="如：粤ICP备XXXXXXXX号">
+        </div>
+        <div class="form-row">
+          <label>公安备案号</label>
+          <input id="POLICE_NO" placeholder="如：粤公网安备XXXXXXXX号">
+        </div>
+        <button class="btn primary" id="save-info">保存备案信息</button>
+      </div>
+
+      <div class="panel">
+        <h3>站点图片（点击 / 拖拽 / 粘贴上传）</h3>
+        <div class="set-grid">
+          <div class="set-card">
+            <label>站点 LOGO</label>
+            <div class="photo-box">
+              <input type="file" accept="image/*" hidden data-file>
+              <div class="photo-placeholder" data-empty>
+                <div class="photo-plus">+</div>
+                <div class="photo-tip">点击或拖拽上传</div>
+              </div>
+              <div class="photo-loading" data-loading style="display:none">上传中…</div>
+              <div class="photo-done" data-done style="display:none">
+                <img data-img alt="">
+                <button type="button" class="photo-remove" data-remove>×</button>
+              </div>
+            </div>
+            <input type="text" data-key="LOGO_URL" placeholder="图片地址">
+          </div>
+          <div class="set-card">
+            <label>网站图标 favicon</label>
+            <div class="photo-box">
+              <input type="file" accept="image/*" hidden data-file>
+              <div class="photo-placeholder" data-empty>
+                <div class="photo-plus">+</div>
+                <div class="photo-tip">点击或拖拽上传</div>
+              </div>
+              <div class="photo-loading" data-loading style="display:none">上传中…</div>
+              <div class="photo-done" data-done style="display:none">
+                <img data-img alt="">
+                <button type="button" class="photo-remove" data-remove>×</button>
+              </div>
+            </div>
+            <input type="text" data-key="FAVICON_URL" placeholder="图片地址">
+          </div>
+        </div>
+        <button class="btn primary" id="save-img" style="margin-top:14px">保存图片设置</button>
+      </div>
+    </div>
+    <div class="page-footer" id="site-footer-text"></div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script src="js/settings.js"></script>
+  <script>
+    (async () => {
+      if (!(await checkAuth())) { location.replace('login.html'); return; }
+      initSettings();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>关于系统 - QMLPARS 管理后台</title>
+  <link rel="stylesheet" href="css/base.css">
+</head>
+<body class="embed">
+  <div class="main">
+    <div class="about-wrap">
+      <div class="about-brand">车牌识别后台<small>QMLPARS Admin</small></div>
+      <p class="about-desc">
+        基于车牌图像自动识别的车辆出入管理系统，提供车辆信息录入、有效期管理、
+        识别记录追溯、OCR 通道配置与多部门协同管理能力，适用于园区、社区、单位的智能化车辆管控场景。
+      </p>
+
+      <div class="panel about-panel">
+        <div class="about-section-title">系统信息</div>
+        <div class="about-grid">
+          <div class="about-item"><span class="about-k">系统版本</span><span class="about-v" id="about-version">—</span></div>
+          <div class="about-item"><span class="about-k">前端框架</span><span class="about-v">原生 HTML / CSS / JavaScript</span></div>
+          <div class="about-item"><span class="about-k">后端服务</span><span class="about-v">Node.js + Express</span></div>
+          <div class="about-item"><span class="about-k">数据存储</span><span class="about-v">SQLite（轻量嵌入式）</span></div>
+          <div class="about-item"><span class="about-k">识别能力</span><span class="about-v">百度 / 腾讯 OCR 通道</span></div>
+          <div class="about-item"><span class="about-k">部署方式</span><span class="about-v">单机服务 / 内网运行</span></div>
+          <div class="about-item"><span class="about-k">开源协议</span><span class="about-v">AGPL-3.0</span></div>
+          <div class="about-item"><span class="about-k">项目仓库</span><span class="about-v"><a href="https://github.com/djrolin2023/qmlpars" target="_blank" rel="noopener">github.com/djrolin2023/qmlpars</a></span></div>
+        </div>
+      </div>
+
+      <div class="panel about-panel">
+        <div class="about-section-title">核心功能</div>
+        <div class="about-feats">
+          <div class="about-feat"><b>车辆管理</b><span>批量录入、部门归类、有效期与到期提醒</span></div>
+          <div class="about-feat"><b>照片识别</b><span>上传车辆照片自动识别车牌，支持点击 / 拖拽 / 粘贴</span></div>
+          <div class="about-feat"><b>识别记录</b><span>完整记录出入识别明细，支持检索与导出</span></div>
+          <div class="about-feat"><b>OCR 配置</b><span>灵活切换百度 / 腾讯识别通道与参数</span></div>
+          <div class="about-feat"><b>部门权限</b><span>按部门标签管理车辆，支持多部门归属</span></div>
+          <div class="about-feat"><b>系统设置</b><span>站点信息、LOGO 与基础参数集中配置</span></div>
+        </div>
+      </div>
+
+      <div class="about-foot">
+      <div id="about-copyright">© QMLPARS 车牌识别系统 · 基于 AGPL-3.0 开源</div>
+      <div class="muted" id="about-extra">技术支持：请联系系统管理员 · 当前版本 26.08.20.08</div>
+      <div class="muted" style="margin-top:6px">
+      <a href="https://github.com/djrolin2023/qmlpars" target="_blank" rel="noopener">GitHub 仓库 ↗</a>
+      </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script>
+    (async () => {
+      if (!(await checkAuth())) { location.replace('login.html'); return; }
+      const ver = document.getElementById('about-version');
+      if (ver) ver.textContent = '26.08.20.08';
+    })();
+  </script>
+</body>
+</html>
