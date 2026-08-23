@@ -188,14 +188,19 @@ install_android_chain() {
     fi
     rm -rf "$TMP_SDK"
   fi
-  if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" ]; then
+  if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" ] && [ -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
     export ANDROID_SDK_ROOT
     export ANDROID_HOME=$ANDROID_SDK_ROOT
     # sdkmanager 依赖 java，确保 JAVA_HOME/bin 在 PATH 中
     [ -n "$JAVA_HOME" ] && export PATH="$JAVA_HOME/bin:$PATH"
     yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
-    "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-34" "build-tools;34.0.0" >/dev/null 2>&1 \
-      && echo "SDK 组件安装完成" || echo "WARN: SDK 组件安装失败"
+    if "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-34" "build-tools;34.0.0" >/dev/null 2>&1; then
+      echo "SDK 组件安装完成"
+    else
+      echo "WARN: SDK 组件安装失败（APP 打包将不可用，但服务不受影响）"
+    fi
+  else
+    echo "WARN: 未找到 sdkmanager，跳过 SDK 组件安装（APP 打包将不可用）"
   fi
 
   # 固化构建环境变量（兼容群晖：/etc/profile.d 可能不存在）
@@ -455,20 +460,46 @@ else
     echo "    !! 该源下载失败，尝试下一个源..."
   done
   if [ "$DL_OK" -ne 1 ]; then
-    echo "!! 安装包下载失败（github / gitee 均不可达），请检查网络后重试。"
-    exit 1
+    echo "!! 安装包（Release tar）下载失败，自动回退到 git clone 源码..."
+    # 回退：直接从 GitHub / Gitee 克隆源码到安装目录（无需预打包 tar）
+    GIT_OK=0
+    rm -rf "$HOME_DIR"
+    mkdir -p "$HOME_DIR"
+    for GIT_URL in "https://github.com/djrolin2023/qmlpars.git" "https://gitee.com/dj_rolin/qmlpars.git"; do
+      echo "==> 尝试 git clone 源码： $GIT_URL"
+      if command -v git >/dev/null 2>&1; then
+        if git clone --depth 1 "$GIT_URL" "$HOME_DIR" 2>/dev/null; then
+          GIT_OK=1
+          # 把 clone 下来的仓库内容作为源码根（仓库根即项目根）
+          SRC_DIR="$HOME_DIR"
+          break
+        fi
+      else
+        echo "    !! 未检测到 git 命令，无法 clone 源码"
+      fi
+      echo "    !! 该源克隆失败，尝试下一个源..."
+    done
+    if [ "$GIT_OK" -ne 1 ]; then
+      echo "!! 安装包下载与 git clone 均失败（github / gitee 均不可达），请检查网络后重试。"
+      echo "   也可手动 clone 后进入目录执行： bash install.sh"
+      exit 1
+    fi
+    echo "==> 已从源码仓库克隆成功，跳过 tar 解压"
+  else
+    rm -rf "$HOME_DIR"
+    mkdir -p "$HOME_DIR"
+    tar xzf "$TMP_PKG" -C "$HOME_DIR"
+    SRC_DIR="$HOME_DIR"
+    rm -f "$TMP_PKG"
   fi
-  rm -rf "$HOME_DIR"
-  mkdir -p "$HOME_DIR"
-  tar xzf "$TMP_PKG" -C "$HOME_DIR"
-  SRC_DIR="$HOME_DIR"
-  rm -f "$TMP_PKG"
 fi
 step_done "解压安装包到 $HOME_DIR"
 
 # 修正权限
 chmod 755 "$SRC_DIR" 2>/dev/null || true
 chmod 644 "$SRC_DIR/.env.example" 2>/dev/null || true
+# 确保运行时目录存在（git clone 的仓库不含 data/ uploads/）
+mkdir -p "$SRC_DIR/data" "$SRC_DIR/uploads/assets" 2>/dev/null || true
 chmod -R u+rwX,g+rX,o+rX "$SRC_DIR/data" "$SRC_DIR/uploads" "$SRC_DIR/uploads/assets" 2>/dev/null || true
 chmod -R u+rwX,g+rX,o+rX "$SRC_DIR"/*.js "$SRC_DIR"/*.json "$SRC_DIR"/start.sh "$SRC_DIR"/install.sh "$SRC_DIR"/qm 2>/dev/null || true
 
