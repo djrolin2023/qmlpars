@@ -323,6 +323,29 @@ configure_mirror
 step_done "配置国内软件源（清华 / 阿里云）"
 
 ###########################################################
+# 阶段 1.5：确保 git 可用（后续 git clone 回退依赖 git）
+###########################################################
+ensure_git() {
+  if command -v git >/dev/null 2>&1; then
+    echo "git 已就绪: $(git --version 2>/dev/null | head -1)"
+    return 0
+  fi
+  echo "==> 未检测到 git，尝试安装..."
+  if [ "$PKG_INSTALL" = "apt-get install -y" ] || [ "$PKG_INSTALL" = "apt install -y" ]; then
+    apt-get update >/dev/null 2>&1 || true
+  fi
+  if $PKG_INSTALL git >/dev/null 2>&1; then
+    echo "git 安装完成: $(git --version 2>/dev/null | head -1)"
+    return 0
+  fi
+  echo "WARN: git 安装失败，若后续需要 git clone 回退将不可用（可手动安装 git 后重试）"
+  return 1
+}
+step_start "确保 git 可用"
+ensure_git
+step_done "确保 git 可用"
+
+###########################################################
 # 阶段 2/11：交互设置（域名 / 安装目录 / 端口 / 管理员密码）
 # 功能    ：安装前收集部署参数，密码以 * 号回显、二次确认；
 #           迁移模式（install_data.sh）会从包内 .env 读取原配置作为默认值
