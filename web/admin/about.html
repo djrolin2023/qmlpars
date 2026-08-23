@@ -30,6 +30,11 @@
         </div>
       </div>
 
+      <div class="panel about-panel" id="changelogPanel" style="display:none;">
+        <div class="about-section-title">更新日志</div>
+        <div class="changelog-list" id="changelogList"></div>
+      </div>
+
       <div class="panel about-panel">
         <div class="about-section-title">开源仓库</div>
         <div class="repo-row">
@@ -115,15 +120,28 @@ git clone https://gitee.com/dj_rolin/qmlpars.git</pre>
       const brand = document.getElementById('aboutBrand');
       if (brand) brand.textContent = siteName;
 
+      let versionJson = null;
       const ver = document.getElementById('about-version');
       if (ver) {
         try {
           const r = await fetch('/version.json', { cache: 'no-store' });
           const j = await r.json();
+          versionJson = j;
           ver.textContent = j.version || '未知';
         } catch (e) {
           ver.textContent = '未知';
         }
+      }
+
+      // 渲染更新日志
+      const clPanel = document.getElementById('changelogPanel');
+      const clList = document.getElementById('changelogList');
+      if (clPanel && clList && versionJson && Array.isArray(versionJson.changelog) && versionJson.changelog.length) {
+        clList.innerHTML = versionJson.changelog.map(item => {
+          const changes = (Array.isArray(item.changes) ? item.changes : [String(item.changes || '')]).map(c => '<li>' + c + '</li>').join('');
+          return '<div class="changelog-item"><div class="changelog-h"><b>v' + (item.version || '') + '</b><span>' + (item.date || '') + '</span></div><ul>' + changes + '</ul></div>';
+        }).join('');
+        clPanel.style.display = 'block';
       }
       // 动态品牌 LOGO（竖>横>纯图标>默认 logo.png）
       applyBrandLogo(document.getElementById('aboutLogo'), 'icon');

@@ -133,8 +133,27 @@
       if (!versionEl) return
       fetch(API + '/version.json', { cache: 'no-store' })
         .then(r => r.ok ? r.json() : null)
-        .then(j => { if (j && j.version) versionEl.textContent = '版本号：' + j.version })
-        .catch(() => { versionEl.textContent = '版本号：未知' })
+        .then(j => {
+          if (j && j.version) {
+            versionEl.textContent = '版本号：' + j.version
+            if (upCurrent) upCurrent.textContent = j.version
+            // 未检查到远程更新时，弹窗里展示本地当前版本的更新日志
+            if (upNotes && upResult && upResult.style.display !== 'block') {
+              const item = (j.changelog || []).find(x => x && x.version === j.version)
+              if (item && Array.isArray(item.changes) && item.changes.length) {
+                upNotes.innerHTML = '<div class="up-notes-title">本版本更新内容</div><ul>' +
+                  item.changes.map(c => '<li>' + c + '</li>').join('') + '</ul>'
+              }
+            }
+          } else {
+            versionEl.textContent = '版本号：未知'
+            if (upCurrent) upCurrent.textContent = '未知'
+          }
+        })
+        .catch(() => {
+          versionEl.textContent = '版本号：未知'
+          if (upCurrent) upCurrent.textContent = '未知'
+        })
     }
     showLocalVersion()
 

@@ -1,6 +1,20 @@
 {
   "version": "1.0.0",
   "updatedAt": "2026-08-24",
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-08-24",
+      "changes": [
+        "APP 打包：默认图标改为 app.png，默认开屏改为 splash.png；配置概览同步默认缩略图与文案",
+        "APP 下载落地页：默认图标改为 app.png；无安装包时二维码仍展示并指向落地页",
+        "APP 打包页：服务器地址自动获取当前访问域名；默认图标/开屏悬停显示缩略图",
+        "install.sh：自动安装 libvips 等系统依赖，npm 安装失败自动重试并校验关键依赖；修复重复 -y 与阶段总数",
+        "系统版本：采用 SemVer 三段式 1.0.0，后台版本校验同步为三段式规范",
+        "后台升级：修复版本更新弹窗「当前版本」显示为空的问题"
+      ]
+    }
+  ],
   "repo": {
     "github": "https://github.com/djrolin2023/qmlpars.git",
     "gitee": "https://gitee.com/dj_rolin/qmlpars.git"
