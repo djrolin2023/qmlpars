@@ -178,6 +178,28 @@
     .console { margin-top:22px; background:#0b1120; border:1px solid #1e293b; border-radius:11px; padding:14px 16px;
       font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; line-height:1.7; color:#94f0c5; height:230px; overflow-y:auto; white-space:pre-wrap; display:none; }
     .console.show { display:block; }
+
+    /* 构建进度模态框 */
+    .build-modal { position:fixed; z-index:1000; left:50%; top:50%; transform:translate(-50%,-50%);
+      width:min(640px,92vw); max-height:84vh; display:flex; flex-direction:column; background:#0f172a;
+      border:1px solid rgba(120,200,255,.28); border-radius:14px; box-shadow:0 24px 70px rgba(0,0,0,.55); overflow:hidden; }
+    .build-modal.min { transform:translate(0,0); left:auto; top:auto; right:18px; bottom:18px; width:340px; max-height:none; }
+    .build-modal-header { display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:11px 14px; background:#111c30; border-bottom:1px solid rgba(120,200,255,.16); cursor:default; }
+    .bm-title { font-size:14.5px; font-weight:600; color:#e2e8f0; white-space:nowrap; }
+    .bm-actions { display:flex; align-items:center; gap:8px; }
+    .bm-btn { width:26px; height:26px; border-radius:7px; border:1px solid rgba(120,200,255,.28); background:rgba(120,200,255,.08);
+      color:#cbd5e1; font-size:15px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .bm-btn:hover { background:rgba(120,200,255,.2); color:#fff; }
+    .build-modal-body { padding:16px 18px 18px; overflow-y:auto; }
+    .build-modal.min .build-modal-body .console { height:0; padding-top:0; padding-bottom:0; margin-top:0; border:0; display:none; }
+
+    /* 最小化后的悬浮条 */
+    .build-mini { position:fixed; z-index:1000; right:18px; bottom:18px; display:flex; align-items:center; gap:12px;
+      padding:10px 14px; background:#0f172a; border:1px solid rgba(120,200,255,.28); border-radius:30px;
+      box-shadow:0 14px 40px rgba(0,0,0,.5); }
+    .build-mini .bm-title { font-size:13.5px; }
+    .build-mini b { color:#38bdf8; margin-left:4px; font-variant-numeric:tabular-nums; }
   </style>
 </head>
 <body>
@@ -195,11 +217,9 @@
     <!-- 自动保存提示（右上角，3 秒后自动消失） -->
     <div class="toast" id="saveToast">✓ 配置已自动保存</div>
 
-    <!-- 顶部操作条：手动保存 + 构建状态/下载 -->
+    <!-- 顶部操作条：手动保存 -->
     <div class="topbar">
       <button class="btn ghost" id="saveCfgBtn">💾 保存配置</button>
-      <span class="status-pill" id="statusPill"></span>
-      <a class="dl-link" id="dlLink" href="#" target="_blank">下载 APK ↓</a>
     </div>
 
     <div class="layout">
@@ -414,14 +434,6 @@
             <button class="btn ghost" data-prev>← 上一步</button>
             <button class="btn primary" id="buildBtn">🚀 开始打包</button>
           </div>
-          <div class="progress-wrap" id="progressWrap">
-            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-            <div class="progress-meta">
-              <span id="progressPhase">构建中…</span>
-              <span class="progress-pct"><span id="progressPct">0</span>%</span>
-            </div>
-          </div>
-          <div class="console" id="console"></div>
         </div>
 
         <!-- 历史安装包（独立入口，不属向导步骤） -->
@@ -433,6 +445,35 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- 构建进度模态框（打包时弹出，可最小化/还原，刷新或切页不中断） -->
+  <div class="build-modal" id="buildModal" style="display:none">
+    <div class="build-modal-header" id="buildModalHeader">
+      <span class="bm-title">📦 正在打包 APP</span>
+      <span class="bm-actions">
+        <span class="status-pill" id="statusPill"></span>
+        <button class="bm-btn" id="buildMinBtn" title="最小化">－</button>
+        <button class="bm-btn" id="buildCloseBtn" title="关闭窗口（打包仍在后台继续）">✕</button>
+      </span>
+    </div>
+    <div class="build-modal-body">
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-meta">
+          <span id="progressPhase">构建中…</span>
+          <span class="progress-pct"><span id="progressPct">0</span>%</span>
+        </div>
+      </div>
+      <a class="dl-link" id="dlLink" href="#" target="_blank">下载 APK ↓</a>
+      <div class="console" id="console"></div>
+    </div>
+  </div>
+
+  <!-- 最小化后的悬浮条 -->
+  <div class="build-mini" id="buildMini" style="display:none">
+    <span class="bm-title">📦 打包中 <b id="miniPct">0%</b></span>
+    <button class="bm-btn" id="buildMiniBtn">还原</button>
   </div>
 
   <script src="js/common.js"></script>
@@ -749,6 +790,48 @@
         return '构建中…'
       }
 
+      // —— 构建模态框控制（可最小化/还原，刷新或切页不中断）——
+      const buildModal = $('buildModal'), buildMini = $('buildMini')
+      const miniPct = $('miniPct')
+      function ensureModalOpen() {
+        buildModal.style.display = 'flex'
+        buildMini.style.display = 'none'
+        buildModal.classList.remove('min')
+        progressWrap.classList.add('show')
+        consoleEl.classList.add('show')
+      }
+      function minimizeBuild() {
+        buildModal.classList.add('min')
+        buildMini.style.display = 'flex'
+      }
+      function restoreBuild() {
+        buildModal.classList.remove('min')
+        buildMini.style.display = 'none'
+      }
+      $('buildMinBtn').addEventListener('click', minimizeBuild)
+      $('buildMiniBtn').addEventListener('click', restoreBuild)
+      // 关闭仅隐藏窗口，打包仍在后台继续；点最小化条可随时还原
+      $('buildCloseBtn').addEventListener('click', () => { buildModal.style.display = 'none' })
+      buildMini.addEventListener('click', (e) => { if (e.target === buildMini) restoreBuild() })
+
+      // 页面加载时恢复构建状态：若后端仍在构建，则自动弹出模态框并继续轮询
+      async function restoreBuildState() {
+        try {
+          const r = await fetch(API + '/api/admin/buildapp/status', { headers: authHeaders() }).then(r => r.json())
+          if (!r.success || !r.data) return
+          // 服务端正在构建，或最近一次构建尚未结束，均需恢复展示
+          if (r.data.building || (r.data.last && (r.data.last.status === 'building' || r.data.last.status === 'running'))) {
+            buildBtn.disabled = true
+            ensureModalOpen()
+            if (r.data.last) applyStatus(r.data.last, false)
+            pollStatus()
+          } else if (r.data.last && (r.data.last.status === 'success' || r.data.last.status === 'failed')) {
+            // 已完成（可能刷新发生在快完成时）：刷新安装包列表，不强制弹窗
+            loadApks()
+          }
+        } catch (_) {}
+      }
+
       buildBtn.addEventListener('click', async () => {
         const c = collectConfig()
         if (!c.appName) { alert('请填写应用名称'); return }
@@ -770,7 +853,7 @@
         if (keystoreInput.files[0]) fd.append('keystore', keystoreInput.files[0])
 
         buildBtn.disabled = true; dlLink.classList.remove('show'); consoleEl.textContent = ''
-        progressWrap.classList.add('show'); setProgressUI(0, '准备中…'); setStatus('running', '上传中…')
+        ensureModalOpen(); setProgressUI(0, '准备中…'); setStatus('running', '上传中…')
         const hasIcon = !!iconInput.files[0], hasSplash = !!splashInput.files[0], hasKeystore = !!keystoreInput.files[0]
         if (hasIcon) { iconProgress.classList.add('show'); iconProgressFill.classList.add('indeterminate') }
         if (hasSplash) { splashProgress.classList.add('show'); splashProgressFill.classList.add('indeterminate') }
@@ -789,7 +872,7 @@
           if (!r.data || !r.data.success) {
             setStatus('failed', '失败'); appendLog('错误：' + ((r.data && r.data.message) || '未知错误')); buildBtn.disabled = false; return
           }
-          appendLog('任务已接受，版本 ' + r.data.data.version + '，开始构建…'); setStatus('running', '构建中…'); pollStatus()
+          appendLog('任务已接受，版本 ' + r.data.data.version + '，开始构建…'); setStatus('running', '构建中…'); ensureModalOpen(); pollStatus()
         } catch (e) {
           setStatus('failed', '失败'); iconProgress.classList.remove('show'); splashProgress.classList.remove('show'); keystoreProgress.classList.remove('show')
           iconProgressFill.classList.remove('indeterminate'); splashProgressFill.classList.remove('indeterminate'); keystoreProgressFill.classList.remove('indeterminate')
@@ -797,30 +880,42 @@
         }
       })
 
+      // 将一次构建状态应用到 UI（used 表示是否来自轮询：true 时到达终态要停止轮询）
+      function applyStatus(last, used) {
+        if (last.logs) {
+          const shown = consoleEl.textContent.split('\n').filter(Boolean).length
+          last.logs.slice(shown).forEach(l => appendLog(l))
+        }
+        const pct = (last.progress != null) ? last.progress : (last.status === 'success' ? 100 : 0)
+        setProgressUI(pct, inferPhase(last.logs))
+        if (miniPct) miniPct.textContent = Math.max(0, Math.min(100, Math.round(pct || 0))) + '%'
+        if (last.status === 'success') {
+          if (used && polling) clearInterval(polling)
+          setProgressUI(100, '构建完成'); setStatus('success', '构建成功')
+          if (last.outName) { dlLink.href = API + '/api/admin/buildapp/download'; dlLink.classList.add('show') }
+          loadApks(); buildBtn.disabled = false
+        } else if (last.status === 'failed') {
+          if (used && polling) clearInterval(polling)
+          setStatus('failed', '失败'); appendLog('构建失败：' + (last.error || '')); buildBtn.disabled = false
+        }
+      }
+
       function pollStatus() {
         if (polling) clearInterval(polling)
         polling = setInterval(async () => {
           try {
             const r = await fetch(API + '/api/admin/buildapp/status', { headers: authHeaders() }).then(r => r.json())
             if (r.success && r.data.last) {
-              const last = r.data.last
-              if (last.logs) {
-                const shown = consoleEl.textContent.split('\n').filter(Boolean).length
-                last.logs.slice(shown).forEach(l => appendLog(l))
-              }
-              const pct = (last.progress != null) ? last.progress : (last.status === 'success' ? 100 : 0)
-              setProgressUI(pct, inferPhase(last.logs))
-              if (last.status === 'success') {
-                clearInterval(polling); setProgressUI(100, '构建完成'); setStatus('success', '构建成功')
-                if (last.outName) { dlLink.href = API + '/api/admin/buildapp/download'; dlLink.classList.add('show') }
-                loadApks(); buildBtn.disabled = false
-              } else if (last.status === 'failed') {
-                clearInterval(polling); setStatus('failed', '失败'); appendLog('构建失败：' + (last.error || '')); buildBtn.disabled = false
+              applyStatus(r.data.last, true)
+              // 终态后仍然确保窗口可见（避免恢复时误关闭）
+              if ((r.data.last.status === 'success' || r.data.last.status === 'failed') && buildModal.style.display === 'none') {
+                buildModal.style.display = 'flex'
               }
             }
           } catch (_) {}
         }, 1500)
       }
+      restoreBuildState()
 
       // 历史安装包列表
       function formatSize(n) {
