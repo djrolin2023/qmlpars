@@ -120,6 +120,7 @@
     .logo-tooltip { position:relative; cursor:pointer; }
     .logo-tooltip img { position:absolute; left:0; bottom:120%; width:120px; height:120px; object-fit:contain; border-radius:8px; background:#0b1120; border:1px solid rgba(120,200,255,.35); box-shadow:0 8px 24px rgba(0,0,0,.45); opacity:0; visibility:hidden; transform:translateY(6px); transition:opacity .18s, transform .18s, visibility .18s; z-index:10; }
     .logo-tooltip:hover img { opacity:1; visibility:visible; transform:translateY(0); }
+    .logo-tooltip.wide img { width:120px; height:180px; }
 
     /* 签名教程折叠块 */
     .tutorial { background:rgba(56,189,248,.05); border:1px solid rgba(120,200,255,.2); border-radius:11px; padding:12px 14px; }
@@ -277,7 +278,7 @@
               <div class="up-progress" id="splashProgress"><div class="up-progress-fill" id="splashProgressFill"></div><div class="up-progress-label" id="splashProgressLabel"></div></div>
             </div>
             <input type="file" id="splashInput" accept="image/*" hidden>
-            <div class="default-note">未上传时默认开屏：<b>logo3.png</b></div>
+            <div class="default-note">未上传时默认开屏：<span class="logo-tooltip wide"><b>logo3.png</b><img src="/static/images/logo3.png" alt="默认开屏预览"></span></div>
           </div>
           <div class="two-col">
             <div class="form-row">
