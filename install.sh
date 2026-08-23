@@ -235,19 +235,22 @@ install_android_chain() {
     fi
   fi
   if [ "$NEED_JDK17" = "1" ]; then
-    echo "==> 安装 JDK17 ..."
+    echo "==> 安装 JDK（Android Gradle 支持 17/21）..."
     case "$PKG_MGR" in
       apt)
         apt-get update >/dev/null 2>&1 || true
+        # 优先 17；较新发行版（如 Debian13）仅有 21，则回退 21
         if $PKG_INSTALL openjdk-17-jdk-headless 2>&1 | tail -5; then
-          echo "openjdk-17 安装完成"
+          echo "JDK 安装完成（openjdk-17）"
+        elif $PKG_INSTALL openjdk-21-jdk-headless 2>&1 | tail -5; then
+          echo "JDK 安装完成（openjdk-21）"
         elif $PKG_INSTALL openjdk-17-jre-headless 2>&1 | tail -5; then
-          echo "openjdk-17-jre 安装完成"
+          echo "JRE 安装完成（openjdk-17-jre）"
         else
-          echo "WARN: JDK17 安装失败，请手动安装： apt-get install -y openjdk-17-jdk-headless"
+          echo "WARN: JDK 安装失败，请手动安装： apt-get install -y openjdk-17-jdk-headless"
         fi ;;
-      dnf|yum) $PKG_INSTALL java-17-openjdk-devel && echo "JDK17 安装完成" || echo "WARN: JDK17 安装失败，请手动安装" ;;
-      zypper) $PKG_INSTALL java-17-openjdk-devel && echo "JDK17 安装完成" || echo "WARN: JDK17 安装失败，请手动安装" ;;
+      dnf|yum) $PKG_INSTALL java-17-openjdk-devel && echo "JDK 安装完成" || $PKG_INSTALL java-21-openjdk-devel && echo "JDK 安装完成（21）" || echo "WARN: JDK 安装失败，请手动安装" ;;
+      zypper) $PKG_INSTALL java-17-openjdk-devel && echo "JDK 安装完成" || echo "WARN: JDK 安装失败，请手动安装" ;;
       *) echo "WARN: 未知包管理器，请手动安装 JDK17" ;;
     esac
   fi
@@ -257,30 +260,75 @@ install_android_chain() {
   fi
   [ -n "$JAVA_HOME" ] && echo "==> JAVA_HOME=$JAVA_HOME"
 
-  # Android SDK 命令行工具
+  # Android SDK 命令行工具（command-line tools，含 sdkmanager）
   ANDROID_SDK_ROOT=/opt/android-sdk
-  if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" ]; then
-    echo "Android SDK 已存在，跳过下载"
+  SDK_ZIP_URL="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+  # 校验 sdkmanager 是否就绪（目录存在且可执行）
+  sdkmanager_ready() { [ -d "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" ] && [ -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; }
+  if sdkmanager_ready; then
+    echo "Android SDK command-line tools 已就绪，跳过下载"
   else
-    echo "==> 下载 Android SDK command-line tools ..."
+    echo "==> 下载 Android SDK command-line tools（约 150MB，网络慢会自动重试）..."
     mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
     TMP_SDK=$(mktemp -d)
-    if curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o "$TMP_SDK/sdk.zip"; then
-      cd "$TMP_SDK" && unzip -q sdk.zip && mv cmdline-tools "$ANDROID_SDK_ROOT/cmdline-tools/latest" && cd "$SRC_DIR"
-      echo "Android SDK 下载完成"
+    OK=0
+    for try in 1 2 3; do
+      echo "  尝试 $try/3 下载..."
+      # 用 --retry 重试；-C - 断点续传；至少 80MB 才算成功（防截断）
+      if curl -fL --retry 3 --retry-delay 3 -C - --connect-timeout 30 -o "$TMP_SDK/sdk.zip" "$SDK_ZIP_URL" 2>&1; then
+        SZ=$(stat -c%s "$TMP_SDK/sdk.zip" 2>/dev/null || echo 0)
+        if [ "$SZ" -ge 83886080 ]; then
+          echo "  下载完成，大小 ${SZ} 字节 ✓"
+          OK=1; break
+        else
+          echo "  WARN: 下载文件过小（${SZ} 字节），疑似不完整，重试"
+        fi
+      else
+        echo "  WARN: 第 $try 次下载失败，重试"
+      fi
+    done
+    if [ "$OK" = "1" ]; then
+      # 压缩包解压后顶层目录名为 cmdline-tools，需将其内容放到 .../cmdline-tools/latest
+      # 下（最终路径为 latest/bin/sdkmanager），避免 latest/cmdline-tools/... 嵌套
+      rm -rf "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+      mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+      if command -v unzip >/dev/null 2>&1; then
+        ( cd "$TMP_SDK" && unzip -q -o sdk.zip && mv cmdline-tools/* "$ANDROID_SDK_ROOT/cmdline-tools/latest/" )
+      else
+        # 无 unzip 时回退到 python3（绝大多数发行版自带）
+        python3 - <<PY
+import zipfile, os, shutil
+src='$TMP_SDK/sdk.zip'
+dst=os.path.join('$ANDROID_SDK_ROOT','cmdline-tools','latest')
+with zipfile.ZipFile(src) as z:
+    z.extractall(dst)
+# 去掉多余的一层 cmdline-tools 嵌套
+nested=os.path.join(dst,'cmdline-tools')
+if os.path.isdir(nested):
+    for name in os.listdir(nested):
+        shutil.move(os.path.join(nested,name), os.path.join(dst,name))
+    os.rmdir(nested)
+PY
+      fi
+      chmod +x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/"* 2>/dev/null || true
+      if sdkmanager_ready; then
+        echo "Android SDK command-line tools 安装完成 ✓"
+      else
+        echo "WARN: 解压后仍未找到 sdkmanager，安装可能不完整"
+      fi
     else
       echo "WARN: Android SDK 下载失败（需访问 dl.google.com），APP 打包功能将不可用"
     fi
     rm -rf "$TMP_SDK"
   fi
-  if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" ] && [ -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+  if sdkmanager_ready; then
     export ANDROID_SDK_ROOT
     export ANDROID_HOME=$ANDROID_SDK_ROOT
     # sdkmanager 依赖 java，确保 JAVA_HOME/bin 在 PATH 中
     [ -n "$JAVA_HOME" ] && export PATH="$JAVA_HOME/bin:$PATH"
     yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
     if "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-34" "build-tools;34.0.0" >/dev/null 2>&1; then
-      echo "SDK 组件安装完成"
+      echo "SDK 组件安装完成 ✓"
     else
       echo "WARN: SDK 组件安装失败（APP 打包将不可用，但服务不受影响）"
     fi
