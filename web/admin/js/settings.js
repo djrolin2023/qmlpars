@@ -1,16 +1,19 @@
-// 系统设置：备案信息 + 站点图片 + 修改密码
-const INFO_KEYS = ['COMPANY_NAME', 'ICP_NO', 'POLICE_NO'];
+// 系统设置：站点信息 + 备案信息 + 站点图片 + 修改密码
+const SITE_KEYS = ['COMPANY_NAME'];
+const ICP_KEYS = ['ICP_NO', 'POLICE_NO'];
+const INFO_KEYS = [...SITE_KEYS, ...ICP_KEYS];
 
 function initSettings() {
   loadInfo();
   loadImgGrid();
   initImgGrid();
 
+  document.getElementById('save-site').onclick = saveSite;
   document.getElementById('save-info').onclick = saveInfo;
   document.getElementById('save-img').onclick = saveImg;
 }
 
-// ---------- 备案信息 ----------
+// ---------- 站点信息 + 备案信息 ----------
 async function loadInfo() {
   try {
     const r = await api('/api/admin/settings');
@@ -24,22 +27,31 @@ async function loadInfo() {
   } catch (e) { toast('读取设置失败：' + e.message); }
 }
 
+async function saveSite() {
+  await saveKeys(SITE_KEYS, 'save-site', '保存站点信息');
+}
+
 async function saveInfo() {
+  await saveKeys(ICP_KEYS, 'save-info', '保存备案信息');
+}
+
+async function saveKeys(keys, btnId, btnText) {
   const body = {};
-  INFO_KEYS.forEach(key => {
+  keys.forEach(key => {
     const input = document.getElementById(key);
     if (input) body[key] = input.value.trim();
   });
-  const btn = document.getElementById('save-info');
+  const btn = document.getElementById(btnId);
   btn.disabled = true; btn.textContent = '保存中…';
   try {
     const r = await api('/api/admin/settings', { method: 'POST', body: JSON.stringify(body) });
     if (!r.success) throw new Error(r.message || '保存失败');
     toast(r.message || '保存成功');
+    await loadInfo(); // 保存后重新回填，确保各面板显示一致
   } catch (e) {
     toast('保存失败：' + e.message);
   } finally {
-    btn.disabled = false; btn.textContent = '保存备案信息';
+    btn.disabled = false; btn.textContent = btnText;
   }
 }
 

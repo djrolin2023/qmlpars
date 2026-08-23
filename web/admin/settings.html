@@ -12,11 +12,16 @@
       <nav class="crumb" id="crumb"></nav>
 
       <div class="panel">
-        <h3>备案信息</h3>
+        <h3>站点信息</h3>
         <div class="form-row">
           <label>公司名称</label>
           <input id="COMPANY_NAME" placeholder="如：乾明车牌识别系统 / XX公司">
         </div>
+        <button class="btn primary" id="save-site">保存站点信息</button>
+      </div>
+
+      <div class="panel">
+        <h3>备案信息</h3>
         <div class="form-row">
           <label>ICP 备案号</label>
           <input id="ICP_NO" placeholder="如：粤ICP备XXXXXXXX号">
@@ -77,7 +82,7 @@
                 <button type="button" class="photo-remove" data-remove>×</button>
               </div>
             </div>
-            <input type="text" data-key="LOGO_HORIZONTAL_URL" placeholder="图片地址">
+            <input type="hidden" data-key="LOGO_HORIZONTAL_URL">
           </div>
           <div class="set-card">
             <label>LOGO-竖版（上图标下公司名）</label>
