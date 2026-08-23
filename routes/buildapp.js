@@ -62,9 +62,17 @@ module.exports = function (ctx) {
   function isValidVersion(v) { return /^\d+(\.\d+){0,3}$/.test(String(v || '').trim()) }
 
   function haveAndroidSDK() {
+    // install.sh 将构建链固定安装到 /opt/android-sdk；后端由 systemd + env -i 启动，
+    // 进程可能拿不到 shell 层（profile.d）的变量，这里统一兜底默认路径，
+    // 与后台构建任务中的兜底逻辑保持一致
+    process.env.ANDROID_HOME = process.env.ANDROID_HOME || '/opt/android-sdk'
+    process.env.ANDROID_SDK_ROOT = process.env.ANDROID_SDK_ROOT || '/opt/android-sdk'
     const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT
     if (!sdk) return { ok: false, reason: '未设置 ANDROID_HOME / ANDROID_SDK_ROOT 环境变量' }
-    if (!fs.existsSync(sdk)) return { ok: false, reason: 'ANDROID_HOME 指向的目录不存在: ' + sdk }
+    if (!fs.existsSync(sdk)) return { ok: false, reason: 'Android SDK 目录不存在: ' + sdk + '，请先在有 Android SDK 的机器执行 install.sh 完成构建链安装' }
+    if (!fs.existsSync(path.join(sdk, 'cmdline-tools', 'latest', 'bin', 'sdkmanager'))) {
+      return { ok: false, reason: 'Android SDK 不完整（缺少 cmdline-tools/sdkmanager）: ' + sdk + '，请先执行 install.sh 完成构建链安装' }
+    }
     return { ok: true, sdk }
   }
 

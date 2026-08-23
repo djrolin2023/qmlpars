@@ -112,6 +112,83 @@ collect_system_info() {
 collect_system_info
 
 ###########################################################
+# 函数：inject_android_env_into_systemd —— 将安卓构建环境变量注入 systemd 单元
+# 说明：后端服务由 systemd 以 `env -i` 启动，env -i 会清空进程环境（包括
+#       EnvironmentFile / Environment 传入的变量），所以必须把这些变量显式
+#       写在 ExecStart 的 env -i 参数里才能对服务进程生效。幂等：重复执行
+#       install.sh 会先删除旧注入再写新值，不会叠加。
+inject_android_env_into_systemd() {
+  local sdk_root="$1" java_home="$2"
+  local UNIT=/etc/systemd/system/qmlpars.service
+  [ -d /etc/systemd/system ] || return 0
+  command -v systemctl >/dev/null 2>&1 || return 0
+  [ -f "$UNIT" ] || return 0
+  if ! grep -q '^ExecStart=.*env -i' "$UNIT"; then
+    echo "WARN: systemd 单元未使用 env -i 启动，跳过环境注入"
+    return 0
+  fi
+  # 1) 删除旧注入（幂等）
+  sed -i -E 's# (ANDROID_HOME=[^ ]* ANDROID_SDK_ROOT=[^ ]* JAVA_HOME=[^ ]*)##g' "$UNIT"
+  # 2) 在 env -i 的 HOME=... 之后插入新变量
+  if sed -i -E "s#^(ExecStart=/usr/bin/env -i PATH=[^ ]* HOME=[^ ]*) #\1 ANDROID_HOME=${sdk_root} ANDROID_SDK_ROOT=${sdk_root} JAVA_HOME=${java_home} #" "$UNIT"; then
+    systemctl daemon-reload
+    if systemctl is-active --quiet qmlpars 2>/dev/null; then
+      systemctl restart qmlpars 2>/dev/null || true
+      echo "==> 已重启 qmlpars 服务（安卓构建环境变量已注入 systemd 单元）"
+    else
+      echo "==> 已注入环境变量到 systemd 单元（服务当前未运行，启动时自动生效）"
+    fi
+  fi
+}
+
+###########################################################
+# 函数：android_chain_self_check —— 安卓构建链就绪自检
+# 说明：逐项检查 SDK / sdkmanager / 平台组件 / JDK17 / Node，输出中文诊断，
+#       便于定位后台「APP 打包」提示“构建环境未就绪”的原因。
+android_chain_self_check() {
+  echo ""
+  echo "==> 安卓构建链自检 ..."
+  local ok=1
+  local sdk_root="${ANDROID_SDK_ROOT:-/opt/android-sdk}"
+  local sdkmanager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+  if [ -d "$sdk_root" ]; then
+    echo "  ✓ Android SDK 目录: $sdk_root"
+  else
+    echo "  ✗ Android SDK 目录不存在: $sdk_root"; ok=0
+  fi
+  if [ -x "$sdkmanager" ]; then
+    echo "  ✓ sdkmanager: $sdkmanager"
+  else
+    echo "  ✗ sdkmanager 不存在（cmdline-tools 未安装或目录名不是 latest）"; ok=0
+  fi
+  local comp
+  for comp in platform-tools "platforms;android-34" "build-tools;34.0.0"; do
+    case "$comp" in
+      platform-tools)  [ -d "$sdk_root/platform-tools" ] && echo "  ✓ platform-tools" || { echo "  ✗ 缺少 platform-tools（可执行: sdkmanager \"$comp\"）"; ok=0; } ;;
+      'platforms;'*)   [ -d "$sdk_root/$comp" ] && echo "  ✓ $comp" || { echo "  ✗ 缺少 $comp（可执行: sdkmanager \"$comp\"）"; ok=0; } ;;
+      'build-tools;'*) [ -d "$sdk_root/$comp" ] && echo "  ✓ $comp" || { echo "  ✗ 缺少 $comp（可执行: sdkmanager \"$comp\"）"; ok=0; } ;;
+    esac
+  done
+  local jh="${JAVA_HOME:-/usr/lib/jvm/default-java}"
+  if [ -x "$jh/bin/java" ]; then
+    echo "  ✓ JAVA_HOME: $jh"
+  else
+    echo "  ✗ JAVA_HOME 无效（$jh 下没有 java，可尝试安装 openjdk-17-jdk）"; ok=0
+  fi
+  local node_major="$(node -v 2>/dev/null | sed 's/v//;s/\..*//')"
+  if [ -n "$node_major" ] && [ "$node_major" -ge 18 ]; then
+    echo "  ✓ Node.js $(node -v)（≥18）"
+  else
+    echo "  ✗ Node.js 版本过低或未安装（需 ≥18）"; ok=0
+  fi
+  if [ "$ok" -eq 1 ]; then
+    echo "  => 构建环境就绪 ✓，可在后台「APP 打包」页面直接打包"
+  else
+    echo "  => 构建环境未就绪 ✗，请根据上方 ✗ 提示修复后重新执行: bash install.sh --android-only"
+  fi
+}
+
+###########################################################
 # 函数：install_android_chain —— 安卓构建链（Node≥18 + JDK17 + Android SDK）
 # 用于管理后台「APP 打包」离线生成 APK。
 #   硬性要求：
@@ -225,6 +302,22 @@ EOF
   else
     echo "WARN: 无法写入 $PROFILE_DIR，请在构建前手动 export JAVA_HOME/ANDROID_SDK_ROOT"
   fi
+
+  # 后端由 systemd + env -i 启动：env -i 会清空进程环境（含 EnvironmentFile），
+  # 因此必须把变量显式注入 systemd 单元的 ExecStart 参数；同时固化一份
+  # /etc/qmlpars-android.env 供人工排查 / 手动启动时 source
+  ANDROID_JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/default-java}"
+  cat > /etc/qmlpars-android.env <<EOF
+ANDROID_HOME=$ANDROID_SDK_ROOT
+ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT
+JAVA_HOME=$ANDROID_JAVA_HOME
+EOF
+  chmod 644 /etc/qmlpars-android.env
+  echo "==> 构建环境变量已固化到 /etc/qmlpars-android.env"
+  inject_android_env_into_systemd "$ANDROID_SDK_ROOT" "$ANDROID_JAVA_HOME"
+
+  # 构建链就绪自检（输出中文诊断）
+  android_chain_self_check
 
   # 安装 android-app 工程依赖并补全原生工程
   if [ -d "$SRC_DIR/android-app" ]; then
