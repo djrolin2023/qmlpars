@@ -121,6 +121,9 @@
     .logo-tooltip img { position:absolute; left:0; bottom:120%; width:120px; height:120px; object-fit:contain; border-radius:8px; background:#0b1120; border:1px solid rgba(120,200,255,.35); box-shadow:0 8px 24px rgba(0,0,0,.45); opacity:0; visibility:hidden; transform:translateY(6px); transition:opacity .18s, transform .18s, visibility .18s; z-index:10; }
     .logo-tooltip:hover img { opacity:1; visibility:visible; transform:translateY(0); }
     .logo-tooltip.wide img { width:120px; height:180px; }
+    /* 概览卡片中的小缩略图需保持行内，避免被浮层样式定位飞走 */
+    .logo-tooltip img.sum-thumb { position:static; }
+    .logo-tooltip img.sum-thumb-wide { position:static; }
 
     /* 签名教程折叠块 */
     .tutorial { background:rgba(56,189,248,.05); border:1px solid rgba(120,200,255,.2); border-radius:11px; padding:12px 14px; }
@@ -268,7 +271,7 @@
         <!-- 步骤 3：启动界面 -->
         <div class="panel" data-panel="splash">
           <h3>启动界面配置</h3>
-          <div class="panel-sub">开屏图与启动参数（未上传则使用默认 logo3.png）</div>
+          <div class="panel-sub">开屏图与启动参数（未上传则使用默认 splash.png）</div>
           <div class="form-row">
             <div class="upload-zone" id="splashZone">
               <img id="splashPreview" class="preview-img" alt="">
@@ -622,7 +625,8 @@
         mediaCards.push(
           '<div class="sum-row sum-media"><span class="sk">APP 图标</span>' +
           '<span class="sv media">' +
-          (hasIcon ? '<img class="sum-thumb" src="' + iconSrc + '" alt="APP 图标">' : '<span class="muted">未上传（使用默认 logo3.png）</span>') +
+          (hasIcon ? '<img class="sum-thumb" src="' + iconSrc + '" alt="APP 图标">' :
+            '<span class="logo-tooltip"><img class="sum-thumb" src="/static/images/app.png" alt="默认APP图标"><b class="fname">app.png</b><img src="/static/images/app.png" alt="默认APP图标预览"></span>') +
           (iconNameTxt ? '<span class="fname">' + escapeHtml(iconNameTxt) + '</span>' : '') +
           '</span></div>'
         )
@@ -633,7 +637,8 @@
         mediaCards.push(
           '<div class="sum-row sum-media"><span class="sk">开屏图</span>' +
           '<span class="sv media">' +
-          (hasSplash ? '<img class="sum-thumb sum-thumb-wide" src="' + splashSrc + '" alt="开屏图">' : '<span class="muted">未上传（使用默认 splash.png）</span>') +
+          (hasSplash ? '<img class="sum-thumb sum-thumb-wide" src="' + splashSrc + '" alt="开屏图">' :
+            '<span class="logo-tooltip wide"><img class="sum-thumb sum-thumb-wide" src="/static/images/splash.png" alt="默认开屏图"><b class="fname">splash.png</b><img src="/static/images/splash.png" alt="默认开屏图预览"></span>') +
           (splashNameTxt ? '<span class="fname">' + escapeHtml(splashNameTxt) + '</span>' : '') +
           '</span></div>'
         )
