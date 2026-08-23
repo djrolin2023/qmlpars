@@ -463,6 +463,8 @@
       }))
 
       const appName = $('appName'), appId = $('appId'), serverUrl = $('serverUrl')
+      // 服务器地址默认自动取当前访问域名，后续 loadConfig 若有已保存值会覆盖
+      if (serverUrl && !serverUrl.value) serverUrl.value = window.location.origin || ''
       const version = $('version'), buildBtn = $('buildBtn')
       const consoleEl = $('console'), statusPill = $('statusPill'), dlLink = $('dlLink')
       const iconZone = $('iconZone'), splashZone = $('splashZone')
@@ -696,7 +698,9 @@
           if (typeof c.immersive === 'boolean') $('immersive').checked = c.immersive
           if (Array.isArray(c.permissions)) c.permissions.forEach(p => { const el = document.querySelector('[data-perm="' + p + '"]'); if (el) el.checked = true })
           if (c.signing && c.signing.keyAlias) $('keystoreKeyAlias').value = c.signing.keyAlias
-        } catch (_) {}
+        } catch (e) {
+          console.error('loadConfig failed:', e)
+        }
       }
       await loadConfig()
 
