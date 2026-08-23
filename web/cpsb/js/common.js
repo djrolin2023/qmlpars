@@ -56,6 +56,17 @@ async function applySiteName(){
   document.querySelectorAll('[data-site-suffix]').forEach(el=>{
     el.textContent = name + (el.getAttribute('data-site-suffix') || '');
   });
+  // 把 OG 标签的相对图片/URL 补全为当前站点完整地址，微信/浏览器抓取分享卡片时才有效
+  const origin=location.origin;
+  ['og:image','og:url'].forEach(prop=>{
+    const m=document.querySelector('meta[property="'+prop+'"]');
+    if(!m) return;
+    let v=m.getAttribute('content')||'';
+    if(v && !/^https?:\/\//i.test(v)){
+      v = (v.startsWith('/') ? origin : origin+'/') + v;
+      m.setAttribute('content', v);
+    }
+  });
 }
 
 /* 站点 LOGO（三种版式，来自后台设置，绝不硬编码）。带缓存 */
@@ -366,17 +377,19 @@ function toast(msg){
   t.textContent=msg; t.style.opacity='1';
   clearTimeout(t._timer); t._timer=setTimeout(()=>{ t.style.opacity='0'; }, 1800);
 }
-function copyLink(){
+async function copyLink(){
   const url=location.href;
+  const site=await getSiteName();
+  const shareText='【'+site+' 车牌识别系统】：'+url;
   if(navigator.share){
-    navigator.share({ title:document.title, url:url }).catch(()=>{});
+    navigator.share({ title:site+' 车牌识别系统', text:shareText, url:url }).catch(()=>{});
     return;
   }
   if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(url).then(()=>toast('链接已复制，去分享吧')).catch(()=>toast('复制失败，请手动复制'));
+    navigator.clipboard.writeText(shareText).then(()=>toast('分享文字已复制，去粘贴吧')).catch(()=>toast('复制失败，请手动复制'));
   }else{
-    const ta=document.createElement('textarea'); ta.value=url; document.body.appendChild(ta); ta.select();
-    try{ document.execCommand('copy'); toast('链接已复制，去分享吧'); }catch(e){ toast('复制失败，请手动复制'); }
+    const ta=document.createElement('textarea'); ta.value=shareText; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); toast('分享文字已复制，去粘贴吧'); }catch(e){ toast('复制失败，请手动复制'); }
     document.body.removeChild(ta);
   }
 }
