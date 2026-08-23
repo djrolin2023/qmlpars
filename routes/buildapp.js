@@ -446,17 +446,17 @@ export default config;
         log('生成图标/开屏资源...')
         let iconBuf = req.files && req.files.icon && req.files.icon[0] ? req.files.icon[0].buffer : null
         let splashBuf = req.files && req.files.splash && req.files.splash[0] ? req.files.splash[0].buffer : null
-        // 未上传则使用项目默认图标（优先 logo3.png，才是真正的公司 logo；logo.png 多为插画横幅）
+        // 未上传则使用项目默认图标（优先 app.png，其次 logo3.png、logo.png）
         if (!iconBuf) {
-          for (const name of ['logo3.png', 'logo.png']) {
+          for (const name of ['app.png', 'logo3.png', 'logo.png']) {
             const p = path.join(ROOT, 'static', 'images', name)
             if (fs.existsSync(p)) { iconBuf = await fsp.readFile(p); break }
           }
         }
         if (!splashBuf) {
-          // 开屏缺失：优先使用专门的开屏横幅图（logo.png），其次 logo3.png；
+          // 开屏缺失：优先使用专门的开屏图（splash.png），其次 logo3.png、logo.png；
           // 都不能用时才回退到图标本身，避免“图标被当成开屏”导致图标/开屏混淆。
-          for (const name of ['logo.png', 'logo3.png']) {
+          for (const name of ['splash.png', 'logo3.png', 'logo.png']) {
             const p = path.join(ROOT, 'static', 'images', name)
             if (fs.existsSync(p)) { splashBuf = await fsp.readFile(p); break }
           }
@@ -556,10 +556,11 @@ export default config;
       return { outName: best, version, size: st.size, appName: '', serverUrl: '', builtAt: st.mtime.toISOString(), iconUrl: getIconUrl() }
     } catch (_) { return null }
   }
-  // 当前 APP 图标 URL：用户上传过则为 app-icon.png，否则回退 logo.png
+  // 当前 APP 图标 URL：用户上传过则为 app-icon.png，否则回退 app.png（再回退 logo.png）
   function getIconUrl() {
     const uploaded = path.join(ROOT, 'static', 'images', 'app-icon.png')
     if (fs.existsSync(uploaded)) return '/static/images/app-icon.png'
+    if (fs.existsSync(path.join(ROOT, 'static', 'images', 'app.png'))) return '/static/images/app.png'
     return '/static/images/logo.png'
   }
   router.get('/api/buildapp/latest', (req, res) => {

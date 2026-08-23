@@ -247,7 +247,7 @@
         <!-- 步骤 2：图标配置 -->
         <div class="panel" data-panel="icon">
           <h3>图标配置</h3>
-          <div class="panel-sub">应用图标（未上传则使用默认 logo.png）</div>
+          <div class="panel-sub">应用图标（未上传则使用默认 app.png）</div>
           <div class="form-row">
             <div class="upload-zone" id="iconZone">
               <img id="iconPreview" class="preview-img" alt="">
@@ -257,7 +257,7 @@
               <div class="up-progress" id="iconProgress"><div class="up-progress-fill" id="iconProgressFill"></div><div class="up-progress-label" id="iconProgressLabel"></div></div>
             </div>
             <input type="file" id="iconInput" accept="image/*" hidden>
-            <div class="default-note">未上传时默认图标：<span class="logo-tooltip"><b>logo.png</b><img src="/static/images/logo.png" alt="默认图标预览"></span></div>
+            <div class="default-note">未上传时默认图标：<span class="logo-tooltip"><b>app.png</b><img src="/static/images/app.png" alt="默认图标预览"></span></div>
           </div>
           <div class="panel-nav">
             <button class="btn ghost" data-prev>← 上一步</button>
@@ -278,7 +278,7 @@
               <div class="up-progress" id="splashProgress"><div class="up-progress-fill" id="splashProgressFill"></div><div class="up-progress-label" id="splashProgressLabel"></div></div>
             </div>
             <input type="file" id="splashInput" accept="image/*" hidden>
-            <div class="default-note">未上传时默认开屏：<span class="logo-tooltip wide"><b>logo3.png</b><img src="/static/images/logo3.png" alt="默认开屏预览"></span></div>
+            <div class="default-note">未上传时默认开屏：<span class="logo-tooltip wide"><b>splash.png</b><img src="/static/images/splash.png" alt="默认开屏预览"></span></div>
           </div>
           <div class="two-col">
             <div class="form-row">
@@ -633,7 +633,7 @@
         mediaCards.push(
           '<div class="sum-row sum-media"><span class="sk">开屏图</span>' +
           '<span class="sv media">' +
-          (hasSplash ? '<img class="sum-thumb sum-thumb-wide" src="' + splashSrc + '" alt="开屏图">' : '<span class="muted">未上传（使用默认 logo.png）</span>') +
+          (hasSplash ? '<img class="sum-thumb sum-thumb-wide" src="' + splashSrc + '" alt="开屏图">' : '<span class="muted">未上传（使用默认 splash.png）</span>') +
           (splashNameTxt ? '<span class="fname">' + escapeHtml(splashNameTxt) + '</span>' : '') +
           '</span></div>'
         )

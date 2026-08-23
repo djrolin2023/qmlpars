@@ -748,19 +748,44 @@ NODE_BIN="$(command -v node)"
 # 出错排查：npm install 失败 -> 看上方错误，检查网络 / 编译环境（g++/make/python3）
 ###########################################################
 step_start "安装编译依赖与 npm 依赖"
-# better-sqlite3 在新机器上可能需要本地编译，先装编译工具
-echo "==> 安装编译依赖（better-sqlite3 可能需要本地编译）..."
+# 原生模块所需系统依赖：
+#  - better-sqlite3 / bcryptjs 编译：python3 + make + g++
+#  - sharp（二维码/图片处理依赖，qr-image 生成二维码也依赖本服务可用）需要 libvips
+echo "==> 安装系统编译依赖（better-sqlite3 / sharp 等原生模块需要）..."
 case "$PKG_MGR" in
-  apt) $PKG_INSTALL -y python3 make g++ build-essential >/dev/null 2>&1 || true ;;
-  dnf|yum) $PKG_INSTALL -y python3 make gcc-c++ >/dev/null 2>&1 || true ;;
-  zypper) $PKG_INSTALL -y python3 make gcc-c++ >/dev/null 2>&1 || true ;;
-  pacman) $PKG_INSTALL -y python make gcc >/dev/null 2>&1 || true ;;
-  apk) $PKG_INSTALL -y python3 make g++ >/dev/null 2>&1 || true ;;
+  apt) $PKG_INSTALL -y python3 make g++ build-essential libvips libvips-dev >/dev/null 2>&1 || true ;;
+  dnf|yum) $PKG_INSTALL -y python3 make gcc-c++ vips vips-devel >/dev/null 2>&1 || true ;;
+  zypper) $PKG_INSTALL -y python3 make gcc-c++ libvips-devel >/dev/null 2>&1 || true ;;
+  pacman) $PKG_INSTALL -y python make gcc libvips >/dev/null 2>&1 || true ;;
+  apk) $PKG_INSTALL -y python3 make g++ vips-dev >/dev/null 2>&1 || true ;;
 esac
 
-echo "==> 安装 npm 依赖 ..."
+echo "==> 安装 npm 依赖（项目运行所需全部依赖，自动下载并部署）..."
 cd "$SRC_DIR"
-npm install --omit=dev || { echo "!! npm install 失败，请检查网络或编译环境"; exit 1; }
+# 失败自动重试（最多 2 次），--no-audit/--no-fund 减少噪音；
+# 保留 dev 依赖开关：二维码/编译仅需生产依赖即可，这里用 --omit=dev
+NPM_TRIES=3
+for i in $(seq 1 $NPM_TRIES); do
+  echo "   [npm] 第 $i/$NPM_TRIES 次尝试..."
+  if npm install --omit=dev --no-audit --no-fund; then
+    echo "   [npm] 安装成功"
+    break
+  else
+    echo "   [npm] 第 $i 次失败，等待 3s 后重试..."
+    sleep 3
+    [ "$i" = "$NPM_TRIES" ] && { echo "!! npm install 多次失败，请检查网络或编译环境（g++/make/python3/libvips）"; exit 1; }
+  fi
+done
+
+# 校验关键依赖是否就位（缺一个就报错退出，避免部署后功能缺失）
+echo "==> 校验关键运行依赖..."
+for dep in sharp qr-image better-sqlite3 bcryptjs express; do
+  if [ ! -d "node_modules/$dep" ]; then
+    echo "!! 依赖缺失：$dep 未安装成功，项目将无法正常运行"
+    exit 1
+  fi
+done
+echo "   关键依赖均已就位：sharp / qr-image / better-sqlite3 / bcryptjs / express"
 step_done "安装编译依赖与 npm 依赖"
 
 ###########################################################

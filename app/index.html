@@ -191,7 +191,7 @@
 
   <!-- 顶部 Hero -->
   <div class="hero">
-    <div class="hero-icon"><img id="appIcon" src="/static/images/logo.png" alt="APP 图标" onerror="this.src='/static/images/logo.png'"></div>
+    <div class="hero-icon"><img id="appIcon" src="/static/images/app.png" alt="APP 图标" onerror="this.src='/static/images/logo.png'"></div>
     <div class="hero-info">
       <div class="hero-name">乾明车牌识别 APP</div>
       <div>
@@ -275,6 +275,14 @@
     if (!s) return '--';
     try { return new Date(s).toLocaleDateString('zh-CN'); } catch (_) { return s; }
   }
+  // 生成二维码：独立失败处理，不影响下载按钮；成功则显示图片
+  function setQr(url) {
+    var qrImg = document.getElementById('qrImg');
+    var qrHint = document.getElementById('qrHint');
+    qrImg.onload = function () { qrImg.style.display = 'block'; qrHint.style.display = 'none'; };
+    qrImg.onerror = function () { qrHint.textContent = '二维码生成失败'; qrHint.style.display = 'block'; qrImg.style.display = 'none'; };
+    qrImg.src = '/api/buildapp/qrcode?size=200&url=' + encodeURIComponent(url);
+  }
   function fmtDateTime(s) {
     if (!s) return '--';
     try { return new Date(s).toLocaleString('zh-CN'); } catch (_) { return s; }
@@ -291,21 +299,19 @@
         document.getElementById('latestVerTag').textContent = 'v' + d.version;
         document.getElementById('latestSize').textContent = formatSize(d.size);
         document.getElementById('latestDateTag').textContent = fmtDate(d.builtAt);
-        // 同步更新 APP 图标（用户上传过则用 app-icon.png，否则 logo.png）
+        // 同步更新 APP 图标（用户上传过则用 app-icon.png，否则 app.png）
         if (d.iconUrl) document.getElementById('appIcon').src = d.iconUrl;
         var dlUrl = location.origin + '/App/' + encodeURIComponent(d.outName);
         dlBtn.href = dlUrl;
         dlBtn.setAttribute('download', d.outName);
         document.getElementById('qrUrl').textContent = dlUrl;
-        // 后端生成二维码 PNG（独立失败处理，不影响下载按钮）
-        var qrImg = document.getElementById('qrImg');
-        var qrHint = document.getElementById('qrHint');
-        qrImg.onload = function () { qrImg.style.display = 'block'; qrHint.style.display = 'none'; };
-        qrImg.onerror = function () { qrHint.textContent = '二维码生成失败'; qrHint.style.display = 'block'; qrImg.style.display = 'none'; };
-        qrImg.src = '/api/buildapp/qrcode?size=200&url=' + encodeURIComponent(dlUrl);
+        setQr(dlUrl);
       } else {
+        // 暂无安装包：隐藏下载按钮，但二维码仍展示（指向落地页本身，扫码可进本页）
         dlBtn.style.display = 'none';
         noApkBox.style.display = 'block';
+        document.getElementById('qrUrl').textContent = location.href;
+        setQr(location.href);
       }
     } catch (e) {
       document.getElementById('dlBtn').style.display = 'none';
