@@ -4,11 +4,11 @@
 # QianMing License Plate Automatic Recognition System
 # 参考：https://linuxmirrors.cn/main.sh 的发行版自适应思路
 # 用法（一行命令安装，类似宝塔面板）：
-#   bash <(curl -sSL https://raw.githubusercontent.com/djrolin2023/qmlpars/main/install.sh)
+#   bash <(curl -sSL https://gitee.com/dj_rolin/qmlpars/raw/main/install.sh)
 #   或
-#   wget -O install.sh https://raw.githubusercontent.com/djrolin2023/qmlpars/main/install.sh && bash install.sh
+#   wget -O install.sh https://gitee.com/dj_rolin/qmlpars/raw/main/install.sh && bash install.sh
 # 可覆盖环境变量：
-#   QMLPARS_PKG_URL   tar 包地址(不含文件名)，默认取 GitHub Release / Gitee
+#   QMLPARS_PKG_URL   tar 包地址(不含文件名)，默认取 Gitee Release / GitHub
 #   QMLPARS_PKG_NAME   tar 包文件名，默认 qmlpars.tar.gz
 #   QMLPARS_HOME      安装目录，默认 /wwwroot/qmlpars
 # ============================================================
@@ -476,12 +476,12 @@ elif [ -f "$SCRIPT_DIR/index.js" ]; then
   echo "==> 本目录已含源码，直接使用"
   SRC_DIR="$SCRIPT_DIR"
 else
-  # github 为主，gitee 为辅：依次尝试下载，任一成功即止
-  PKG_URL_GITHUB="${QMLPARS_PKG_URL:-https://github.com/djrolin2023/qmlpars/releases/latest/download/$PKG_NAME}"
-  PKG_URL_GITEE="https://gitee.com/dj_rolin/qmlpars/releases/download/latest/$PKG_NAME"
+  # gitee 为主，github 为辅：依次尝试下载，任一成功即止
+  PKG_URL_GITEE="${QMLPARS_PKG_URL:-https://gitee.com/dj_rolin/qmlpars/releases/download/latest/$PKG_NAME}"
+  PKG_URL_GITHUB="https://github.com/djrolin2023/qmlpars/releases/latest/download/$PKG_NAME"
   TMP_PKG="/tmp/$PKG_NAME"
   DL_OK=0
-  for PKG_URL in "$PKG_URL_GITHUB" "$PKG_URL_GITEE"; do
+  for PKG_URL in "$PKG_URL_GITEE" "$PKG_URL_GITHUB"; do
     echo "==> 尝试下载安装包： $PKG_URL"
     if command -v wget >/dev/null 2>&1; then
       wget -q -O "$TMP_PKG" "$PKG_URL" && DL_OK=1 && break
@@ -492,11 +492,11 @@ else
   done
   if [ "$DL_OK" -ne 1 ]; then
     echo "!! 安装包（Release tar）下载失败，自动回退到 git clone 源码..."
-    # 回退：直接从 GitHub / Gitee 克隆源码到安装目录（无需预打包 tar）
+    # 回退：直接从 Gitee / GitHub 克隆源码到安装目录（无需预打包 tar）
     GIT_OK=0
     rm -rf "$HOME_DIR"
     mkdir -p "$HOME_DIR"
-    for GIT_URL in "https://github.com/djrolin2023/qmlpars.git" "https://gitee.com/dj_rolin/qmlpars.git"; do
+    for GIT_URL in "https://gitee.com/dj_rolin/qmlpars.git" "https://github.com/djrolin2023/qmlpars.git"; do
       echo "==> 尝试 git clone 源码： $GIT_URL"
       if command -v git >/dev/null 2>&1; then
         if git clone --depth 1 "$GIT_URL" "$HOME_DIR" 2>/dev/null; then
@@ -511,7 +511,7 @@ else
       echo "    !! 该源克隆失败，尝试下一个源..."
     done
     if [ "$GIT_OK" -ne 1 ]; then
-      echo "!! 安装包下载与 git clone 均失败（github / gitee 均不可达），请检查网络后重试。"
+      echo "!! 安装包下载与 git clone 均失败（gitee / github 均不可达），请检查网络后重试。"
       echo "   也可手动 clone 后进入目录执行： bash install.sh"
       exit 1
     fi
