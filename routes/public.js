@@ -97,7 +97,8 @@ module.exports = function (ctx) {
       if (!req.file && !req.body.imageBase64 && !req.body.imageUrl) {
         return res.status(400).json({ success: false, message: '缺少图片数据' })
       }
-      const channel = (req.body.channel === 'web') ? 'web' : 'app'
+      // 来源渠道：前端按运行容器区分（原生 APP 传 'app'，H5 网页传 'web'）；缺省兜底为 app
+      const channel = (req.body.channel === 'web') ? 'web' : (req.body.channel || 'app')
       let imageBase64 = null, imageUrl = null
       if (req.file) {
         const b64 = fs.readFileSync(req.file.path).toString('base64')

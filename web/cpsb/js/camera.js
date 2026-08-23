@@ -139,7 +139,7 @@ async function doScanOnce(manual){
   const c=document.createElement('canvas'); c.width=w; c.height=h;
   c.getContext('2d').drawImage(v,0,0,w,h);
   const blob=await new Promise(res=>c.toBlob(res,'image/jpeg',0.92));
-  const fd=new FormData(); fd.append('image',blob,'f.jpg'); fd.append('channel','web');
+  const fd=new FormData(); fd.append('image',blob,'f.jpg'); fd.append('channel', window.APP_CONFIG ? 'app' : 'web');
   try{
     const r=await userFetch(API+'/api/recognize',{method:'POST',body:fd});
     const j=await r.json();
