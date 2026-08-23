@@ -31,7 +31,7 @@ for arg in "$@"; do
 done
 
 # ---------- 阶段式进度指示（全中文） ----------
-TOTAL_STEPS=11
+TOTAL_STEPS=13
 CUR_STEP=0
 step_start() {
   CUR_STEP=$((CUR_STEP+1))
@@ -753,11 +753,11 @@ step_start "安装编译依赖与 npm 依赖"
 #  - sharp（二维码/图片处理依赖，qr-image 生成二维码也依赖本服务可用）需要 libvips
 echo "==> 安装系统编译依赖（better-sqlite3 / sharp 等原生模块需要）..."
 case "$PKG_MGR" in
-  apt) $PKG_INSTALL -y python3 make g++ build-essential libvips libvips-dev >/dev/null 2>&1 || true ;;
-  dnf|yum) $PKG_INSTALL -y python3 make gcc-c++ vips vips-devel >/dev/null 2>&1 || true ;;
-  zypper) $PKG_INSTALL -y python3 make gcc-c++ libvips-devel >/dev/null 2>&1 || true ;;
-  pacman) $PKG_INSTALL -y python make gcc libvips >/dev/null 2>&1 || true ;;
-  apk) $PKG_INSTALL -y python3 make g++ vips-dev >/dev/null 2>&1 || true ;;
+  apt) $PKG_INSTALL python3 make g++ build-essential libvips libvips-dev >/dev/null 2>&1 || true ;;
+  dnf|yum) $PKG_INSTALL python3 make gcc-c++ vips vips-devel >/dev/null 2>&1 || true ;;
+  zypper) $PKG_INSTALL python3 make gcc-c++ libvips-devel >/dev/null 2>&1 || true ;;
+  pacman) $PKG_INSTALL python make gcc libvips >/dev/null 2>&1 || true ;;
+  apk) $PKG_INSTALL python3 make g++ vips-dev >/dev/null 2>&1 || true ;;
 esac
 
 echo "==> 安装 npm 依赖（项目运行所需全部依赖，自动下载并部署）..."
