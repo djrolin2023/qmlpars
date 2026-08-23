@@ -1,0 +1,17 @@
+{
+  "name": "qmlpars-guard-android",
+  "version": "1.0.0",
+  "description": "QMLPARS 门卫安卓 APP（H5 套壳）",
+  "license": "AGPL-3.0",
+  "scripts": {
+    "sync": "npx cap sync android",
+    "open": "npx cap open android",
+    "run": "npx cap run android"
+  },
+  "dependencies": {
+    "@capacitor/cli": "^6.1.0",
+    "@capacitor/core": "^6.1.0",
+    "@capacitor/android": "^6.1.0",
+    "typescript": "^5.4.0"
+  }
+}

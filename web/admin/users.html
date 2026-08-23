@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>用户管理 - 乾明车牌识别系统 - 管理后台</title>
+  <link rel="stylesheet" href="css/base.css">
+</head>
+<body class="embed">
+  <div class="main">
+    <div class="content">
+      <nav class="crumb" id="crumb"></nav>
+
+      <div class="toolbar" style="justify-content: space-between">
+        <span class="tip">提示：用户可使用「ID / 账号 / 手机号」任一方式登录。</span>
+        <button class="btn primary" id="add-btn">+ 新增用户</button>
+      </div>
+
+      <div class="panel" style="padding:0;overflow:auto">
+        <table class="data" id="userTbl">
+          <thead>
+            <tr><th>ID</th><th>账号</th><th>姓名</th><th>手机号</th><th>备注</th><th>创建日期</th><th>操作</th></tr>
+          </thead>
+          <tbody id="userBody"></tbody>
+        </table>
+        <div class="empty" id="emptyTip" style="display:none">暂无用户，点击「+ 新增用户」创建</div>
+      </div>
+
+  <div class="modal-mask" id="user-modal">
+    <div class="modal">
+      <div class="modal-head"><span id="user-modal-title">新增用户</span><span class="x" id="user-modal-close">×</span></div>
+      <div class="modal-body">
+        <div class="form-row row2">
+          <div>
+            <label>账号 <span class="req">*</span></label>
+            <input id="newUser" placeholder="2-20 位字母/数字/中文/下划线">
+          </div>
+          <div>
+            <label>初始密码 <span class="req">*</span></label>
+            <input id="newPass" type="password" placeholder="至少 6 位" maxlength="40">
+          </div>
+        </div>
+        <div class="form-row row2">
+          <div>
+            <label>姓名</label>
+            <input id="newName" placeholder="选填，如：张三">
+          </div>
+          <div>
+            <label>手机号</label>
+            <input id="newPhone" placeholder="选填，11 位手机号" maxlength="11" inputmode="numeric">
+          </div>
+        </div>
+        <div class="form-row">
+          <label>备注</label>
+          <input id="newRemark" placeholder="选填">
+        </div>
+        <div class="hint" id="addHint"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="user-modal-cancel">取消</button>
+        <button class="btn primary" id="addUser">创建用户</button>
+      </div>
+    </div>
+  </div>
+    </div>
+    <div class="page-footer" id="site-footer-text"></div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script src="js/upgrade.js"></script>
+  <script src="js/users.js"></script>
+  <script>
+    (async () => {
+      if (!(await checkAuth())) { location.replace('login.html'); return; }
+      initUsers();
+    })();
+  </script>
+</body>
+</html>

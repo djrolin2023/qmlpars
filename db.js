@@ -69,6 +69,26 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT
 );
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+  token TEXT PRIMARY KEY,
+  userId INTEGER NOT NULL,
+  username TEXT NOT NULL,
+  createdAt TEXT DEFAULT (datetime('now','localtime')),
+  expireAt TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'user',
+  name TEXT,
+  phone TEXT,
+  remark TEXT,
+  createdAt TEXT DEFAULT (datetime('now','localtime')),
+  updatedAt TEXT DEFAULT (datetime('now','localtime'))
+);
 `)
 
 // 兼容旧表：若不存在 validUntil 列则补加
@@ -90,6 +110,35 @@ try {
   // 兼容旧表：补加 image 列（存储识别成功抓拍图地址）
   if (!cols.includes('image')) {
     db.exec('ALTER TABLE recognition_logs ADD COLUMN image TEXT')
+  }
+  // 兼容旧表：补加 userId / userName 列（记录操作人）
+  if (!cols.includes('userId')) {
+    db.exec('ALTER TABLE recognition_logs ADD COLUMN userId INTEGER')
+  }
+  if (!cols.includes('userName')) {
+    db.exec('ALTER TABLE recognition_logs ADD COLUMN userName TEXT')
+  }
+} catch (e) {
+  // 忽略
+}
+
+// 兼容旧表：users 表补加 name / phone 列
+try {
+  const ucols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name)
+  if (!ucols.includes('name')) db.exec('ALTER TABLE users ADD COLUMN name TEXT')
+  if (!ucols.includes('phone')) db.exec('ALTER TABLE users ADD COLUMN phone TEXT')
+} catch (e) {
+  // 忽略
+}
+
+// 用户 ID 从 10001 开始自增：将 users 表的自增序列推进到 10000（下次插入为 10001）
+try {
+  const seq = db.prepare("SELECT COALESCE((SELECT seq FROM sqlite_sequence WHERE name='users'),0) AS s").get().s
+  if (seq < 10000) {
+    db.prepare("UPDATE sqlite_sequence SET seq = 10000 WHERE name = 'users'").run()
+    if (db.prepare("SELECT changes() AS c").get().c === 0) {
+      db.prepare("INSERT INTO sqlite_sequence (name, seq) VALUES ('users', 10000)").run()
+    }
   }
 } catch (e) {
   // 忽略

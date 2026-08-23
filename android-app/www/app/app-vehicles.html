@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>车辆管理</title>
+<script src="./app-config.js"></script>
+<script>
+  // 优先使用用户在 APP 内配置的服务器地址（localStorage），其次打包默认值
+  try {
+    var _custom = localStorage.getItem('user_server_url');
+    if (_custom && /^https?:\/\//.test(_custom)) {
+      window.__API_BASE__ = _custom;
+      if (window.APP_CONFIG) window.APP_CONFIG.serverUrl = _custom;
+    } else {
+      window.__API_BASE__ = (window.APP_CONFIG && window.APP_CONFIG.serverUrl ? window.APP_CONFIG.serverUrl : '');
+    }
+  } catch (_) {
+    window.__API_BASE__ = (window.APP_CONFIG && window.APP_CONFIG.serverUrl ? window.APP_CONFIG.serverUrl : '');
+  }
+</script>
+<link rel="stylesheet" href="./css/base.css">
+<link rel="stylesheet" href="./css/app.css">
+</head>
+<body>
+<div id="appWrap">
+  <header class="topbar">
+    <div class="org-stack">
+      <img src="../static/images/logo.png" alt="school logo" class="school-logo">
+      <div class="org-text">
+        <div class="org-name" id="orgName">校园车辆识别系统</div>
+        <div class="org-sub" id="orgSub">车辆管理</div>
+      </div>
+    </div>
+    <div id="topUser" class="top-user"></div>
+  </header>
+
+  <main id="main">
+    <div class="vm-head">车辆档案查询</div>
+    <p class="vm-desc">输入车牌号查询内部车辆信息、有效期与历史识别记录。</p>
+    <div class="query-box">
+      <input id="qPlate" class="q-input" placeholder="输入车牌号，如 粤B12345" maxlength="10" autocomplete="off" autocapitalize="characters" inputmode="text" enterkeyhint="search" onblur="this.value=this.value.toUpperCase().replace(/[\s·\-.　]/g,'')">
+      <button class="q-btn" onclick="queryPlate()">查询</button>
+      <div id="qErr" class="q-err"></div>
+    </div>
+    <div id="result" class="result-card hidden"></div>
+  </main>
+
+  <nav class="bottom-tabs">
+    <button class="bottom-tab" data-tab="cpsb" onclick="location.href='./app-cpsb.html'">
+      <span class="bt-icon">🔍</span><span class="bt-label">车牌识别</span>
+    </button>
+    <button class="bottom-tab active" data-tab="vehicles">
+      <span class="bt-icon">🚗</span><span class="bt-label">车辆管理</span>
+    </button>
+  </nav>
+</div>
+
+<div id="loading" class="loading"><div class="spinner"></div></div>
+
+<!-- 登录遮罩（含自动登录） -->
+<div id="loginOverlay" class="login-overlay">
+  <form id="loginForm" class="login-card" onsubmit="return false">
+    <div class="login-logo"><img src="../static/images/logo.png" alt=""></div>
+    <h2>车辆管理</h2>
+    <p class="login-sub">请登录后使用</p>
+    <input id="loginUser" class="login-input" placeholder="登录账号" autocomplete="username">
+    <input id="loginPass" class="login-input" type="password" placeholder="密码" autocomplete="current-password">
+    <label class="auto-login"><input id="autoLogin" type="checkbox"> 自动登录</label>
+    <div id="loginErr" class="login-err"></div>
+    <button type="submit" class="login-btn">登录</button>
+    <div class="server-cfg">
+      <button type="button" class="server-cfg-toggle" onclick="toggleServerCfg(this)" title="服务器地址">⚙ 服务器</button>
+      <div class="server-cfg-box" style="display:none">
+        <input id="serverUrlInput" class="login-input server-url-input" placeholder="服务器地址，如 https://jyedu.wl.gd.cn">
+        <div class="server-cfg-actions">
+          <button type="button" class="server-cfg-save" onclick="saveServerUrl()">保存</button>
+          <button type="button" class="server-cfg-reset" onclick="resetServerUrl()">恢复默认</button>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script src="./js/common.js"></script>
+<script src="./js/query.js"></script>
+<script>
+  // 车辆管理页：查询逻辑复用 cpsb query.js（queryPlate/showResult）
+  ensureLoggedIn();
+</script>
+</body>
+</html>

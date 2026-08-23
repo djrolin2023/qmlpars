@@ -1,0 +1,19 @@
+# 依赖
+node_modules/
+
+# gradle
+.android/
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/.idea/
+
+# 签名证书（含发布密钥，禁止提交到仓库）
+qianming.keystore
+qianming.keystore.bak
+*.keystore
+*.jks
+
+# 平台生成
+android/capacitor-cordova-android-plugins/

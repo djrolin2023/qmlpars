@@ -1,5 +1,5 @@
 {
-  "name": "jyedu-vehicle-server",
+  "name": "qmlpars-vehicle-server",
   "version": "1.0.0",
   "description": "内部车辆识别小程序 - 自建后端服务 (群晖部署)",
   "license": "AGPL-3.0",
@@ -10,8 +10,12 @@
   },
   "dependencies": {
     "axios": "^1.6.0",
+    "better-sqlite3": "^11.3.0",
+    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "sharp": "^0.33.5",
+    "qr-image": "^3.2.0"
   }
 }

@@ -21,6 +21,12 @@ nohup.out
 # 备份 / 临时文件
 *.bak
 *.tar.gz
+.smoke*
+*.cjs
+*.mjs
+.backup/.upload/
+backup/trash-*/
+backup/.restore-*/
 
 # 系统 / 编辑器
 .DS_Store
@@ -30,3 +36,13 @@ nohup.out
 
 # pm2
 .pm2/
+
+# gradle 缓存（体积大，非源码）
+.gradle_cache/
+
+# 打包配置（含本机服务器地址/签名别名，本地化，不提交）
+buildapp.config.json
+
+# 在线升级临时文件
+.qm-upgrade/
+.qm-upgrade.lock

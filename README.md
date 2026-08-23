@@ -1,121 +1,156 @@
-# 内部车辆识别 - 自建后端服务
+# 车辆识别管理系统
 
-![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)
+基于自建后端的小区/校园内部车辆车牌识别系统。门卫（或值班员）在浏览器/微信中打开识别页，对准车牌即可自动识别并显示是否为内部车辆；管理员在后台维护车辆白名单、查看识别记录、管理账号与系统设置，并可将识别页一键打包成安卓 APP 安装到门卫设备上。
 
-将原本依赖「微信云开发」的云函数，迁移为可运行在自有服务器（如群晖）上的 Node.js 服务。
+---
 
-## 许可证
+## 功能模块
 
-本项目基于 **GNU Affero General Public License v3.0 (AGPL-3.0)** 发布。
+| 模块 | 路径 | 说明 |
+| --- | --- | --- |
+| 识别端（H5） | `/cpsb/` | 门卫使用。摄像头实时扫描车牌，或手动输入查询；识别成功语音播报，内部车高亮提示。 |
+| 管理后台 | `/admin/` | 管理员使用。车辆管理、识别记录、用户管理、系统设置、数据备份、在线升级、APP 打包。 |
+| 安卓 APP 打包 | 后台「APP 打包」 | 填写服务器地址、应用名、包名，后端自动生成安卓安装包（Capacitor 套壳）。 |
 
-AGPL-3.0 在 GPL 基础上包含**网络使用条款**：即使您不分发本软件，只要将其作为网络服务（如本系统的 Web 后台与小程序后端）提供给他人使用，您也必须向使用者提供完整的对应源代码。
+页面静态资源统一放在 `static/` 目录（`images/`、`sound/`），前端通过 `/static/...` 绝对路径引用，**识别端不使用自身目录下的本地 `images`/`sound` 文件夹**。
 
-- 完整条款见仓库根目录 [`LICENSE`](./LICENSE) 文件。
-- 若您基于本项目实施修改并提供网络服务，请同样以 AGPL-3.0 开源您的改动。
+---
 
-## 数据合规说明
+## 技术栈
 
-本系统设计为**本地私有部署**，对个人信息处理遵循以下原则：
+- **运行时**：Node.js（建议 22+，使用内置 `node:sqlite`）
+- **后端**：Express + `node:sqlite`（SQLite 数据库）
+- **OCR 识别**：百度 / 腾讯车牌识别 API（后台可配置，支持双引擎）
+- **前端**：原生 HTML/CSS/JS，无构建步骤
+- **APP 打包**：Capacitor + Android（Gradle 构建，自动生成图标与启动图）
+- **进程管理**：PM2
 
-- **数据本地存储**：车辆信息（车牌、车主、电话、部门等）与识别记录仅存储于部署方自有服务器的本地 SQLite 数据库（`data/vehicles.db`），不依赖任何第三方云数据库。
-- **不对外传输**：除调用您自行配置的 OCR 服务（如百度车牌识别）所需的图片字节外，系统不会将车辆/人员数据上传至任何外部平台或第三方服务器。
-- **部署方责任**：由于本系统处理个人敏感信息（车牌、电话等），部署者须自行确保符合所在地个人信息保护相关法律法规（如《个人信息保护法》），包括获取数据主体授权、限制访问权限、落实安全措施等。
-- **最小化收集**：建议仅收集业务必需字段，并妥善保管 `.env` 与数据库文件，避免泄露。
-
-数据库使用 SQLite，OCR 使用百度车牌识别（免费额度 1000 次/月），无需任何云厂商付费服务。
-
-- **后端服务**：本目录（`index.js` 等），部署于 `https://jyedu.wl.gd.cn`。
-- **项目仓库**：[github.com/djrolin2023/qmlpars](https://github.com/djrolin2023/qmlpars)（AGPL-3.0）
-- **PC 管理后台**：`/admin` 页面（车辆增删改查、识别日志、系统设置、改密码）。
-- **微信小程序**：见 `miniprogram/` 子目录（拍照识别、车牌查询）。
+---
 
 ## 目录结构
 
 ```
-server/
-├── index.js        # 主服务 + 全部 API 路由
-├── config.js       # 配置（读取环境变量）
-├── db.js           # SQLite 初始化建表
-├── ocr.js          # 百度 OCR 车牌识别
-├── plate.js        # 车牌归一化
-├── package.json
-├── .env.example    # 环境变量示例
-└── data/           # 运行时生成的 SQLite 数据库（不提交）
-└── uploads/        # 运行时上传的车辆照片（不提交）
+.
+├── index.js              # 服务入口，注册路由与静态资源
+├── config.js             # 配置（端口、BASE_URL 自适应、OCR 密钥等）
+├── db.js                 # SQLite 连接与表初始化
+├── auth.js               # 密码哈希工具
+├── ocr.js / plate.js     # 车牌识别与车牌归一化
+├── routes/               # 各业务路由
+│   ├── public.js         # 公开接口：识别、查询、登录、公开设置
+│   ├── admin.js          # 后台接口：车辆、记录、用户、设置、上传
+│   ├── backup.js         # 数据备份与恢复
+│   ├── upgrade.js        # 在线升级（git pull + 重启）
+│   └── buildapp.js       # 安卓 APP 打包
+├── web/                  # 前端页面
+│   ├── cpsb/             # 识别端（index.html + js/css）
+│   ├── admin/            # 管理后台
+│   └── index.html        # 入口引导页
+├── static/               # 全局静态资源（images、sound、favicon、logo）
+├── app/                  # APP 配置源（app-config.js 占位，打包时覆盖）
+├── android-app/          # Capacitor 安卓工程（打包产物目录）
+├── data/                 # SQLite 数据库与上传图片（运行时生成）
+├── install.sh            # 部署初始化脚本
+└── start.sh              # 以干净环境启动服务（PM2）
 ```
 
-## 本地运行
+---
+
+## 安装与部署
+
+### 1. 初始化
+
+在部署机器上执行（会安装依赖、初始化数据库、设置管理员密码与反代域名）：
 
 ```bash
-cd server
-npm install
-# 复制并填写配置
-cp .env.example .env
-node index.js
+bash install.sh
 ```
 
-默认监听 `http://localhost:7080`（可通过环境变量 `PORT` 覆盖）。
+脚本会引导你设置管理员登录密码，并将域名/端口写入 `.env`。
 
-## API 列表
+### 2. 启动服务
 
-| 方法 | 路径 | 说明 | 鉴权 |
-| --- | --- | --- | --- |
-| POST | `/api/recognize` | 上传图片识别车牌并返回车辆匹配 | 否 |
-| GET | `/api/vehicles/search?plate=` | 按车牌查询是否内部车辆 | 否 |
-| POST | `/api/admin/login` | 管理员登录，返回 token | 否 |
-| GET | `/api/admin/vehicles` | 车辆列表 | token |
-| POST | `/api/admin/vehicles` | 新增/编辑车辆（可带照片） | token |
-| DELETE | `/api/admin/vehicles/:id` | 删除车辆 | token |
-| POST | `/api/admin/logout` | 退出登录 | token |
-| GET | `/api/admin/logs` | 识别记录（最近 200 条） | token |
-| GET | `/uploads/:file` | 访问上传的图片（**需管理员 token**，避免车辆照片被公开枚举） | token |
-| GET | `/api/vehicles/:id/photo` | 车辆照片访问（公开，经文件直发，不暴露存储路径） | 否 |
-| GET | `/admin` | PC 端管理页面（登录后使用） | 否（页面内接口需 token） |
-| POST | `/api/admin/change-password` | 修改管理员密码（写入 .env 持久化） | token |
-| GET | `/api/admin/settings` | 读取系统设置（域名/OCR 密钥等） | token |
-| POST | `/api/admin/settings` | 保存系统设置（写入 .env） | token |
-| POST | `/api/admin/restart` | 重启服务（保存配置后生效） | token |
+```bash
+bash start.sh
+```
 
-## 配置说明（环境变量）
+`start.sh` 会以干净环境（`unset LD_LIBRARY_PATH`）启动 PM2 进程，避免系统库污染导致 Node 崩溃。服务默认监听 **7081** 端口，建议用 Nginx 等反向代理到 80/443。
 
-见 `.env.example`。
+常用命令：
 
-- **百度 OCR**：配置 `BAIDU_API_KEY` / `BAIDU_SECRET_KEY` 启用（车牌识别主通道）。
-- **腾讯云 OCR**：配置 `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY` 启用（备用通道），`TENCENT_REGION` 默认 `ap-guangzhou`。
-- **识别策略**：由 `OCR_PROVIDER`（值 `baidu` 或 `tencent`）决定优先通道，主通道失败时**自动切换另一通道兜底**；仅配置其一也可单独工作。
-- 以上配置均可在 PC 后台「系统设置」Tab 内自助填写并保存（敏感字段以掩码显示，留空即不修改）。
+```bash
+pm2 status          # 查看进程
+pm2 logs qmlpars      # 查看日志
+pm2 reload qmlpars    # 热重启（改后端代码后）
+pm2 restart qmlpars   # 完全重启
+```
 
-## 群晖部署
+> 注意：本环境若直接执行 `node index.js` 可能因 `LD_LIBRARY_PATH` 指向错误 `libstdc++` 而报
+> `GLIBCXX_3.4.xx not found`。请始终使用 `bash start.sh`，或在命令前加 `env -u LD_LIBRARY_PATH`。
 
-1. SSH 进入群晖，按上方「本地运行」用 pm2 启动服务（监听 `7080`）。
-2. 在群晖「反向代理」新建规则：`jyedu.wl.gd.cn`（HTTPS 443）→ `localhost:7081`（HTTP）。
-3. 验证：`curl https://jyedu.wl.gd.cn/api/vehicles/search?plate=Test123` 返回 JSON 即正常。
-4. 浏览器打开 `https://jyedu.wl.gd.cn/admin` 进入 PC 管理后台（登录后使用）。
+---
 
-## 独立服务器部署（install.sh 一键脚本）
+## 配置说明
 
-适用于全新服务器（Debian / Ubuntu / CentOS / RHEL 等，脚本会自动识别发行版与包管理器）。
+### BASE_URL（自适应）
 
-1. 下载 `qmlpars.tar.gz`（GitHub Release：<https://github.com/djrolin2023/qmlpars/releases>）与 `install.sh`，放到同目录；或把 `QMLPARS_PKG_URL` 指向可下载地址。
-2. 执行：
+图片完整地址由后端在响应时根据**当前请求的域名**自动生成（兼容反向代理的 `X-Forwarded-Proto` / `X-Forwarded-Host` 头），无需在配置中写死域名，内外网、不同部署域名均可自适应。
 
-   ```bash
-   bash install.sh
-   ```
+后台「系统设置」中可配置：
 
-3. 按提示输入**访问域名或服务器 IP** 与**安装目录**（默认 `/opt/qmlpars`）。
-4. 脚本会自动完成：安装 Node.js ≥22、npm 依赖、`systemd` 服务注册、nginx 反代、域名模式下申请 Let's Encrypt 证书。
-5. 完成后访问 `http://<域名或IP>/admin`（HTTPS 模式下自动跳转）。
+- 备案信息（公司名称、ICP 备案号、公安备案号）
+- 品牌 LOGO（图标 / 横版 / 竖版）
+- OCR 识别引擎密钥（百度、腾讯）
 
-> 说明：`install.sh` 兼容 apt（Debian/Ubuntu）、dnf/yum（CentOS/RHEL 系）、zypper/pacman/apk 等包管理器，未识别的系统会明确报错退出。
+### 识别引擎
 
-### PC 管理后台功能
-- **登录/退出**：管理员账号登录，token 存浏览器 localStorage。
-- **车辆管理**：列表展示、按车牌搜索、新增/编辑（含照片上传）、删除。数据与小程序端互通（同一 SQLite）。
-- **识别记录**：查看最近 200 条识别日志（时间/车牌/来源/置信度/结果）。
-- **修改密码**：右上角「修改密码」，输入旧/新密码后**以加盐 SHA-256 哈希写入 `.env`**（`ADMIN_PASSWORD_HASH`，不可逆），明文 `ADMIN_PASSWORD` 会被清空；修改后自动退出重新登录。
+- 百度车牌识别：填写 `BAIDU_API_KEY` / `BAIDU_SECRET_KEY`
+- 腾讯车牌识别：填写 `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY` / `TENCENT_REGION`
+- 两个都填时自动优先可用引擎；均可在后台「设置」页维护。
 
-### 密码存储安全
-- 密码不再以明文落盘：`.env` 中存 `ADMIN_PASSWORD_HASH=salt:hash`，即使文件泄露也无法还原明文。
-- 首次用明文 `ADMIN_PASSWORD` 登录后会**自动迁移**为哈希并清除明文。
-- 验证使用 `crypto.timingSafeEqual` 防时序侧信道。
+---
+
+## 管理后台功能
+
+- **车辆管理**：增删改查内部车辆（车牌、车主、部门、电话、有效期、照片），支持批量导入。
+- **识别记录**：查看每次识别的时间、车牌、来源、置信度、结果，可按车牌/时间筛选。
+- **用户管理**：创建门卫/值班员账号（仅能使用识别端），或管理员账号。
+- **系统设置**：备案信息、品牌 LOGO、OCR 密钥。
+- **数据备份**：一键导出数据库与上传图片，支持恢复。
+- **在线升级**：从代码仓库拉取最新代码并自动重启（需服务器可访问仓库）。
+- **APP 打包**：填写服务器地址、应用名称、应用包名、平台，后端自动构建安卓 APK（进度可轮询）。
+
+---
+
+## 安卓 APP 打包
+
+在管理后台「APP 打包」页：
+
+1. 填写**服务器地址**（如 `https://your-domain.com`，打包后 APP 内所有接口请求均指向该地址）。
+2. 填写应用名、包名（如 `com.yourorg.gate`）、选择平台（android）。
+3. 点击「开始打包」，后端会复制前端、注入配置、生成图标/启动图、调用 Capacitor/Gradle 构建。
+4. 打包完成后在「下载」处获取 APK。
+
+> APP 安装时一次性授予摄像头权限，之后进入即直接识别，避免微信端每次授权。
+
+---
+
+## 常见问题
+
+**Q：修改后端代码后页面没变化？**
+后端需热重启：`pm2 reload qmlpars`。前端静态文件（html/js/css）保存即生效，无需重启。
+
+**Q：语音播报没声音？**
+识别端语音文件位于 `static/sound/`（`Success.mp3` / `failure.mp3` / `noresult.mp3`），由 `common.js` 通过 `/static/sound/...` 加载，请确保这些文件存在且可通过网络访问。
+
+**Q：识别接口返回「请先登录」？**
+识别端需先用「门卫/值班员」账号登录获取 `user-token`，再调用识别/查询接口。
+
+**Q：站点名/LOGO 不生效？**
+在后台「系统设置」中维护公司名称与品牌 LOGO 后刷新页面即可。
+
+---
+
+## 许可证
+
+AGPL-3.0

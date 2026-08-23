@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>备份恢复 - 乾明车牌识别系统 - 管理后台</title>
+  <link rel="stylesheet" href="css/base.css">
+  <style>
+    .bk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .bk-grid { grid-template-columns: 1fr; } }
+    .bk-box { background: #1D2733; border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+    .bk-box h3 { margin: 0 0 8px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+    .bk-box h3 .ic { width: 18px; height: 18px; fill: none; stroke: #1890FF; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .bk-list { width: 100%; }
+    .bk-list th, .bk-list td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .bk-list th { color: var(--muted); font-weight: 600; font-size: 12px; }
+    .bk-list tr:hover td { background: rgba(24,144,255,.08); }
+    .bk-empty { color: var(--muted); font-size: 13px; padding: 24px 0; text-align: center; }
+    .op-link { color: #60a5fa; cursor: pointer; margin-right: 12px; font-size: 13px; }
+    .op-link:hover { text-decoration: underline; }
+    .op-link.danger { color: #f87171; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+  </style>
+</head>
+<body class="embed">
+  <div class="main">
+    <div class="content">
+      <nav class="crumb" id="crumb"></nav>
+
+      <div class="bk-grid">
+        <div class="bk-box">
+          <h3>
+            <svg class="ic" viewBox="0 0 24 24"><path d="M12 3v3m0 0 2-2m-2 2-2-2M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5M7 8h10M7 8a2 2 0 0 1 0 4h10a2 2 0 0 1 0-4M7 8a4 4 0 0 0-1.9 7.5M17 8a4 4 0 0 1 1.9 7.5"/></svg>
+            立即备份
+          </h3>
+          <p class="hint">备份内容：全部车辆档案、识别记录、系统配置（含 OCR 密钥）与上传图片。<br>备份文件为 .bin 格式，可设置密码加密（AES-256-GCM）。</p>
+          <button class="btn primary" id="btn-create" style="margin-top:12px">生成备份</button>
+        </div>
+
+        <div class="bk-box">
+          <h3>
+            <svg class="ic" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/><path d="M12 7v5l3 2"/></svg>
+            恢复备份
+          </h3>
+          <p class="hint">选择 .bin 备份文件并输入其密码（若有）。恢复会<strong style="color:#f87171">覆盖当前全部数据</strong>，系统会先把现有数据暂存到 backup/trash-* 目录，出问题可手动找回。</p>
+          <button class="btn danger" id="btn-restore" style="margin-top:12px">恢复数据</button>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:16px">
+        <h3>历史备份</h3>
+        <table class="bk-list">
+          <thead>
+            <tr><th style="width:60%">文件名</th><th>大小</th><th>时间</th><th>操作</th></tr>
+          </thead>
+          <tbody id="bk-tbody"></tbody>
+        </table>
+        <div class="bk-empty" id="bk-empty" style="display:none">暂无备份记录</div>
+      </div>
+    </div>
+    <div class="page-footer" id="site-footer-text"></div>
+  </div>
+
+  <!-- 生成备份确认模态框 -->
+  <div class="modal-mask" id="bk-confirm-modal">
+    <div class="modal">
+      <div class="modal-head"><span>生成备份</span><span class="x" data-close="bk-confirm-modal">×</span></div>
+      <div class="modal-body">
+        <div id="bk-confirm-warn" class="warn" style="margin-bottom:12px"></div>
+        <div class="form-row">
+          <label>备份密码（可选）</label>
+          <input id="bk-pwd" type="password" placeholder="留空则不加密，建议设置密码" autocomplete="new-password">
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" data-close="bk-confirm-modal">取消</button>
+        <button class="btn primary" id="bk-confirm-ok">确认备份</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 恢复密码模态框 -->
+  <div class="modal-mask" id="rs-modal">
+    <div class="modal">
+      <div class="modal-head"><span>恢复备份</span><span class="x" data-close="rs-modal">×</span></div>
+      <div class="modal-body">
+        <div class="warn" style="margin-bottom:12px">恢复将<strong style="color:#f87171">覆盖当前全部数据</strong>（现有数据会自动暂存到 backup/trash-*，可手动找回），恢复后系统自动重启。请输入备份文件及其密码。</div>
+        <div class="form-row" id="rs-file-row">
+          <label>备份文件</label>
+          <input type="file" id="bk-file" accept=".bin">
+        </div>
+        <div id="rs-file-name" class="hint" style="display:none;margin:-6px 0 10px"></div>
+        <div class="form-row">
+          <label>备份密码</label>
+          <input id="bk-restore-pwd" type="password" placeholder="该备份若设置了密码请填写" autocomplete="new-password">
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" data-close="rs-modal">取消</button>
+        <button class="btn danger" id="rs-ok">确认恢复</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script src="js/upgrade.js"></script>
+  <script src="js/backup.js"></script>
+  <script>
+    (async () => {
+      if (!(await checkAuth())) { location.replace('login.html'); return; }
+      initBackup();
+    })();
+  </script>
+</body>
+</html>

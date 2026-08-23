@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>关于系统 - 管理后台</title>
+  <link rel="icon" href="/static/images/logo.png">
+  <link rel="stylesheet" href="css/base.css">
+</head>
+<body class="embed">
+  <div class="main">
+    <div class="about-wrap">
+    <div class="about-logo" id="aboutLogo"></div>
+    <div class="about-brand"><span id="aboutBrand">车辆识别管理系统</span><small id="aboutBrandSub">Admin</small></div>
+    <p class="about-desc">
+      基于车牌图像自动识别的车辆出入管理系统，提供车辆信息录入、有效期管理、
+      识别记录追溯、OCR 通道配置与多部门协同管理能力，适用于园区、社区、单位的智能化车辆管控场景。
+    </p>
+
+      <div class="panel about-panel">
+        <div class="about-section-title">系统信息</div>
+        <div class="about-grid">
+          <div class="about-item"><span class="about-k">系统版本</span><span class="about-v" id="about-version">—</span></div>
+          <div class="about-item"><span class="about-k">前端框架</span><span class="about-v">原生 HTML / CSS / JavaScript</span></div>
+          <div class="about-item"><span class="about-k">后端服务</span><span class="about-v">Node.js + Express</span></div>
+          <div class="about-item"><span class="about-k">数据存储</span><span class="about-v">SQLite（轻量嵌入式）</span></div>
+          <div class="about-item"><span class="about-k">识别能力</span><span class="about-v">百度 / 腾讯 OCR 通道</span></div>
+          <div class="about-item"><span class="about-k">部署方式</span><span class="about-v">单机服务 / 内网运行</span></div>
+          <div class="about-item"><span class="about-k">开源协议</span><span class="about-v">AGPL-3.0</span></div>
+        </div>
+      </div>
+
+      <div class="panel about-panel">
+        <div class="about-section-title">开源仓库</div>
+        <div class="repo-row">
+          <a class="repo-card" href="https://github.com/djrolin2023/qmlpars" target="_blank" rel="noopener">
+            <img class="repo-ic" src="/static/images/github-logo.svg" alt="GitHub">
+            <span class="repo-name">GitHub</span>
+            <span class="repo-url">github.com/djrolin2023/qmlpars</span>
+          </a>
+          <a class="repo-card" href="https://gitee.com/dj_rolin/qmlpars" target="_blank" rel="noopener">
+            <img class="repo-ic repo-ic-wide" src="/static/images/gitee-logo.svg" alt="Gitee">
+            <span class="repo-name">Gitee</span>
+            <span class="repo-url">gitee.com/dj_rolin/qmlpars</span>
+          </a>
+        </div>
+        <div class="clone-tip">
+          <p>以 GitHub 为主仓库、Gitee 为镜像，任选其一克隆即可（内容一致）：</p>
+          <pre class="clone-cmd"># GitHub（推荐）
+git clone https://github.com/djrolin2023/qmlpars.git
+
+# Gitee 镜像（GitHub 访问不便时使用）
+git clone https://gitee.com/dj_rolin/qmlpars.git</pre>
+        </div>
+      </div>
+
+      <div class="panel about-panel">
+        <div class="about-section-title">一键部署</div>
+        <div class="clone-tip">
+          <p>从 GitHub 拉取安装脚本一键安装本系统：</p>
+          <pre class="clone-cmd">bash &lt;(curl -sSL https://raw.githubusercontent.com/djrolin2023/qmlpars/main/install.sh)</pre>
+          <p>从 Gitee 拉取安装脚本（GitHub 不便时）：</p>
+          <pre class="clone-cmd">bash &lt;(curl -sSL https://gitee.com/dj_rolin/qmlpars/raw/main/install.sh)</pre>
+          <p>或先下载再执行：</p>
+          <pre class="clone-cmd">wget -O install.sh https://raw.githubusercontent.com/djrolin2023/qmlpars/main/install.sh &amp;&amp; bash install.sh</pre>
+        </div>
+      </div>
+
+      <div class="panel about-panel">
+        <div class="about-section-title">核心功能</div>
+        <div class="about-feats">
+          <div class="about-feat"><b>车辆管理</b><span>批量录入、部门归类、有效期与到期提醒</span></div>
+          <div class="about-feat"><b>照片识别</b><span>上传车辆照片自动识别车牌，支持点击 / 拖拽 / 粘贴</span></div>
+          <div class="about-feat"><b>识别记录</b><span>完整记录出入识别明细，支持检索与导出</span></div>
+          <div class="about-feat"><b>OCR 配置</b><span>灵活切换百度 / 腾讯识别通道与参数</span></div>
+          <div class="about-feat"><b>部门权限</b><span>按部门标签管理车辆，支持多部门归属</span></div>
+          <div class="about-feat"><b>系统设置</b><span>站点信息、LOGO 与基础参数集中配置</span></div>
+          <div class="about-feat"><b>备份恢复</b><span>导出 / 导入 .bin 加密备份，一键迁移新机器</span></div>
+        </div>
+      </div>
+
+      <div class="panel about-panel">
+        <div class="about-section-title">移动端 APP（安卓）</div>
+        <p class="about-desc">
+          系统提供安卓 APP，将门卫常用的「车牌识别」与「车辆管理」两个页面打包为独立安装包，
+          安装在门卫手机或平板上直接使用，避免微信端每次识别都要重新授权摄像头。
+        </p>
+        <div class="about-feats">
+          <div class="about-feat"><b>车牌识别</b><span>摄像头实时识别车牌，自动判定内部 / 外部车辆并语音播报</span></div>
+          <div class="about-feat"><b>车辆管理</b><span>输入车牌查询内部车辆信息、有效期与历史识别记录</span></div>
+          <div class="about-feat"><b>免授权登录</b><span>安装时一次性授予摄像头权限，进入即直接识别</span></div>
+          <div class="about-feat"><b>一键打包</b><span>后台「APP 打包」页填写服务器地址即可生成 APK，无需开发环境</span></div>
+        </div>
+        <div class="clone-tip">
+          <p>获取方式：以管理员身份登录后台 → 进入「APP 打包」→ 填写服务器地址、应用名、应用包名 → 点击开始打包，
+          完成后在下载处获取 APK 安装即可（打包出的 APP 内所有请求均指向所填写的服务器地址）。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script src="js/upgrade.js"></script>
+  <script>
+    (async () => {
+      if (!(await checkAuth())) { location.replace('login.html'); return; }
+      // 动态站点名（与后台「系统设置」的 COMPANY_NAME 联动）
+      let siteName = '乾明车牌识别系统';
+      try {
+        const r = await api('/api/settings/public');
+        const s = (r && r.data) ? r.data : {};
+        if (s.COMPANY_NAME) siteName = s.COMPANY_NAME;
+      } catch (e) {}
+      document.title = '关于系统 - ' + siteName + ' - 管理后台';
+      const brand = document.getElementById('aboutBrand');
+      if (brand) brand.textContent = siteName;
+
+      const ver = document.getElementById('about-version');
+      if (ver) {
+        try {
+          const r = await fetch('/version.json', { cache: 'no-store' });
+          const j = await r.json();
+          ver.textContent = j.version || '未知';
+        } catch (e) {
+          ver.textContent = '未知';
+        }
+      }
+      // 动态品牌 LOGO（竖>横>纯图标>默认 logo.png）
+      applyBrandLogo(document.getElementById('aboutLogo'), 'icon');
+      applyFavicon();
+    })();
+  </script>
+</body>
+</html>

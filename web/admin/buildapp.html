@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APP 打包 - 乾明车牌识别系统</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      background-color:#0B1118;
+      background-image:
+        radial-gradient(900px 600px at 12% -8%, rgba(0,180,255,.16), transparent 60%),
+        radial-gradient(800px 600px at 100% 0%, rgba(54,207,201,.12), transparent 55%),
+        radial-gradient(700px 700px at 85% 110%, rgba(0,120,255,.12), transparent 60%),
+        linear-gradient(rgba(120,200,255,.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(120,200,255,.05) 1px, transparent 1px);
+      background-size: auto, auto, auto, 32px 32px, 32px 32px;
+      background-attachment: fixed;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    }
+    .page { max-width: 1200px; margin: 0 auto; padding: 28px 24px 56px; }
+    .page-head { display:flex; align-items:center; gap:12px; margin-bottom: 14px; }
+    .page-head h2 { margin:0; font-size: 20px; font-weight: 700; }
+    .page-head .sub { color:#86909C; font-size:13px; }
+
+    /* 顶部全局提示 */
+    .global-warn { background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.35); border-left:4px solid #f59e0b;
+      color:#fde68a; font-size:13px; line-height:1.6; border-radius:10px; padding:12px 16px; margin-bottom:14px; }
+    .global-warn b { color:#fbbf24; }
+
+    /* 左侧导航步骤序号（按 STEPS 顺序，仅前 7 项；history 不编号） */
+    .nav-item[data-tab="base"]   .ic::before { content: "1"; }
+    .nav-item[data-tab="icon"]   .ic::before { content: "2"; }
+    .nav-item[data-tab="splash"] .ic::before { content: "3"; }
+    .nav-item[data-tab="perm"]   .ic::before { content: "4"; }
+    .nav-item[data-tab="other"]  .ic::before { content: "5"; }
+    .nav-item[data-tab="sign"]   .ic::before { content: "6"; }
+    .nav-item[data-tab="code"]   .ic::before { content: "7"; }
+    .nav-item .ic::before {
+      display:inline-flex; align-items:center; justify-content:center;
+      width:20px; height:20px; border-radius:50%;
+      background:#334155; color:#cbd5e1; font-size:12px; font-weight:600;
+      font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+    }
+    .nav-item.active .ic::before { background:rgba(255,255,255,.85); color:#04283a; }
+    .nav-item[data-tab="history"] .ic::before { content:none; }
+
+    /* 自动保存右上角提示 */
+    .toast { position:fixed; top:20px; right:20px; z-index:9999; background:rgba(16,185,129,.95); color:#04231a;
+      font-size:13px; font-weight:600; padding:10px 18px; border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.3);
+      opacity:0; transform:translateY(-12px); transition:opacity .25s, transform .25s; pointer-events:none; }
+    .toast.show { opacity:1; transform:translateY(0); }
+
+    .layout { display:flex; gap:20px; align-items:flex-start; }
+    /* 左侧分类导航 */
+    .nav { width: 200px; flex:none; background:rgba(29,39,51,.55); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+      border:1px solid rgba(120,200,255,.18); border-radius:14px; padding:10px; position:sticky; top:18px; }
+    .nav-item { display:flex; align-items:center; gap:10px; padding:11px 13px; border-radius:10px; cursor:pointer; font-size:14px; color:#cbd5e1; transition:all .15s; margin-bottom:4px; }
+    .nav-item:hover { background:rgba(120,200,255,.08); color:#fff; }
+    .nav-item.active { background:linear-gradient(135deg,#1890FF,#36CFC9); color:#04283a; font-weight:600; box-shadow:0 4px 14px rgba(0,170,230,.35); }
+    .nav-item .ic { font-size:14px; width:20px; text-align:center; flex:none; }
+    .nav-sep { height:1px; background:rgba(120,200,255,.12); margin:8px 6px; }
+
+    /* 右侧详情 */
+    .panel-wrap { flex:1; min-width:0; }
+    .panel { display:none; background:rgba(29,39,51,.55); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+      border:1px solid rgba(120,200,255,.18); border-radius:14px; padding:24px 26px; box-shadow:0 8px 28px rgba(0,130,200,.16); }
+    .panel.active { display:block; }
+    .panel h3 { margin:0 0 4px; font-size:17px; }
+    .panel .panel-sub { color:#86909C; font-size:13px; margin-bottom:20px; }
+    .form-row { margin-bottom:18px; }
+    .form-row label { display:block; font-size:14px; margin-bottom:7px; color:#cbd5e1; }
+    .form-row label .req { color:#f87171; margin-left:3px; }
+    .form-row .hint { font-size:12px; color:#64748b; margin-top:6px; }
+    input[type=text], select {
+      width:100%; background:rgba(15,20,25,.55); border:1px solid rgba(120,200,255,.18); color:#e2e8f0;
+      border-radius:9px; padding:11px 13px; font-size:14px; outline:none; transition:border-color .15s, box-shadow .15s;
+    }
+    input[type=text]:focus, select:focus { border-color:#00D4FF; box-shadow:0 0 0 3px rgba(0,212,255,.15); }
+    .two-col { display:flex; gap:16px; }
+    .two-col .form-row { flex:1; }
+
+    /* 开关 */
+    .switch-row { display:flex; align-items:center; justify-content:space-between; padding:13px 0; border-bottom:1px solid rgba(120,200,255,.1); }
+    .switch-row:last-child { border-bottom:none; }
+    .switch-row .sl { font-size:14px; color:#cbd5e1; }
+    .switch-row .sd { font-size:12px; color:#64748b; margin-top:3px; }
+    .switch { position:relative; width:46px; height:26px; flex:none; }
+    .switch input { opacity:0; width:0; height:0; }
+    .slider { position:absolute; inset:0; background:#334155; border-radius:20px; transition:.2s; cursor:pointer; }
+    .slider:before { content:""; position:absolute; width:20px; height:20px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.2s; }
+    .switch input:checked + .slider { background:linear-gradient(135deg,#1890FF,#36CFC9); }
+    .switch input:checked + .slider:before { transform:translateX(20px); }
+
+    /* 上传区 */
+    .upload-zone { border:1.5px dashed rgba(120,200,255,.35); border-radius:11px; padding:22px; text-align:center; cursor:pointer;
+      transition:border-color .15s, background .15s; background:rgba(11,17,32,.5); min-height:180px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    .upload-zone:hover { border-color:#38bdf8; background:rgba(56,189,248,.05); }
+    .upload-zone .up-main { font-size:14px; color:#cbd5e1; }
+    .upload-zone .up-sub { font-size:12px; color:#64748b; margin-top:6px; }
+    .upload-zone .preview-img { width:120px; height:120px; object-fit:contain; border-radius:10px; margin-bottom:8px; background:#0b1120; display:none; }
+    .upload-zone.has-file .preview-img { display:inline-block; }
+    .upload-zone.has-file .up-main { font-size:12.5px; }
+    .upload-zone.has-file .up-sub { display:none; }
+    .upload-zone.has-file .filename-tip { display:block; }
+    .upload-zone .filename-tip { display:none; font-size:12px; color:#38bdf8; margin-top:4px; word-break:break-all; }
+    .upload-zone.has-file { border-style:solid; border-color:#38bdf8; }
+    .up-progress { height:4px; width:100%; background:#1e293b; border-radius:2px; margin-top:10px; overflow:hidden; display:none; }
+    .up-progress.show { display:block; }
+    .up-progress-fill { height:100%; width:0; background:linear-gradient(90deg,#1890ff,#38bdf8); transition:width .2s; }
+    .up-progress-fill.indeterminate { width:100% !important; background-image:linear-gradient(45deg,#1890ff 25%,#38bdf8 25%,#38bdf8 50%,#1890ff 50%,#1890ff 75%,#38bdf8 75%,#38bdf8 100%); background-size:28px 28px; animation:pstripe .8s linear infinite; }
+    .up-progress-label { font-size:12px; color:#38bdf8; margin-top:6px; text-align:center; }
+    .up-progress-label:empty { display:none; }
+    @keyframes pstripe { from{background-position:0 0;} to{background-position:28px 0;} }
+
+    .default-note { font-size:12px; color:#86909C; margin-top:8px; }
+    .default-note b { color:#36CFC9; }
+
+    /* 签名教程折叠块 */
+    .tutorial { background:rgba(56,189,248,.05); border:1px solid rgba(120,200,255,.2); border-radius:11px; padding:12px 14px; }
+    .tutorial summary { cursor:pointer; font-size:14px; color:#e2e8f0; font-weight:600; user-select:none; }
+    .tutorial .tut-body { margin-top:10px; font-size:12.5px; color:#cbd5e1; line-height:1.7; }
+    .tutorial .tut-body p { margin:0 0 10px; }
+    .tutorial .tut-body code { background:#0b1120; border:1px solid #1e293b; border-radius:6px; padding:2px 6px; color:#7dd3fc; font-size:12px; word-break:break-all; }
+    .tutorial .tut-cmd { color:#94a3b8; }
+
+    /* 图形化配置概览 */
+    .sum-card { background:rgba(15,23,42,.5); border:1px solid #1e293b; border-radius:14px; padding:6px 4px; }
+    .sum-row { display:flex; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(30,41,59,.6); }
+    .sum-row:last-child { border-bottom:none; }
+    .sk { width:120px; color:#94a3b8; font-size:13px; flex-shrink:0; }
+    .sv { color:#e2e8f0; font-size:13.5px; font-weight:500; word-break:break-all; display:flex; align-items:center; gap:8px; }
+    .sw { width:16px; height:16px; border-radius:5px; border:1px solid rgba(255,255,255,.25); display:inline-block; }
+
+    /* 面板内底部导航（上一步/下一步） */
+    .panel-nav { display:flex; justify-content:flex-end; gap:12px; margin-top:26px; padding-top:18px; border-top:1px solid rgba(120,200,255,.12); }
+    .btn { border:1px solid #334155; background:#334155; color:#e2e8f0; border-radius:9px; padding:11px 20px; font-size:14px; cursor:pointer; }
+    .btn.primary { background:linear-gradient(135deg,#1890FF,#36CFC9); border-color:transparent; color:#04283a; font-weight:600; box-shadow:0 4px 16px rgba(0,170,230,.35); }
+    .btn.primary:disabled { opacity:.5; cursor:not-allowed; }
+    .btn.ghost { background:transparent; border-color:rgba(120,200,255,.3); }
+    .btn:active { transform:translateY(1px); }
+    .btn[hidden] { display:none; }
+
+    /* 全局操作条（顶部：保存 + 进度/下载） */
+    .topbar { display:flex; gap:12px; align-items:center; margin-bottom:16px; }
+    .topbar .btn { padding:8px 16px; font-size:13px; }
+    .status-pill { font-size:13px; padding:4px 12px; border-radius:20px; display:none; }
+    .status-pill.running { background:rgba(250,204,21,.15); color:#facc15; display:inline-block; }
+    .status-pill.success { background:rgba(34,197,94,.15); color:#4ade80; display:inline-block; }
+    .status-pill.failed { background:rgba(248,113,113,.15); color:#f87171; display:inline-block; }
+    .dl-link { margin-left:auto; color:#1890ff; text-decoration:none; font-size:14px; display:none; }
+    .dl-link.show { display:inline-block; }
+
+    .progress-wrap { margin-top:22px; display:none; }
+    .progress-wrap.show { display:block; }
+    .progress-bar { height:10px; border-radius:20px; background:#1e293b; overflow:hidden; }
+    .progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#1890ff,#38bdf8); border-radius:20px; transition:width .4s ease; }
+    .progress-fill.indeterminate { width:100% !important; background-image:linear-gradient(45deg,#1890ff 25%,#38bdf8 25%,#38bdf8 50%,#1890ff 50%,#1890ff 75%,#38bdf8 75%,#38bdf8 100%); background-size:28px 28px; animation:pstripe .8s linear infinite; transition:none; }
+    .progress-meta { display:flex; justify-content:space-between; margin-top:7px; font-size:12.5px; color:#94a3b8; }
+    .progress-pct { color:#38bdf8; font-weight:600; font-variant-numeric:tabular-nums; }
+
+    .console { margin-top:22px; background:#0b1120; border:1px solid #1e293b; border-radius:11px; padding:14px 16px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; line-height:1.7; color:#94f0c5; height:230px; overflow-y:auto; white-space:pre-wrap; display:none; }
+    .console.show { display:block; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="page-head">
+      <h2>APP 打包</h2>
+      <span class="sub">离线打包安卓 APP，构建于本机</span>
+    </div>
+
+    <!-- 顶部全局提示 -->
+    <div class="global-warn">
+      ⚠ <b>更换签名证书会导致已安装用户无法覆盖升级</b>（需先卸载再装）。请妥善备份 <b>qianming.keystore</b>，密码仅在打包时使用、请自行记录。
+    </div>
+
+    <!-- 自动保存提示（右上角，3 秒后自动消失） -->
+    <div class="toast" id="saveToast">✓ 配置已自动保存</div>
+
+    <!-- 顶部操作条：手动保存 + 构建状态/下载 -->
+    <div class="topbar">
+      <button class="btn ghost" id="saveCfgBtn">💾 保存配置</button>
+      <span class="status-pill" id="statusPill"></span>
+      <a class="dl-link" id="dlLink" href="#" target="_blank">下载 APK ↓</a>
+    </div>
+
+    <div class="layout">
+      <!-- 左侧分类导航（保留） -->
+      <div class="nav" id="nav">
+        <div class="nav-item active" data-tab="base"><span class="ic"></span>基础配置</div>
+        <div class="nav-item" data-tab="icon"><span class="ic"></span>图标配置</div>
+        <div class="nav-item" data-tab="splash"><span class="ic"></span>启动界面</div>
+        <div class="nav-item" data-tab="perm"><span class="ic"></span>权限配置</div>
+        <div class="nav-item" data-tab="other"><span class="ic"></span>其它设置</div>
+        <div class="nav-item" data-tab="sign"><span class="ic"></span>签名配置</div>
+        <div class="nav-item" data-tab="code"><span class="ic"></span>配置概览</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item" data-tab="history"><span class="ic">📦</span>历史安装包</div>
+      </div>
+
+      <!-- 右侧详情 -->
+      <div class="panel-wrap">
+        <!-- 步骤 1：基础配置 -->
+        <div class="panel active" data-panel="base">
+          <h3>基础配置</h3>
+          <div class="panel-sub">应用名称、包名、版本与服务器地址</div>
+          <div class="form-row">
+            <label>应用名称<span class="req">*</span></label>
+            <input type="text" id="appName" value="乾明车牌识别" placeholder="如：乾明车牌识别">
+            <div class="hint">显示在手机桌面的应用名称</div>
+          </div>
+          <div class="form-row">
+            <label>包名（Package Name）<span class="req">*</span></label>
+            <input type="text" id="appId" value="cn.qmlpars.com" placeholder="如：cn.qmlpars.com">
+            <div class="hint">根据应用名称自动生成，可手动修改（建议使用反向域名格式）</div>
+          </div>
+          <div class="form-row">
+            <label>版本号</label>
+            <input type="text" id="version" placeholder="读取中…">
+            <div class="hint">取自系统版本号 version.json，可手动调整后写入 APK 文件名</div>
+          </div>
+          <div class="form-row">
+            <label>服务器地址（域名）<span class="req">*</span></label>
+            <input type="text" id="serverUrl" placeholder="https://你的域名" value="">
+            <div class="hint">仅填写域名根地址，例如 https://your.domain，<b>不要</b>带 /cpsb 等路径；http/https/IP/域名均可</div>
+          </div>
+          <div class="panel-nav">
+            <button class="btn ghost" data-prev hidden>← 上一步</button>
+            <button class="btn primary" data-next>下一步 →</button>
+          </div>
+        </div>
+
+        <!-- 步骤 2：图标配置 -->
+        <div class="panel" data-panel="icon">
+          <h3>图标配置</h3>
+          <div class="panel-sub">应用图标（未上传则使用默认 logo.png）</div>
+          <div class="form-row">
+            <div class="upload-zone" id="iconZone">
+              <img id="iconPreview" class="preview-img" alt="">
+              <div class="up-main">点击上传图标</div>
+              <div class="up-sub">建议正方形 512×512 PNG，透明背景更佳</div>
+              <div class="filename-tip" id="iconName"></div>
+              <div class="up-progress" id="iconProgress"><div class="up-progress-fill" id="iconProgressFill"></div><div class="up-progress-label" id="iconProgressLabel"></div></div>
+            </div>
+            <input type="file" id="iconInput" accept="image/*" hidden>
+            <div class="default-note">未上传时默认图标：<b>logo.png</b></div>
+          </div>
+          <div class="panel-nav">
+            <button class="btn ghost" data-prev>← 上一步</button>
+            <button class="btn primary" data-next>下一步 →</button>
+          </div>
+        </div>
+
+        <!-- 步骤 3：启动界面 -->
+        <div class="panel" data-panel="splash">
+          <h3>启动界面配置</h3>
+          <div class="panel-sub">开屏图与启动参数（未上传则使用默认 logo3.png）</div>
+          <div class="form-row">
+            <div class="upload-zone" id="splashZone">
+              <img id="splashPreview" class="preview-img" alt="">
+              <div class="up-main">点击上传开屏图</div>
+              <div class="up-sub">建议长方形 1080×1920 PNG，将自适应裁剪为各密度</div>
+              <div class="filename-tip" id="splashName"></div>
+              <div class="up-progress" id="splashProgress"><div class="up-progress-fill" id="splashProgressFill"></div><div class="up-progress-label" id="splashProgressLabel"></div></div>
+            </div>
+            <input type="file" id="splashInput" accept="image/*" hidden>
+            <div class="default-note">未上传时默认开屏：<b>logo3.png</b></div>
+          </div>
+          <div class="two-col">
+            <div class="form-row">
+              <label>背景颜色</label>
+              <input type="text" id="splashBg" value="#0f172a" placeholder="#0f172a">
+              <div class="hint">开屏底色（H5 加载完成前的底色）</div>
+            </div>
+            <div class="form-row">
+              <label>显示时长（毫秒）</label>
+              <input type="text" id="splashDuration" value="3000" placeholder="3000">
+              <div class="hint">开屏最少显示时间，建议 2000~4000</div>
+            </div>
+          </div>
+          <div class="panel-nav">
+            <button class="btn ghost" data-prev>← 上一步</button>
+            <button class="btn primary" data-next>下一步 →</button>
+          </div>
+        </div>
+
+        <!-- 步骤 4：权限配置 -->
+        <div class="panel" data-panel="perm">
+          <h3>权限配置</h3>
+          <div class="panel-sub">控制 APP 申请的安卓权限（核心权限已默认开启）</div>
+          <div class="switch-row">
+            <div><div class="sl">摄像头</div><div class="sd">拍照 / 扫描车牌必需</div></div>
+            <label class="switch"><input type="checkbox" data-perm="CAMERA" checked><span class="slider"></span></label>
+          </div>
+          <div class="switch-row">
+            <div><div class="sl">网络访问</div><div class="sd">与服务器通信必需</div></div>
+            <label class="switch"><input type="checkbox" data-perm="INTERNET" checked><span class="slider"></span></label>
+          </div>
+          <div class="switch-row">
+            <div><div class="sl">存储读取</div><div class="sd">读取相册上传车辆照片</div></div>
+            <label class="switch"><input type="checkbox" data-perm="READ_EXTERNAL_STORAGE" checked><span class="slider"></span></label>
+          </div>
+          <div class="switch-row">
+            <div><div class="sl">定位</div><div class="sd">本项目无需定位（已默认关闭，无需开启）</div></div>
+            <label class="switch"><input type="checkbox" data-perm="ACCESS_FINE_LOCATION"><span class="slider"></span></label>
+          </div>
+          <div class="panel-nav">
+            <button class="btn ghost" data-prev>← 上一步</button>
+            <button class="btn primary" data-next>下一步 →</button>
+          </div>
+        </div>
+
+        <!-- 步骤 5：其它设置 -->
+        <div class="panel" data-panel="other">
+          <h3>其它设置</h3>
+          <div class="panel-sub">屏幕方向与状态栏</div>
+          <div class="form-row">
+            <label>屏幕方向</label>
+            <select id="orientation">
+              <option value="portrait">竖屏（默认）</option>
+              <option value="landscape">横屏</option>
+              <option value="sensor">跟随传感器</option>
+            </select>
+          </div>
+          <div class="switch-row">
+            <div><div class="sl">沉浸式状态栏</div><div class="sd">隐藏状态栏，全屏显示</div></div>
+            <label class="switch"><input type="checkbox" id="immersive" checked><span class="slider"></span></label>
+          </div>
+          <div class="panel-nav">
+            <button class="btn ghost" data-prev>← 上一步</button>
+            <button class="btn primary" data-next>下一步 →</button>
+          </div>
+        </div>
+
+        <!-- 步骤 6：签名配置 -->
+        <div class="panel" data-panel="sign">
+          <h3>签名配置</h3>
+          <div class="panel-sub">签名证书用于给 APK 签名，<b>同一证书才能覆盖升级</b>。两种方式任选其一</div>
+
+          <details class="tutorial" open>
+            <summary>📖 签名教程（点开/收起）</summary>
+            <div class="tut-body">
+              <p><b>方式一 · 一键生成（推荐，最简单）</b><br>
+              点击下方「一键生成签名证书」，系统会用默认或你填写的别名/密码立即生成自签名证书并可直接下载备份。
+              适合<b>内部分发</b>；如需<b>上架应用商店</b>也完全可用（商店只认证书不认谁生成的）。</p>
+              <p><b>方式二 · 上传自有证书</b><br>
+              若你已有从别处（如 Android Studio / keytool）生成的 <code>.keystore</code> 或 <code>.jks</code>，直接上传即可，下方填写对应密码与别名。</p>
+              <p><b>⚠ 关键提醒</b><br>
+              请妥善备份 <b style="color:#f59e0b">qianming.keystore</b>（或你生成的文件）。<b>更换证书后旧用户将无法覆盖升级</b>（需先卸载再装）。
+              密码仅在打包时使用、不保存于服务器，请自行记录。</p>
+              <p class="tut-cmd">本机手动生成命令（可选）：<br>
+              <code>keytool -genkey -v -keystore qianming.keystore -alias qianming -keyalg RSA -keysize 2048 -validity 10000</code></p>
+            </div>
+          </details>
+
+          <div class="form-row" style="margin-top:14px;">
+            <button class="btn primary" id="genKeystoreBtn">⚡ 一键生成签名证书</button>
+            <span class="default-note" style="margin:0;">不填则用默认：别名 <b>qianming</b> / 密码 <b>Qm@2026!Sign#K3y</b></span>
+          </div>
+
+          <div class="form-row" style="margin-top:16px;">
+            <div class="upload-zone" id="keystoreZone">
+              <div class="up-main">点击上传签名证书（.keystore / .jks）</div>
+              <div class="up-sub">不传则使用「一键生成」或系统已有的证书</div>
+              <div class="filename-tip" id="keystoreName"></div>
+              <div class="up-progress" id="keystoreProgress"><div class="up-progress-fill" id="keystoreProgressFill"></div><div class="up-progress-label" id="keystoreProgressLabel"></div></div>
+            </div>
+            <input type="file" id="keystoreInput" accept=".keystore,.jks,application/java-archive" hidden>
+          </div>
+          <div class="two-col">
+            <div class="form-row">
+              <label>Keystore 密码（store password）</label>
+              <input type="text" id="keystoreStorePass" placeholder="如：Qm@2026!Sign#K3y">
+            </div>
+            <div class="form-row">
+              <label>Key 别名（key alias）</label>
+              <input type="text" id="keystoreKeyAlias" placeholder="如：qianming">
+            </div>
+          </div>
+          <div class="form-row">
+            <label>Key 密码（key password）</label>
+            <input type="text" id="keystoreKeyPass" placeholder="通常与 store 密码一致">
+          </div>
+          <div class="panel-nav">
+            <button class="btn ghost" data-prev>← 上一步</button>
+            <button class="btn primary" data-next>下一步 →</button>
+          </div>
+        </div>
+
+        <!-- 步骤 7：配置概览 / 确认打包 -->
+        <div class="panel" data-panel="code">
+          <h3>配置概览</h3>
+          <div class="panel-sub">确认以下配置无误后点击「开始打包」（随填写实时更新）</div>
+          <div class="summary" id="summaryView"></div>
+          <div class="panel-nav">
+            <button class="btn ghost" data-prev>← 上一步</button>
+            <button class="btn primary" id="buildBtn">🚀 开始打包</button>
+          </div>
+          <div class="progress-wrap" id="progressWrap">
+            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+            <div class="progress-meta">
+              <span id="progressPhase">构建中…</span>
+              <span class="progress-pct"><span id="progressPct">0</span>%</span>
+            </div>
+          </div>
+          <div class="console" id="console"></div>
+        </div>
+
+        <!-- 历史安装包（独立入口，不属向导步骤） -->
+        <div class="panel" data-panel="history">
+          <h3>历史安装包</h3>
+          <div class="panel-sub">本机已生成的所有 APK（按时间倒序）</div>
+          <div id="apkList" style="margin-bottom:14px;"></div>
+          <div id="apkEmpty" class="default-note">暂无历史安装包，请先在「配置概览」点击「开始打包」。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script>
+    (async () => {
+      if (!(await checkAuth())) { location.replace('login.html'); return; }
+
+      const $ = id => document.getElementById(id)
+      const navItems = [...document.querySelectorAll('.nav-item')]
+      const panels = [...document.querySelectorAll('.panel')]
+      // 向导步骤顺序（不含 history 独立入口）
+      const STEPS = ['base', 'icon', 'splash', 'perm', 'other', 'sign', 'code']
+      let stepIdx = 0
+
+      function showStep(i) {
+        stepIdx = Math.max(0, Math.min(STEPS.length - 1, i))
+        const tab = STEPS[stepIdx]
+        navItems.forEach(n => n.classList.toggle('active', n.dataset.tab === tab))
+        panels.forEach(p => p.classList.toggle('active', p.dataset.panel === tab))
+        // 概览面板实时刷新图形化配置
+        if (tab === 'code') renderSummary()
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+      // 上一步 / 下一步
+      document.querySelectorAll('[data-next]').forEach(b => b.addEventListener('click', () => showStep(stepIdx + 1)))
+      document.querySelectorAll('[data-prev]').forEach(b => b.addEventListener('click', () => showStep(stepIdx - 1)))
+      navItems.forEach(it => it.addEventListener('click', () => {
+        const t = it.dataset.tab
+        if (t === 'history') {
+          navItems.forEach(n => n.classList.toggle('active', n === it))
+          panels.forEach(p => p.classList.toggle('active', p.dataset.panel === t))
+          loadApks()
+        } else {
+          const i = STEPS.indexOf(t); if (i >= 0) showStep(i)
+        }
+      }))
+
+      const appName = $('appName'), appId = $('appId'), serverUrl = $('serverUrl')
+      const version = $('version'), buildBtn = $('buildBtn')
+      const consoleEl = $('console'), statusPill = $('statusPill'), dlLink = $('dlLink')
+      const iconZone = $('iconZone'), splashZone = $('splashZone')
+      const iconInput = $('iconInput'), splashInput = $('splashInput')
+      const iconPreview = $('iconPreview'), splashPreview = $('splashPreview')
+      const progressWrap = $('progressWrap'), progressFill = $('progressFill')
+      const progressPct = $('progressPct'), progressPhase = $('progressPhase')
+
+      // 读取版本号
+      try {
+        const v = await fetch(API + '/version.json').then(r => r.json()).catch(() => null)
+        version.value = (v && v.version) ? v.version : '0.0.0'
+      } catch (_) { version.value = '0.0.0' }
+
+      // 根据应用名称自动生成包名
+      function slugify(name) {
+        const map = { '乾明车牌识别': 'cn.qmlpars.com', '乾明': 'cn.qmlpars' }
+        if (map[name]) return map[name]
+        const en = name.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 20)
+        return en ? ('com.' + en) : 'cn.qmlpars.com'
+      }
+      appName.addEventListener('input', () => {
+        if (!appId.dataset.touched) appId.value = slugify(appName.value.trim() || 'cn.qmlpars.com')
+      })
+      appId.addEventListener('input', () => { appId.dataset.touched = '1' })
+
+      // 上传交互（选中后显示“上传中…”进度条，短暂处理完转为“已选择，将在打包时上传”）
+      function bindUpload(zone, input, preview, nameEl, progEl, progFillEl, labelEl) {
+        let objUrl = null
+        zone.addEventListener('click', () => input.click())
+        input.addEventListener('change', () => {
+          const f = input.files[0]
+          if (!f) return
+          // 立即显示“上传中…”进度指示
+          if (progEl) { progEl.classList.add('show'); progFillEl.classList.add('indeterminate'); progFillEl.style.width = '100%' }
+          if (labelEl) labelEl.textContent = '上传中…'
+          zone.classList.remove('has-file')
+          // 用一点延时模拟处理，并实时预览，避免“卡住无反馈”
+          setTimeout(() => {
+            if (objUrl) URL.revokeObjectURL(objUrl)
+            objUrl = URL.createObjectURL(f)
+            preview.src = objUrl
+            if (nameEl) nameEl.textContent = f.name
+            zone.classList.add('has-file')
+            if (progEl) progEl.classList.remove('show')
+            if (progFillEl) { progFillEl.classList.remove('indeterminate'); progFillEl.style.width = '0%' }
+            if (labelEl) labelEl.textContent = '已选择 ✓ 将在打包时上传'
+          }, 400)
+        })
+      }
+      const iconName = $('iconName'), splashName = $('splashName')
+      const iconProgress = $('iconProgress'), splashProgress = $('splashProgress')
+      const iconProgressFill = $('iconProgressFill'), splashProgressFill = $('splashProgressFill')
+      const iconProgressLabel = $('iconProgressLabel'), splashProgressLabel = $('splashProgressLabel')
+      bindUpload(iconZone, iconInput, iconPreview, iconName, iconProgress, iconProgressFill, iconProgressLabel)
+      bindUpload(splashZone, splashInput, splashPreview, splashName, splashProgress, splashProgressFill, splashProgressLabel)
+
+      const keystoreZone = $('keystoreZone'), keystoreInput = $('keystoreInput')
+      const keystoreName = $('keystoreName'), keystoreProgress = $('keystoreProgress')
+      const keystoreProgressFill = $('keystoreProgressFill'), keystoreProgressLabel = $('keystoreProgressLabel')
+      keystoreZone.addEventListener('click', () => keystoreInput.click())
+      keystoreInput.addEventListener('change', () => {
+        const f = keystoreInput.files[0]
+        if (!f) return
+        keystoreProgress.classList.add('show'); keystoreProgressFill.classList.add('indeterminate'); keystoreProgressFill.style.width = '100%'
+        keystoreProgressLabel.textContent = '上传中…'
+        keystoreZone.classList.remove('has-file')
+        setTimeout(() => {
+          keystoreName.textContent = f.name + '（' + (f.size / 1024).toFixed(1) + ' KB）'
+          keystoreZone.classList.add('has-file')
+          keystoreProgress.classList.remove('show'); keystoreProgressFill.classList.remove('indeterminate'); keystoreProgressFill.style.width = '0%'
+          keystoreProgressLabel.textContent = '已选择 ✓ 将在打包时上传'
+        }, 400)
+      })
+      $('dlKeystoreBtn') && $('dlKeystoreBtn').addEventListener('click', () => {
+        window.open(API + '/api/admin/buildapp/keystore', '_blank')
+      })
+      $('genKeystoreBtn').addEventListener('click', async () => {
+        const alias = $('keystoreKeyAlias').value.trim()
+        const storePass = $('keystoreStorePass').value.trim()
+        const keyPass = $('keystoreKeyPass').value.trim()
+        const btn = $('genKeystoreBtn')
+        btn.disabled = true
+        const old = btn.textContent
+        btn.textContent = '生成中…'
+        try {
+          const r = await fetch(API + '/api/admin/buildapp/keystore/generate', {
+            method: 'POST',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+            body: JSON.stringify({ alias, storePass, keyPass })
+          })
+          const j = await r.json()
+          if (!j.success) throw new Error(j.message || '生成失败')
+          $('keystoreKeyAlias').value = j.alias
+          $('keystoreStorePass').value = j.storePass
+          $('keystoreKeyPass').value = j.keyPass
+          alert('签名证书已生成 ✓\n别名：' + j.alias + '\nstore 密码：' + j.storePass + '\n\n请点击「下载当前证书」妥善备份，更换证书会导致旧用户无法覆盖升级。')
+        } catch (e) {
+          alert('生成失败：' + e.message)
+        } finally {
+          btn.disabled = false
+          btn.textContent = old
+        }
+      })
+
+      function collectConfig() {
+        const perms = [...document.querySelectorAll('[data-perm]')].filter(c => c.checked).map(c => c.dataset.perm)
+        return {
+          appName: appName.value.trim(),
+          appId: appId.value.trim() || 'cn.qmlpars.com',
+          version: (version.value || '').trim(),
+          serverUrl: serverUrl.value.trim(),
+          splashBg: ($('splashBg').value || '#0f172a').trim(),
+          splashDuration: parseInt(($('splashDuration').value || '3000').trim(), 10) || 3000,
+          orientation: $('orientation').value,
+          immersive: $('immersive').checked,
+          permissions: perms,
+          useUploadedKeystore: !!keystoreInput.files[0],
+          keystoreStorePass: ($('keystoreStorePass').value || '').trim(),
+          keystoreKeyAlias: ($('keystoreKeyAlias').value || '').trim(),
+          keystoreKeyPass: ($('keystoreKeyPass').value || '').trim()
+        }
+      }
+
+      // 图形化配置概览
+      function renderSummary() {
+        const c = collectConfig()
+        const orientMap = { portrait: '竖屏', landscape: '横屏', sensor: '跟随传感器' }
+        const permMap = { CAMERA: '摄像头', INTERNET: '网络访问', READ_EXTERNAL_STORAGE: '存储读取', ACCESS_FINE_LOCATION: '定位' }
+        const permTxt = (c.permissions.length ? c.permissions : ['INTERNET']).map(p => permMap[p] || p).join('、') || '无'
+        const signTxt = c.useUploadedKeystore ? ('自有证书（别名 ' + (c.keystoreKeyAlias || 'qianming') + '）') : '系统自签名（别名 qianming）'
+        const rows = [
+          ['应用名称', c.appName || '—'], ['包名', c.appId || '—'], ['版本号', c.version || '—'],
+          ['服务器地址', c.serverUrl || '未填写'], ['开屏底色', c.splashBg || '#0f172a'],
+          ['开屏时长', (c.splashDuration / 1000) + ' 秒'], ['屏幕方向', orientMap[c.orientation] || c.orientation],
+          ['沉浸式状态栏', c.immersive ? '开启' : '关闭'], ['申请的权限', permTxt], ['签名方式', signTxt]
+        ]
+        const cards = rows.map(([k, v]) => {
+          const isColor = /^#[0-9a-fA-F]{3,8}$/.test(v)
+          const val = isColor ? '<span class="sv"><i class="sw" style="background:' + v + '"></i>' + v + '</span>' : '<span class="sv">' + escapeHtml(v) + '</span>'
+          return '<div class="sum-row"><span class="sk">' + escapeHtml(k) + '</span>' + val + '</div>'
+        }).join('')
+        $('summaryView').innerHTML = '<div class="sum-card">' + cards + '</div>'
+      }
+      function escapeHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
+
+      // —— 自动保存（输入即存，右上角 toast 3 秒） + 手动保存按钮 ——
+      let toastTimer = null
+      function showToast(msg) {
+        const t = $('saveToast'); t.textContent = msg || '✓ 配置已自动保存'
+        t.classList.add('show')
+        if (toastTimer) clearTimeout(toastTimer)
+        toastTimer = setTimeout(() => t.classList.remove('show'), 3000)
+      }
+      let autoSaveTimer = null
+      async function saveConfig(silent) {
+        const c = collectConfig()
+        const body = JSON.stringify({
+          appName: c.appName, appId: c.appId, serverUrl: c.serverUrl,
+          splashBg: c.splashBg, splashDuration: c.splashDuration,
+          orientation: c.orientation, immersive: c.immersive,
+          permissions: c.permissions, keyAlias: $('keystoreKeyAlias').value.trim()
+        })
+        try {
+          await fetch(API + '/api/admin/buildapp/config', {
+            method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()), body
+          })
+          if (silent) showToast('✓ 配置已自动保存')
+        } catch (_) {}
+      }
+      function scheduleAutoSave() {
+        if (autoSaveTimer) clearTimeout(autoSaveTimer)
+        autoSaveTimer = setTimeout(() => saveConfig(true), 600)
+      }
+      // 监听所有输入/选择/开关变化 → 自动保存
+      ['appName', 'appId', 'version', 'serverUrl', 'splashBg', 'splashDuration', 'keystoreKeyAlias', 'keystoreStorePass', 'keystoreKeyPass']
+        .forEach(id => { const el = $(id); if (el) el.addEventListener('input', scheduleAutoSave) })
+      $('orientation').addEventListener('change', scheduleAutoSave)
+      $('immersive').addEventListener('change', scheduleAutoSave)
+      document.querySelectorAll('[data-perm]').forEach(el => el.addEventListener('change', scheduleAutoSave))
+
+      $('saveCfgBtn').addEventListener('click', async () => {
+        const btn = $('saveCfgBtn'), old = btn.textContent
+        btn.disabled = true; btn.textContent = '保存中…'
+        try { await saveConfig(false); alert('配置已保存 ✓ 下次打开自动回填') }
+        catch (e) { alert('保存失败：' + e.message) }
+        finally { btn.disabled = false; btn.textContent = old }
+      })
+
+      // 打开页面时拉取已保存配置回填
+      async function loadConfig() {
+        try {
+          const r = await fetch(API + '/api/admin/buildapp/config', { headers: authHeaders() }).then(r => r.json())
+          const c = r && r.success && r.config
+          if (!c) return
+          if (c.appName) appName.value = c.appName
+          if (c.appId) { appId.value = c.appId; appId.dataset.touched = '1' }
+          if (c.serverUrl) serverUrl.value = c.serverUrl
+          if (c.splash && c.splash.bg) $('splashBg').value = c.splash.bg
+          if (c.splash && c.splash.duration) $('splashDuration').value = c.splash.duration
+          if (c.orientation) $('orientation').value = c.orientation
+          if (typeof c.immersive === 'boolean') $('immersive').checked = c.immersive
+          if (Array.isArray(c.permissions)) c.permissions.forEach(p => { const el = document.querySelector('[data-perm="' + p + '"]'); if (el) el.checked = true })
+          if (c.signing && c.signing.keyAlias) $('keystoreKeyAlias').value = c.signing.keyAlias
+        } catch (_) {}
+      }
+      await loadConfig()
+
+      // 用 XHR 提交以监听上传进度
+      function postWithProgress(url, fd, onProgress) {
+        return new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest()
+          xhr.open('POST', url)
+          const h = (typeof authHeaders === 'function') ? authHeaders() : {}
+          for (const k in h) xhr.setRequestHeader(k, h[k])
+          xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(Math.round(e.loaded * 100 / e.total)) }
+          xhr.onload = () => { try { resolve({ status: xhr.status, data: JSON.parse(xhr.responseText) }) } catch (e) { reject(new Error('响应解析失败')) } }
+          xhr.onerror = () => reject(new Error('网络异常'))
+          xhr.send(fd)
+        })
+      }
+
+      let polling = null
+      function appendLog(msg) { consoleEl.classList.add('show'); consoleEl.textContent += msg + '\n'; consoleEl.scrollTop = consoleEl.scrollHeight }
+      function setStatus(type, text) { statusPill.className = 'status-pill ' + type; statusPill.textContent = text }
+      function setProgressUI(pct, phase) {
+        const p = Math.max(0, Math.min(100, Math.round(pct || 0)))
+        progressFill.style.width = p + '%'; progressPct.textContent = p
+        if (phase) progressPhase.textContent = phase
+      }
+      function inferPhase(logs) {
+        if (!logs || !logs.length) return '准备中…'
+        const last = logs[logs.length - 1]
+        if (/gradle 打包完成|assembleRelease|Gradle/.test(last)) return 'Gradle 编译打包中…'
+        if (/APK 已输出/.test(last)) return '输出 APK 文件…'
+        if (/cap sync/.test(last)) return '同步原生工程…'
+        if (/工程配置/.test(last)) return '写入工程配置…'
+        if (/keystore|签名/.test(last)) return '准备签名证书…'
+        if (/图标|开屏/.test(last)) return '生成图标与开屏…'
+        if (/H5|资源/.test(last)) return '准备 H5 资源…'
+        return '构建中…'
+      }
+
+      buildBtn.addEventListener('click', async () => {
+        const c = collectConfig()
+        if (!c.appName) { alert('请填写应用名称'); return }
+        if (!c.serverUrl) { alert('请填写服务器地址'); return }
+        if (!/^https?:\/\/.+/.test(c.serverUrl)) { alert('服务器地址需以 http(s):// 开头'); return }
+        if (c.useUploadedKeystore && (!c.keystoreStorePass || !c.keystoreKeyAlias || !c.keystoreKeyPass)) {
+          alert('已上传签名证书，请完整填写 Keystore 密码、Key 别名与 Key 密码'); return
+        }
+        const fd = new FormData()
+        fd.append('appName', c.appName); fd.append('appId', c.appId); fd.append('version', c.version)
+        fd.append('serverUrl', c.serverUrl); fd.append('splashBg', c.splashBg); fd.append('splashDuration', String(c.splashDuration))
+        fd.append('orientation', c.orientation); fd.append('immersive', c.immersive ? '1' : '0')
+        fd.append('permissions', JSON.stringify(c.permissions))
+        if (c.useUploadedKeystore) {
+          fd.append('keystoreStorePass', c.keystoreStorePass); fd.append('keystoreKeyAlias', c.keystoreKeyAlias); fd.append('keystoreKeyPass', c.keystoreKeyPass)
+        }
+        if (iconInput.files[0]) fd.append('icon', iconInput.files[0])
+        if (splashInput.files[0]) fd.append('splash', splashInput.files[0])
+        if (keystoreInput.files[0]) fd.append('keystore', keystoreInput.files[0])
+
+        buildBtn.disabled = true; dlLink.classList.remove('show'); consoleEl.textContent = ''
+        progressWrap.classList.add('show'); setProgressUI(0, '准备中…'); setStatus('running', '上传中…')
+        const hasIcon = !!iconInput.files[0], hasSplash = !!splashInput.files[0], hasKeystore = !!keystoreInput.files[0]
+        if (hasIcon) { iconProgress.classList.add('show'); iconProgressFill.classList.add('indeterminate') }
+        if (hasSplash) { splashProgress.classList.add('show'); splashProgressFill.classList.add('indeterminate') }
+        if (hasKeystore) { keystoreProgress.classList.add('show'); keystoreProgressFill.classList.add('indeterminate') }
+
+        try {
+          const r = await postWithProgress(API + '/api/admin/buildapp', fd, (p) => {
+            if (hasIcon) { iconProgressFill.classList.remove('indeterminate'); iconProgressFill.style.width = p + '%' }
+            if (hasSplash) { splashProgressFill.classList.remove('indeterminate'); splashProgressFill.style.width = p + '%' }
+            if (hasKeystore) { keystoreProgressFill.classList.remove('indeterminate'); keystoreProgressFill.style.width = p + '%' }
+            setProgressUI(Math.min(30, Math.round(p * 0.3)), '上传资源 ' + p + '%')
+          })
+          iconProgress.classList.remove('show'); splashProgress.classList.remove('show'); keystoreProgress.classList.remove('show')
+          iconProgressFill.classList.remove('indeterminate'); splashProgressFill.classList.remove('indeterminate'); keystoreProgressFill.classList.remove('indeterminate')
+          iconProgressFill.style.width = '0%'; splashProgressFill.style.width = '0%'; keystoreProgressFill.style.width = '0%'
+          if (!r.data || !r.data.success) {
+            setStatus('failed', '失败'); appendLog('错误：' + ((r.data && r.data.message) || '未知错误')); buildBtn.disabled = false; return
+          }
+          appendLog('任务已接受，版本 ' + r.data.data.version + '，开始构建…'); setStatus('running', '构建中…'); pollStatus()
+        } catch (e) {
+          setStatus('failed', '失败'); iconProgress.classList.remove('show'); splashProgress.classList.remove('show'); keystoreProgress.classList.remove('show')
+          iconProgressFill.classList.remove('indeterminate'); splashProgressFill.classList.remove('indeterminate'); keystoreProgressFill.classList.remove('indeterminate')
+          appendLog('请求异常：' + e.message); buildBtn.disabled = false
+        }
+      })
+
+      function pollStatus() {
+        if (polling) clearInterval(polling)
+        polling = setInterval(async () => {
+          try {
+            const r = await fetch(API + '/api/admin/buildapp/status', { headers: authHeaders() }).then(r => r.json())
+            if (r.success && r.data.last) {
+              const last = r.data.last
+              if (last.logs) {
+                const shown = consoleEl.textContent.split('\n').filter(Boolean).length
+                last.logs.slice(shown).forEach(l => appendLog(l))
+              }
+              const pct = (last.progress != null) ? last.progress : (last.status === 'success' ? 100 : 0)
+              setProgressUI(pct, inferPhase(last.logs))
+              if (last.status === 'success') {
+                clearInterval(polling); setProgressUI(100, '构建完成'); setStatus('success', '构建成功')
+                if (last.outName) { dlLink.href = API + '/api/admin/buildapp/download'; dlLink.classList.add('show') }
+                loadApks(); buildBtn.disabled = false
+              } else if (last.status === 'failed') {
+                clearInterval(polling); setStatus('failed', '失败'); appendLog('构建失败：' + (last.error || '')); buildBtn.disabled = false
+              }
+            }
+          } catch (_) {}
+        }, 1500)
+      }
+
+      // 历史安装包列表
+      function formatSize(n) {
+        if (n < 1024) return n + ' B'
+        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB'
+        return (n / 1024 / 1024).toFixed(2) + ' MB'
+      }
+      function fmtTime(s) { try { return new Date(s).toLocaleString('zh-CN') } catch (_) { return s } }
+      async function loadApks() {
+        const listEl = $('apkList'), emptyEl = $('apkEmpty')
+        try {
+          const r = await fetch(API + '/api/admin/buildapp/apks', { headers: authHeaders() }).then(r => r.json())
+          const list = (r.success && r.data) ? r.data : []
+          if (!list.length) { listEl.innerHTML = ''; emptyEl.style.display = 'block'; return }
+          emptyEl.style.display = 'none'
+          listEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13.5px;">' +
+            '<thead><tr style="color:#86909C;text-align:left;">' +
+            '<th style="padding:8px 6px;">文件名</th><th style="padding:8px 6px;">版本</th>' +
+            '<th style="padding:8px 6px;">大小</th><th style="padding:8px 6px;">生成时间</th>' +
+            '<th style="padding:8px 6px;text-align:right;"></th></tr></thead><tbody>' +
+            list.map(a => '<tr style="border-top:1px solid rgba(120,200,255,.12);" data-name="' + encodeURIComponent(a.name) + '">' +
+              '<td style="padding:9px 6px;color:#e2e8f0;">' + a.name + '</td>' +
+              '<td style="padding:9px 6px;color:#94a3b8;">' + (a.version || '-') + '</td>' +
+              '<td style="padding:9px 6px;color:#94a3b8;">' + formatSize(a.size) + '</td>' +
+              '<td style="padding:9px 6px;color:#94a3b8;">' + fmtTime(a.builtAt) + '</td>' +
+              '<td style="padding:9px 6px;text-align:right;white-space:nowrap;">' +
+                '<a href="' + API + '/api/admin/buildapp/apks/' + encodeURIComponent(a.name) +
+                '" target="_blank" style="color:#1890ff;text-decoration:none;margin-right:12px;">下载 ↓</a>' +
+                '<a href="javascript:void(0)" data-del="' + encodeURIComponent(a.name) +
+                '" style="color:#ff7875;text-decoration:none;">删除</a>' +
+              '</td>' +
+            '</tr>').join('') + '</tbody></table>'
+          listEl.querySelectorAll('[data-del]').forEach(el => {
+            el.addEventListener('click', () => {
+              const nm = decodeURIComponent(el.getAttribute('data-del'))
+              if (!confirm('确认删除安装包 ' + nm + '？该操作将同步删除服务器文件，不可恢复。')) return
+              deleteApk(nm)
+            })
+          })
+        } catch (_) { emptyEl.style.display = 'block' }
+      }
+      async function deleteApk(name) {
+        try {
+          let warn = ''
+          try {
+            const latest = await fetch(API + '/api/buildapp/latest').then(r => r.json())
+            if (latest.success && latest.data && latest.data.outName === name) {
+              warn = '\n\n⚠ 该安装包是当前「最新下载」指向的版本，删除后首页/落地页的下载按钮将失效，请确认。'
+            }
+          } catch (_) {}
+          if (!confirm('确认删除安装包 ' + name + '？该操作将同步删除服务器文件，不可恢复。' + warn)) return
+          const r = await fetch(API + '/api/admin/buildapp/apks/' + encodeURIComponent(name), { method: 'DELETE', headers: authHeaders() }).then(r => r.json())
+          if (r.success) { loadApks() } else { alert(r.message || '删除失败') }
+        } catch (e) { alert('删除异常：' + e.message) }
+      }
+
+      showStep(0)
+    })()
+  </script>
+</body>
+</html>

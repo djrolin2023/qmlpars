@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OCR 配置 - 乾明车牌识别系统 - 管理后台</title>
+  <link rel="stylesheet" href="css/base.css">
+</head>
+<body class="embed">
+  <div class="main">
+    <div class="content">
+      <nav class="crumb" id="crumb"></nav>
+
+      <div class="panel">
+        <h3>百度 OCR <span class="badge">车牌识别</span></h3>
+        <p class="help">用于识别车牌的百度智能云「文字识别」服务（车牌识别接口）。</p>
+        <ol class="steps">
+          <li>登录 <a href="https://console.bce.baidu.com/" target="_blank" rel="noopener">百度智能云控制台</a> → 进入「文字识别」产品页。</li>
+          <li>在「应用列表」中<strong>创建应用</strong>（勾选「车牌识别」），获得 <code>API Key</code> 与 <code>Secret Key</code>。</li>
+          <li>将下方两值粘贴保存即可（密钥仅本机数据库存储，不对外传输）。</li>
+        </ol>
+        <div class="form-row"><label>API Key</label><input id="BAIDU_API_KEY" placeholder="留空表示不修改"></div>
+        <div class="form-row"><label>Secret Key</label><input id="BAIDU_SECRET_KEY" type="password" placeholder="留空表示不修改"></div>
+      </div>
+      <div class="panel">
+        <h3>腾讯 OCR <span class="badge green">备用通道</span></h3>
+        <p class="help">作为百度通道的备用识别源，使用腾讯云「OCR 文字识别」服务。</p>
+        <ol class="steps">
+          <li>登录 <a href="https://console.cloud.tencent.com/ocr" target="_blank" rel="noopener">腾讯云控制台</a> → 进入「文字识别 OCR」。</li>
+          <li>在「访问管理 → API 密钥管理」获取 <code>SecretId</code> 与 <code>SecretKey</code>（主账号或子账号密钥均可）。</li>
+          <li>粘贴保存后系统将自动启用该通道作为备用。</li>
+        </ol>
+        <div class="form-row"><label>SecretId</label><input id="TENCENT_SECRET_ID" placeholder="留空表示不修改"></div>
+        <div class="form-row"><label>SecretKey</label><input id="TENCENT_SECRET_KEY" type="password" placeholder="留空表示不修改"></div>
+      </div>
+      <button class="btn primary" id="save-btn">保存配置</button>
+    </div>
+    <div class="page-footer" id="site-footer-text"></div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script src="js/upgrade.js"></script>
+  <script src="js/ocr.js"></script>
+  <script>
+    (async () => {
+      if (!(await checkAuth())) { location.replace('login.html'); return; }
+      initOcr();
+    })();
+  </script>
+</body>
+</html>

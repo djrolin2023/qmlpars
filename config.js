@@ -40,7 +40,20 @@ module.exports = {
   DB_PATH: process.env.DB_PATH || '',
 
   // 对外可访问的基础 URL（仅用于拼接上传图片完整地址，当前前端未强制使用）
-  get BASE_URL() { return dbGet('BASE_URL', process.env.BASE_URL || 'https://jyedu.wl.gd.cn') },
+  get BASE_URL() { return dbGet('BASE_URL', process.env.BASE_URL || '') },
+
+  // 自适应基础 URL：优先取当前请求的协议+域名（兼容反向代理 X-Forwarded-*），
+  // 其次回退到 settings/.env 中配置的 BASE_URL，最后回退空串（前端用相对路径也能工作）。
+  // 这样内外网、不同域名部署都无需手动改配置。
+  baseUrl(req) {
+    if (req) {
+      const proto = (req.headers['x-forwarded-proto'] || (req.connection && req.connection.encrypted ? 'https' : req.protocol) || 'http').split(',')[0]
+      const host = req.headers['x-forwarded-host'] || req.headers.host
+      if (host) return `${proto}://${host}`
+    }
+    const cfg = dbGet('BASE_URL', process.env.BASE_URL || '')
+    return cfg || ''
+  },
 
   // 上传图片本地保存目录
   UPLOAD_DIR: process.env.UPLOAD_DIR || 'uploads',

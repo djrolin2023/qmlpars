@@ -1,43 +1,50 @@
-#!/bin/bash
-# 启动/守护 jyedu Node 服务（解决 LD_LIBRARY_PATH 被 CodeBuddy 等工具污染导致 node 启动崩溃的问题）
-# 使用：在群晖 DSM 任务计划里设置为每 5 分钟运行一次：
-#   bash /volume1/web/jyedu/start.sh
-# 也可手动运行。
+#!/usr/bin/env bash
+# 车牌识别系统 - 服务启动/守护脚本（跨平台，依赖 pm2）
+# 用法:
+#   启动 / 重启:  bash start.sh
+#   停止:          pm2 stop qmlpars
+#   查看:          pm2 list
+#   开机自启:      bash start.sh --enable-boot   (需 root，写入 systemd)
+set -e
 
-APP_DIR="/volume1/web/jyedu"
-PORT="7081"
-LOG_FILE="$APP_DIR/nohup.out"
+APP_DIR="$(cd "$(dirname "$0")" && pwd)"
+PM2_BIN="$(command -v pm2 || echo /usr/local/bin/pm2)"
+export PM2_HOME="${PM2_HOME:-/root/.pm2}"
+# 清掉可能由 IDE/远程终端注入的、与本机 node 不兼容的库路径
+unset LD_LIBRARY_PATH
 
-# 检查是否已在监听指定端口
-is_running() {
-  (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | grep -q ":$PORT "
-}
+cd "$APP_DIR"
 
-# 杀掉已有的 node index.js 进程（避免重复启动）
-stop_existing() {
-  pkill -f "node $APP_DIR/index.js" 2>/dev/null
-  sleep 1
-}
+if [ "$1" = "--enable-boot" ]; then
+  # 仅当系统是 systemd 时写入开机单元（Linux 通用，不限于群晖）
+  if [ -d /etc/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+    UNIT=/etc/systemd/system/qmlpars.service
+    cat > "$UNIT" <<EOF
+[Unit]
+Description=车牌识别系统 (qmlpars)
+After=network.target
 
-if is_running; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] 服务已在 $PORT 端口运行，无需启动。"
+[Service]
+Type=forking
+Environment=PM2_HOME=$PM2_HOME
+ExecStart=$PM2_BIN resurrect
+ExecReload=$PM2_BIN reload all
+ExecStop=$PM2_BIN kill
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl enable qmlpars.service
+    echo "已写入并启用 systemd 开机单元: $UNIT"
+  else
+    echo "当前系统非 systemd，未写入开机单元。请在系统自带的'开机/登录任务'中执行: bash $APP_DIR/start.sh"
+  fi
   exit 0
 fi
 
-stop_existing
-
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] 未检测到服务，正在启动..."
-
-# 关键：用 env -i 清空环境变量，只保留最小 PATH，避免 LD_LIBRARY_PATH 污染导致 libstdc++ 不兼容
-env -i \
-  PATH="/usr/local/bin:/usr/bin:/bin" \
-  HOME="/root" \
-  bash -lc "cd $APP_DIR && nohup node index.js > $LOG_FILE 2>&1 & disown"
-
-sleep 3
-if is_running; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] 启动成功。"
-else
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] 启动失败，请查看 $LOG_FILE。"
-  exit 1
-fi
+# 确保 pm2 守护在运行并启动本项目
+"$PM2_BIN" start index.js --name qmlpars --cwd "$APP_DIR" || "$PM2_BIN" restart qmlpars
+"$PM2_BIN" save
+echo "qmlpars 已在 pm2 中运行 (PM2_HOME=$PM2_HOME)"
