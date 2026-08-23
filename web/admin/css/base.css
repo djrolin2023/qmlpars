@@ -584,6 +584,13 @@ table.data .no-photo { display: inline-flex; align-items: center; justify-conten
 .up-notes .up-notes-title { color: #fff; font-weight: 600; margin-bottom: 6px; }
 .up-notes ul { margin: 0; padding-left: 18px; }
 .up-notes li { margin-bottom: 4px; }
+.up-local-changelog { margin-top: 14px; max-height: 220px; overflow: auto; font-size: 13px; line-height: 1.7; color: var(--muted); background: rgba(56,189,248,.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.up-local-title { color: #fff; font-weight: 600; margin-bottom: 8px; }
+.up-local-ver { color: #7dd3fc; font-weight: 600; margin: 8px 0 4px; }
+.up-local-ver:first-of-type { margin-top: 0; }
+.up-local-date { color: var(--muted); font-weight: 400; font-size: 12px; }
+.up-local-changelog ul { margin: 0; padding-left: 18px; }
+.up-local-changelog li { margin-bottom: 3px; }
 .up-settings { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--border); }
 .up-set-row { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; padding: 6px 0; font-size: 13px; color: var(--muted); }
 .up-set-row#up-freq-row { padding-left: 22px; }

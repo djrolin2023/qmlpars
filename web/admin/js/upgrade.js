@@ -34,6 +34,9 @@
         </div>
         <div id="upgrade-error" class="warn" style="display:none;margin-top:10px"></div>
 
+        <!-- 本地最近三次更新日志（始终展示） -->
+        <div class="up-local-changelog" id="up-local-changelog"></div>
+
         <div class="up-settings">
           <div class="up-set-row up-switch-row">
             <span>自动检查升级</span>
@@ -128,23 +131,17 @@
       upFreqRow.style.display = upSet.autoCheck ? 'flex' : 'none'
     }
 
-    // 显示本地版本号
+    // 显示本地版本号，并在弹窗里展示最近三次更新日志
     function showLocalVersion() {
       if (!versionEl) return
-      fetch(API + '/version.json', { cache: 'no-store' })
+      // 加时间戳，避免浏览器/代理缓存旧版本号
+      fetch(API + '/version.json?t=' + Date.now(), { cache: 'no-store' })
         .then(r => r.ok ? r.json() : null)
         .then(j => {
           if (j && j.version) {
             versionEl.textContent = '版本号：' + j.version
             if (upCurrent) upCurrent.textContent = j.version
-            // 未检查到远程更新时，弹窗里展示本地当前版本的更新日志
-            if (upNotes && upResult && upResult.style.display !== 'block') {
-              const item = (j.changelog || []).find(x => x && x.version === j.version)
-              if (item && Array.isArray(item.changes) && item.changes.length) {
-                upNotes.innerHTML = '<div class="up-notes-title">本版本更新内容</div><ul>' +
-                  item.changes.map(c => '<li>' + c + '</li>').join('') + '</ul>'
-              }
-            }
+            renderLocalChangelog(j)
           } else {
             versionEl.textContent = '版本号：未知'
             if (upCurrent) upCurrent.textContent = '未知'
@@ -154,6 +151,22 @@
           versionEl.textContent = '版本号：未知'
           if (upCurrent) upCurrent.textContent = '未知'
         })
+    }
+    function renderLocalChangelog(j) {
+      const box = document.getElementById('up-local-changelog')
+      if (!box) return
+      const list = (j && j.changelog || []).slice(0, 3)
+      if (!list.length) { box.innerHTML = ''; return }
+      box.innerHTML = '<div class="up-local-title">最近更新</div>' +
+        list.map(item => {
+          const changes = (Array.isArray(item.changes) ? item.changes : [item.changes]).filter(Boolean)
+          return '<div class="up-local-ver">v' + escapeHtml(item.version) +
+            (item.date ? ' <span class="up-local-date">' + escapeHtml(item.date) + '</span>' : '') + '</div>' +
+            (changes.length ? '<ul>' + changes.map(c => '<li>' + escapeHtml(c) + '</li>').join('') + '</ul>' : '')
+        }).join('')
+    }
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     }
     showLocalVersion()
 
