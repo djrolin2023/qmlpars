@@ -437,6 +437,24 @@ table.data .no-photo { display: inline-flex; align-items: center; justify-conten
 .recent-list .ri .p { font-weight: 600; }
 .recent-list .ri .meta { color: var(--muted); font-size: 12px; }
 
+/* ============ 数据大屏：系统信息卡片 ============ */
+.sysinfo-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+.sys-card {
+  position: relative; overflow: hidden; border-radius: 12px; padding: 16px;
+  background: linear-gradient(135deg, rgba(120,200,255,.10), var(--card) 60%);
+  border: 1px solid rgba(120,200,255,.28);
+  display: flex; gap: 12px; align-items: flex-start;
+}
+.sys-ic { font-size: 22px; line-height: 1; flex: none; margin-top: 2px; }
+.sys-body { min-width: 0; flex: 1; }
+.sys-lbl { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.sys-val { font-size: 15px; font-weight: 600; color: #fff; word-break: break-all; line-height: 1.4; }
+.sys-sub { font-size: 11.5px; color: var(--muted); margin-top: 5px; word-break: break-all; line-height: 1.5; }
+.sys-sub span { display: block; height: 6px; border-radius: 4px; margin-top: 4px; transition: width .4s; }
+@media (max-width: 1100px) { .sysinfo-grid { grid-template-columns: repeat(3,1fr); } }
+@media (max-width: 900px) { .sysinfo-grid { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 560px) { .sysinfo-grid { grid-template-columns: repeat(1,1fr); } }
+
 /* ============ 图片上传（对齐 demo：点击/拖拽/粘贴） ============ */
 .photo-row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
 .photo-col { flex: 0 0 auto; }

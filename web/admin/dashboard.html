@@ -47,6 +47,18 @@
         <h3>最近识别记录</h3>
         <div class="recent-list" id="recent"></div>
       </div>
+
+      <div class="chart-box sysinfo-box" style="margin-top:16px">
+        <h3>系统信息</h3>
+        <div class="sysinfo-grid">
+          <div class="sys-card"><div class="sys-ic">🖥️</div><div class="sys-body"><div class="sys-lbl">操作系统</div><div class="sys-val" id="sys-os">—</div><div class="sys-sub" id="sys-arch"></div></div></div>
+          <div class="sys-card"><div class="sys-ic">💻</div><div class="sys-body"><div class="sys-lbl">CPU</div><div class="sys-val" id="sys-cpu">—</div><div class="sys-sub" id="sys-cpu-model"></div></div></div>
+          <div class="sys-card"><div class="sys-ic">🧠</div><div class="sys-body"><div class="sys-lbl">内存</div><div class="sys-val" id="sys-mem">—</div><div class="sys-sub" id="sys-mem-bar"><span></span></div></div></div>
+          <div class="sys-card"><div class="sys-ic">🌐</div><div class="sys-body"><div class="sys-lbl">网络流量</div><div class="sys-val" id="sys-net">—</div><div class="sys-sub" id="sys-net-detail"></div></div></div>
+          <div class="sys-card"><div class="sys-ic">📦</div><div class="sys-body"><div class="sys-lbl">系统版本</div><div class="sys-val" id="sys-ver">—</div><div class="sys-sub" id="sys-uptime"></div></div></div>
+          <div class="sys-card"><div class="sys-ic">🌍</div><div class="sys-body"><div class="sys-lbl">浏览器 / 客户端</div><div class="sys-val" id="sys-browser">—</div><div class="sys-sub" id="sys-screen"></div></div></div>
+        </div>
+      </div>
     </div>
     <div class="page-footer" id="site-footer-text"></div>
   </div>
@@ -59,6 +71,7 @@
       if (!(await checkAuth())) { location.replace('login.html'); return; }
       initDashboard();
       bindCategoryCards();
+      initSysInfo();
     })();
   </script>
 </body>

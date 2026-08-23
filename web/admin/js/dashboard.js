@@ -152,3 +152,96 @@ async function loadCategory(cat) {
     list.innerHTML = '<div class="empty">加载失败：' + escapeHtml(e.message) + '</div>';
   }
 }
+
+// ===== 系统信息大屏 =====
+function fmtBytes(n) {
+  if (n == null || isNaN(n)) return '—'
+  const u = ['B', 'KB', 'MB', 'GB', 'TB']
+  let i = 0
+  let v = Number(n)
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
+  return v.toFixed(i === 0 ? 0 : 1) + ' ' + u[i]
+}
+function fmtRate(n) { return fmtBytes(n) + '/s' }
+
+function detectBrowser() {
+  const ua = navigator.userAgent
+  let name = '未知浏览器', ver = ''
+  const map = [
+    ['Edg', 'Edge'], ['OPR', 'Opera'], ['Firefox', 'Firefox'],
+    ['Chrome', 'Chrome'], ['Safari', 'Safari']
+  ]
+  for (const [t, n] of map) {
+    const m = ua.match(new RegExp(t + '\\/([\\d.]+)'))
+    if (m) { name = n; ver = m[1]; break }
+  }
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua)
+  return { name: name + (ver ? ' ' + ver : ''), mobile: isMobile }
+}
+
+function renderSysInfo(d, version) {
+  if (!d) return
+  const os = d.os || {}
+  const cpu = d.cpu || {}
+  const mem = d.memory || {}
+  const net = d.network || null
+
+  const elOs = document.getElementById('sys-os')
+  if (elOs) elOs.textContent = (os.name || os.platform || '未知') + (os.release ? ' (' + os.release + ')' : '')
+  const elArch = document.getElementById('sys-arch')
+  if (elArch) elArch.textContent = [os.arch, '主机 ' + (os.hostname || '—'), os.nodeVersion ? 'Node ' + os.nodeVersion : ''].filter(Boolean).join(' · ')
+
+  const elCpu = document.getElementById('sys-cpu')
+  if (elCpu) elCpu.textContent = (cpu.cores || '—') + ' 核' + (cpu.usage != null ? ' · 负载 ' + cpu.usage + '%' : '')
+  const elCpuModel = document.getElementById('sys-cpu-model')
+  if (elCpuModel) elCpuModel.textContent = cpu.model || ''
+
+  const elMem = document.getElementById('sys-mem')
+  if (elMem) elMem.textContent = fmtBytes(mem.used) + ' / ' + fmtBytes(mem.total) + (mem.usage != null ? ' (' + mem.usage + '%)' : '')
+  const elMemBar = document.getElementById('sys-mem-bar')
+  if (elMemBar) {
+    elMemBar.firstElementChild.style.width = (mem.usage != null ? Math.min(100, mem.usage) : 0) + '%'
+    elMemBar.style.background = 'rgba(120,200,255,.12)'
+    elMemBar.firstElementChild.style.background = (mem.usage >= 85) ? 'linear-gradient(90deg,#ff7875,#ff4d4f)' : 'linear-gradient(90deg,#36CFC9,#1890FF)'
+  }
+
+  const elNet = document.getElementById('sys-net')
+  if (elNet) elNet.textContent = net ? ('↓ ' + fmtRate(net.rxRate) + ' ↑ ' + fmtRate(net.txRate)) : '不支持'
+  const elNetDetail = document.getElementById('sys-net-detail')
+  if (elNetDetail && net) elNetDetail.textContent = '累计 ↓ ' + fmtBytes(net.rxBytes) + ' ↑ ' + fmtBytes(net.txBytes)
+
+  const elVer = document.getElementById('sys-ver')
+  if (elVer) elVer.textContent = version || '未知'
+  const elUp = document.getElementById('sys-uptime')
+  if (elUp) elUp.textContent = os.uptime ? '已运行 ' + os.uptime : ''
+
+  const b = detectBrowser()
+  const elBrowser = document.getElementById('sys-browser')
+  if (elBrowser) elBrowser.textContent = b.name + (b.mobile ? ' · 移动端' : ' · 桌面端')
+  const elScreen = document.getElementById('sys-screen')
+  if (elScreen) elScreen.textContent = window.screen.width + ' × ' + window.screen.height + ' · ' + navigator.language
+}
+
+async function initSysInfo() {
+  // 浏览器与屏幕尺寸是前端信息，立即渲染
+  const b = detectBrowser()
+  const elBrowser = document.getElementById('sys-browser')
+  if (elBrowser) elBrowser.textContent = b.name + (b.mobile ? ' · 移动端' : ' · 桌面端')
+  const elScreen = document.getElementById('sys-screen')
+  if (elScreen) elScreen.textContent = window.screen.width + ' × ' + window.screen.height + ' · ' + navigator.language
+
+  async function refresh() {
+    try {
+      const [infoR, verR] = await Promise.all([
+        api('/api/admin/sysinfo'),
+        fetch('/version.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null)
+      ])
+      const info = (infoR && infoR.success && infoR.data) ? infoR.data : null
+      const ver = verR && verR.version ? verR.version : null
+      renderSysInfo(info, ver)
+    } catch (e) { /* 静默，下次轮询重试 */ }
+  }
+  refresh()
+  // 每 3 秒刷新（CPU 使用率 / 流量速率需两次采样差值）
+  setInterval(refresh, 3000)
+}

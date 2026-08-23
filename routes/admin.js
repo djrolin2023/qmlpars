@@ -3,6 +3,7 @@ module.exports = function (ctx) {
   const express = require('express')
   const fs = require('fs')
   const path = require('path')
+  const os = require('os')
   const { router, db, config, upload, authMiddleware } = ctx
   const { normalizePlate, toPlateKey } = require('../plate')
   const { hashPassword, verifyPassword } = require('../auth')
@@ -12,6 +13,59 @@ module.exports = function (ctx) {
     const d = new Date()
     const p = n => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+  }
+
+  // ===== 系统信息采样状态（用于计算 CPU 使用率 / 网络速率）=====
+  let _cpuPrev = null            // 上一次 os.cpus() 的 idle/total 累计
+  let _netPrev = null            // 上一次网络累计字节 { rx, tx, ts }
+
+  function readNetStats() {
+    // 读取 /proc/net/dev 累计收发包/字节（Linux）；其他平台返回 null
+    try {
+      const raw = fs.readFileSync('/proc/net/dev', 'utf8')
+      let rx = 0, tx = 0, rxPkts = 0, txPkts = 0
+      raw.split('\n').forEach(line => {
+        const m = line.match(/^\s*[\w:]+\s*:\s*(\d+)\s+(\d+)\s+(\d+)\s+[\d\s]+\d+\s+(\d+)\s+(\d+)\s+(\d+)/)
+        if (!m) return
+        rx += Number(m[1]); rxPkts += Number(m[2])
+        tx += Number(m[4]); txPkts += Number(m[5])
+      })
+      return { rx, tx, rxPkts, txPkts, ts: Date.now() }
+    } catch (e) { return null }
+  }
+
+  function cpuUsage() {
+    const cpus = os.cpus()
+    let idle = 0, total = 0
+    cpus.forEach(c => {
+      for (const k in c.times) total += c.times[k]
+      idle += c.times.idle
+    })
+    const cur = { idle, total }
+    let pct = null
+    if (_cpuPrev) {
+      const dIdle = cur.idle - _cpuPrev.idle
+      const dTotal = cur.total - _cpuPrev.total
+      if (dTotal > 0) pct = Math.min(100, Math.max(0, (1 - dIdle / dTotal) * 100))
+    }
+    _cpuPrev = cur
+    return { model: (cpus[0] && cpus[0].model) || '未知', cores: cpus.length, usage: pct }
+  }
+
+  function netUsage() {
+    const cur = readNetStats()
+    let rate = null
+    if (cur && _netPrev) {
+      const dt = (cur.ts - _netPrev.ts) / 1000
+      if (dt > 0) {
+        rate = {
+          rxRate: Math.max(0, (cur.rx - _netPrev.rx) / dt),
+          txRate: Math.max(0, (cur.tx - _netPrev.tx) / dt)
+        }
+      }
+    }
+    _netPrev = cur
+    return { stats: cur, rate }
   }
 
   // 3. 登录（用户名固定 admin，前端只提交管理密码）
@@ -70,6 +124,73 @@ module.exports = function (ctx) {
     const offset = (page - 1) * pageSize
     const rows = db.prepare(`SELECT id, plateNo, source, channel, confidence, result, image, userId, userName, CAST(createdAt AS TEXT) AS createdAt FROM recognition_logs ${whereSql} ORDER BY id DESC LIMIT ? OFFSET ?`).all(...params, pageSize, offset)
     res.json({ success: true, data: rows, total, page, pageSize })
+  })
+
+  // 3.7 系统信息（大屏展示：操作系统 / CPU / 内存 / 流量 / 版本）
+  router.get('/api/admin/sysinfo', authMiddleware, (req, res) => {
+    try {
+      const cpu = cpuUsage()
+      const net = netUsage()
+      const totalMem = os.totalmem()
+      const freeMem = os.freemem()
+      const usedMem = totalMem - freeMem
+      const uptimeSec = os.uptime()
+      const days = Math.floor(uptimeSec / 86400)
+      const hours = Math.floor((uptimeSec % 86400) / 3600)
+      const mins = Math.floor((uptimeSec % 3600) / 60)
+      const uptimeStr = (days > 0 ? days + ' 天 ' : '') + hours + ' 时 ' + mins + ' 分'
+
+      let osName = os.type()
+      let release = os.release()
+      // Linux 尝试读取发行版名称
+      if (os.platform() === 'linux') {
+        try {
+          const issue = fs.readFileSync('/etc/os-release', 'utf8')
+          const name = (issue.match(/^PRETTY_NAME="?([^"\n]+)/m) || [])[1]
+          if (name) osName = name
+        } catch (e) {}
+      } else if (os.platform() === 'win32') {
+        osName = 'Windows'
+      } else if (os.platform() === 'darwin') {
+        osName = 'macOS'
+      }
+
+      res.json({
+        success: true,
+        data: {
+          os: {
+            platform: os.platform(),
+            name: osName,
+            release: release,
+            arch: os.arch(),
+            hostname: os.hostname(),
+            uptime: uptimeStr,
+            nodeVersion: process.version
+          },
+          cpu: {
+            model: cpu.model,
+            cores: cpu.cores,
+            usage: cpu.usage === null ? null : Number(cpu.usage.toFixed(1))
+          },
+          memory: {
+            total: totalMem,
+            used: usedMem,
+            free: freeMem,
+            usage: Number((usedMem / totalMem * 100).toFixed(1))
+          },
+          network: net.stats ? {
+            rxBytes: net.stats.rx,
+            txBytes: net.stats.tx,
+            rxPkts: net.stats.rxPkts,
+            txPkts: net.stats.txPkts,
+            rxRate: net.rate ? Number(net.rate.rxRate.toFixed(0)) : null,
+            txRate: net.rate ? Number(net.rate.txRate.toFixed(0)) : null
+          } : null
+        }
+      })
+    } catch (e) {
+      res.json({ success: false, message: e.message })
+    }
   })
 
   // 3.6 数据大屏统计
