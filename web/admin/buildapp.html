@@ -133,6 +133,12 @@
     .sk { width:120px; color:#94a3b8; font-size:13px; flex-shrink:0; }
     .sv { color:#e2e8f0; font-size:13.5px; font-weight:500; word-break:break-all; display:flex; align-items:center; gap:8px; }
     .sw { width:16px; height:16px; border-radius:5px; border:1px solid rgba(255,255,255,.25); display:inline-block; }
+    /* 概览：带图片的媒体行（APP 图标 / 开屏图） */
+    .sum-media .sv.media { flex-wrap:wrap; align-items:center; gap:10px; }
+    .sum-thumb { width:48px; height:48px; border-radius:10px; object-fit:cover; border:1px solid #334155; background:#0b1120; flex:none; }
+    .sum-thumb-wide { width:60px; height:84px; border-radius:8px; }
+    .sum-media .muted { color:#64748b; font-size:13px; }
+    .sum-media .fname { color:#94a3b8; font-size:12px; word-break:break-all; max-width:260px; }
 
     /* 面板内底部导航（上一步/下一步） */
     .panel-nav { display:flex; justify-content:flex-end; gap:12px; margin-top:26px; padding-top:18px; border-top:1px solid rgba(120,200,255,.12); }
@@ -588,18 +594,45 @@
         const permMap = { CAMERA: '摄像头', INTERNET: '网络访问', READ_EXTERNAL_STORAGE: '存储读取', ACCESS_FINE_LOCATION: '定位' }
         const permTxt = (c.permissions.length ? c.permissions : ['INTERNET']).map(p => permMap[p] || p).join('、') || '无'
         const signTxt = c.useUploadedKeystore ? ('自有证书（别名 ' + (c.keystoreKeyAlias || 'qianming') + '）') : '系统自签名（别名 qianming）'
+        // 文字行
         const rows = [
           ['应用名称', c.appName || '—'], ['包名', c.appId || '—'], ['版本号', c.version || '—'],
           ['服务器地址', c.serverUrl || '未填写'], ['开屏底色', c.splashBg || '#0f172a'],
           ['开屏时长', (c.splashDuration / 1000) + ' 秒'], ['屏幕方向', orientMap[c.orientation] || c.orientation],
           ['沉浸式状态栏', c.immersive ? '开启' : '关闭'], ['申请的权限', permTxt], ['签名方式', signTxt]
         ]
-        const cards = rows.map(([k, v]) => {
+        const textCards = rows.map(([k, v]) => {
           const isColor = /^#[0-9a-fA-F]{3,8}$/.test(v)
           const val = isColor ? '<span class="sv"><i class="sw" style="background:' + v + '"></i>' + v + '</span>' : '<span class="sv">' + escapeHtml(v) + '</span>'
           return '<div class="sum-row"><span class="sk">' + escapeHtml(k) + '</span>' + val + '</div>'
         }).join('')
-        $('summaryView').innerHTML = '<div class="sum-card">' + cards + '</div>'
+
+        // 媒体行：APP 图标（名字 + 缩略图）、开屏图（缩略图）
+        const mediaCards = []
+        // APP 图标
+        const iconSrc = (typeof iconPreview !== 'undefined' && iconPreview) ? iconPreview.getAttribute('src') : ''
+        const iconNameTxt = (typeof iconName !== 'undefined' && iconName && iconName.textContent && iconName.textContent.indexOf('已选择') < 0) ? iconName.textContent : ''
+        const hasIcon = iconSrc && iconSrc.indexOf('blob:') === 0
+        mediaCards.push(
+          '<div class="sum-row sum-media"><span class="sk">APP 图标</span>' +
+          '<span class="sv media">' +
+          (hasIcon ? '<img class="sum-thumb" src="' + iconSrc + '" alt="APP 图标">' : '<span class="muted">未上传（使用默认 logo3.png）</span>') +
+          (iconNameTxt ? '<span class="fname">' + escapeHtml(iconNameTxt) + '</span>' : '') +
+          '</span></div>'
+        )
+        // 开屏图
+        const splashSrc = (typeof splashPreview !== 'undefined' && splashPreview) ? splashPreview.getAttribute('src') : ''
+        const splashNameTxt = (typeof splashName !== 'undefined' && splashName && splashName.textContent && splashName.textContent.indexOf('已选择') < 0) ? splashName.textContent : ''
+        const hasSplash = splashSrc && splashSrc.indexOf('blob:') === 0
+        mediaCards.push(
+          '<div class="sum-row sum-media"><span class="sk">开屏图</span>' +
+          '<span class="sv media">' +
+          (hasSplash ? '<img class="sum-thumb sum-thumb-wide" src="' + splashSrc + '" alt="开屏图">' : '<span class="muted">未上传（使用默认 logo.png）</span>') +
+          (splashNameTxt ? '<span class="fname">' + escapeHtml(splashNameTxt) + '</span>' : '') +
+          '</span></div>'
+        )
+
+        $('summaryView').innerHTML = '<div class="sum-card">' + textCards + mediaCards.join('') + '</div>'
       }
       function escapeHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
 

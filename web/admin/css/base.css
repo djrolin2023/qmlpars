@@ -157,12 +157,13 @@ body.embed .content { padding: 22px; }
 }
 .app-shell .foot .version { letter-spacing: .3px; }
 .app-shell .foot .copyright { line-height: 1.5; }
-.app-shell .foot .beian { display: inline-flex; align-items: center; gap: 4px; }
-.app-shell .foot .beian a { color: #86909C; text-decoration: none; }
-.app-shell .foot .beian a:hover { color: #1890FF; }
-.app-shell .foot .beian .sep { color: #86909C; }
-.app-shell .foot .police-record { display: inline-flex; align-items: center; gap: 5px; }
-.app-shell .foot .police-record .police-icon { width: 14px; height: 14px; flex: none; }
+.app-shell .foot #icp-line,
+.app-shell .foot #police-line { margin-left: 6px; }
+.app-shell .foot #icp-line a,
+.app-shell .foot #police-line a { color: #86909C; text-decoration: none; }
+.app-shell .foot #icp-line a:hover,
+.app-shell .foot #police-line a:hover { color: #1890FF; }
+.app-shell .foot .police-icon { width: 14px; height: 14px; flex: none; vertical-align: middle; }
 .app-shell .main-col {
   flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0;
   border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--bg);

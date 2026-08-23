@@ -48,15 +48,8 @@
       <iframe class="frame" id="frame" src="dashboard.html"></iframe>
       <div class="foot">
         <div class="copyright">© 2026 乾明工作室 版权所有 | 技术支持：乾明</div>
-        <div class="beian" id="beian-info">
-          <a id="icp-link" target="_blank" rel="noopener"></a>
-          <span class="sep">|</span>
-          <a id="police-link" target="_blank" rel="noopener"></a>
-        </div>
-        <div class="police-record">
-          <img id="police-icon" src="" alt="" class="police-icon">
-          <span>网络不是非法之地，切莫侥幸以身试法</span>
-        </div>
+        <span id="icp-line"></span>
+        <span id="police-line"></span>
       </div>
     </div>
   </div>
@@ -88,17 +81,43 @@
       try {
         const sr = await fetch(API + '/api/settings/public').then(r => r.json()).catch(() => ({ success: false }));
         if (sr && sr.success && sr.data) {
-          const icpNo = sr.data.ICP_NO || '';
-          const policeNo = sr.data.POLICE_NO || '';
-          const icpLink = document.getElementById('icp-link');
-          const policeLink = document.getElementById('police-link');
-          if (icpNo) { icpLink.textContent = icpNo; icpLink.href = 'https://beian.miit.gov.cn/'; } else icpLink.style.display = 'none';
-          if (policeNo) { policeLink.textContent = policeNo; policeLink.href = sr.data.POLICE_URL || 'https://beian.mps.gov.cn/'; } else policeLink.style.display = 'none';
-          // 公安图标
-          const pIcon = document.getElementById('police-icon');
-          if (pIcon) {
-            const url = sr.data.POLICE_ICON_URL || '/static/images/police.png';
-            if (url) pIcon.src = url;
+          const d = sr.data;
+          // ICP 备案号
+          const icpLine = document.getElementById('icp-line');
+          if (icpLine) {
+            const icpNo = d.ICP_NO || '';
+            if (icpNo) {
+              const a = document.createElement('a');
+              a.href = 'https://beian.miit.gov.cn/';
+              a.target = '_blank'; a.rel = 'noopener';
+              a.textContent = icpNo;
+              icpLine.appendChild(a);
+            } else icpLine.style.display = 'none';
+          }
+          // 公安备案号（图标在前 + 编号在右）
+          const policeLine = document.getElementById('police-line');
+          if (policeLine) {
+            const policeNo = d.POLICE_NO || '';
+            if (policeNo) {
+              const code = String(policeNo).replace(/^粤公网安备/, '').replace(/号$/, '').trim();
+              const url = ((d.POLICE_URL && d.POLICE_URL.indexOf('#') < 0)
+                ? d.POLICE_URL
+                : 'https://beian.mps.gov.cn/#/query/webSearch')
+                + (code ? '?code=' + encodeURIComponent(code) : '');
+              const a = document.createElement('a');
+              a.href = url; a.target = '_blank'; a.rel = 'noopener';
+              a.style.cssText = 'display:inline-flex;align-items:center;gap:4px;text-decoration:none;';
+              const icon = document.createElement('img');
+              icon.className = 'police-icon';
+              icon.src = d.POLICE_ICON_URL || '/static/images/police.png';
+              icon.alt = '';
+              icon.onerror = () => { icon.style.display = 'none'; };
+              const span = document.createElement('span');
+              span.textContent = policeNo;
+              a.appendChild(icon);
+              a.appendChild(span);
+              policeLine.appendChild(a);
+            } else policeLine.style.display = 'none';
           }
         }
       } catch (_) { /* 备案为非关键信息，失败静默 */ }
