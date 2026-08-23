@@ -27,6 +27,10 @@ nohup.out
 .backup/.upload/
 backup/trash-*/
 backup/.restore-*/
+web/backup/        # 后台导出的数据备份（含敏感数据，禁止提交）
+
+# APP 打包产物（体积大，本地生成，不提交）
+app-out/
 
 # 系统 / 编辑器
 .DS_Store
