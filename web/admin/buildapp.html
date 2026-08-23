@@ -118,12 +118,13 @@
     .default-note { font-size:12px; color:#86909C; margin-top:8px; }
     .default-note b { color:#36CFC9; }
     .logo-tooltip { position:relative; cursor:pointer; }
-    .logo-tooltip img { position:absolute; left:0; bottom:120%; width:120px; height:120px; object-fit:contain; border-radius:8px; background:#0b1120; border:1px solid rgba(120,200,255,.35); box-shadow:0 8px 24px rgba(0,0,0,.45); opacity:0; visibility:hidden; transform:translateY(6px); transition:opacity .18s, transform .18s, visibility .18s; z-index:10; }
-    .logo-tooltip:hover img { opacity:1; visibility:visible; transform:translateY(0); }
-    .logo-tooltip.wide img { width:120px; height:180px; }
-    /* 概览卡片中的小缩略图需保持行内，避免被浮层样式定位飞走 */
-    .logo-tooltip img.sum-thumb { position:static; }
-    .logo-tooltip img.sum-thumb-wide { position:static; }
+    /* 鼠标悬停时才显示的大图预览，必须单独用 hover-img 类，避免和行内缩略图互相覆盖 */
+    .logo-tooltip .hover-img { position:absolute; left:0; bottom:120%; width:120px; height:120px; object-fit:contain; border-radius:8px; background:#0b1120; border:1px solid rgba(120,200,255,.35); box-shadow:0 8px 24px rgba(0,0,0,.45); opacity:0; visibility:hidden; transform:translateY(6px); transition:opacity .18s, transform .18s, visibility .18s; z-index:10; pointer-events:none; }
+    .logo-tooltip:hover .hover-img { opacity:1; visibility:visible; transform:translateY(0); }
+    .logo-tooltip.wide .hover-img { width:120px; height:180px; }
+    /* 概览卡片中的小缩略图保持行内，不受 hover 浮层样式影响 */
+    .logo-tooltip img.sum-thumb,
+    .logo-tooltip img.sum-thumb-wide { position:static; opacity:1; visibility:visible; transform:none; pointer-events:auto; }
 
     /* 签名教程折叠块 */
     .tutorial { background:rgba(56,189,248,.05); border:1px solid rgba(120,200,255,.2); border-radius:11px; padding:12px 14px; }
@@ -260,7 +261,7 @@
               <div class="up-progress" id="iconProgress"><div class="up-progress-fill" id="iconProgressFill"></div><div class="up-progress-label" id="iconProgressLabel"></div></div>
             </div>
             <input type="file" id="iconInput" accept="image/*" hidden>
-            <div class="default-note">未上传时默认图标：<span class="logo-tooltip"><b>app.png</b><img src="/static/images/app.png" alt="默认图标预览"></span></div>
+            <div class="default-note">未上传时默认图标：<span class="logo-tooltip"><b>app.png</b><img class="hover-img" src="/static/images/app.png" alt="默认图标预览"></span></div>
           </div>
           <div class="panel-nav">
             <button class="btn ghost" data-prev>← 上一步</button>
@@ -281,7 +282,7 @@
               <div class="up-progress" id="splashProgress"><div class="up-progress-fill" id="splashProgressFill"></div><div class="up-progress-label" id="splashProgressLabel"></div></div>
             </div>
             <input type="file" id="splashInput" accept="image/*" hidden>
-            <div class="default-note">未上传时默认开屏：<span class="logo-tooltip wide"><b>splash.png</b><img src="/static/images/splash.png" alt="默认开屏预览"></span></div>
+            <div class="default-note">未上传时默认开屏：<span class="logo-tooltip wide"><b>splash.png</b><img class="hover-img" src="/static/images/splash.png" alt="默认开屏预览"></span></div>
           </div>
           <div class="two-col">
             <div class="form-row">
@@ -626,7 +627,7 @@
           '<div class="sum-row sum-media"><span class="sk">APP 图标</span>' +
           '<span class="sv media">' +
           (hasIcon ? '<img class="sum-thumb" src="' + iconSrc + '" alt="APP 图标">' :
-            '<span class="logo-tooltip"><img class="sum-thumb" src="/static/images/app.png" alt="默认APP图标"><b class="fname">app.png</b><img src="/static/images/app.png" alt="默认APP图标预览"></span>') +
+            '<span class="logo-tooltip"><img class="sum-thumb" src="/static/images/app.png" alt="默认APP图标"><b class="fname">app.png</b><img class="hover-img" src="/static/images/app.png" alt="默认APP图标预览"></span>') +
           (iconNameTxt ? '<span class="fname">' + escapeHtml(iconNameTxt) + '</span>' : '') +
           '</span></div>'
         )
@@ -638,7 +639,7 @@
           '<div class="sum-row sum-media"><span class="sk">开屏图</span>' +
           '<span class="sv media">' +
           (hasSplash ? '<img class="sum-thumb sum-thumb-wide" src="' + splashSrc + '" alt="开屏图">' :
-            '<span class="logo-tooltip wide"><img class="sum-thumb sum-thumb-wide" src="/static/images/splash.png" alt="默认开屏图"><b class="fname">splash.png</b><img src="/static/images/splash.png" alt="默认开屏图预览"></span>') +
+            '<span class="logo-tooltip wide"><img class="sum-thumb sum-thumb-wide" src="/static/images/splash.png" alt="默认开屏图"><b class="fname">splash.png</b><img class="hover-img" src="/static/images/splash.png" alt="默认开屏图预览"></span>') +
           (splashNameTxt ? '<span class="fname">' + escapeHtml(splashNameTxt) + '</span>' : '') +
           '</span></div>'
         )
