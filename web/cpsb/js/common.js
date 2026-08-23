@@ -109,6 +109,65 @@ async function applyBrandLogo(container, variant){
   }
 }
 
+/* 备案信息（ICP 备案号 + 公安备案号），来自后台设置，未填写则不显示。
+   公安备案链接：https://beian.mps.gov.cn/#/query/webSearch?code=<备案号>
+   其中备案号去除“粤公网安备”前缀与“号”后缀；图标在前、编号文字在右。 */
+function normalizePoliceCode(no){
+  return String(no||'').replace(/^粤公网安备/, '').replace(/号$/, '').trim();
+}
+async function applyBeian(){
+  // 容器
+  const icpLine=document.getElementById('icpLine');
+  const policeLine=document.getElementById('policeLine');
+  let data={};
+  try{
+    const r=await fetch(API+'/api/settings/public');
+    const j=await r.json();
+    if(j&&j.success&&j.data) data=j.data;
+  }catch(_){}
+
+  // ICP 备案号
+  if(icpLine){
+    const icpNo=data.ICP_NO||'';
+    if(icpNo){
+      const a=document.createElement('a');
+      a.href='https://beian.miit.gov.cn/';
+      a.target='_blank'; a.rel='noopener';
+      a.textContent=icpNo;
+      icpLine.appendChild(a);
+    } else {
+      icpLine.style.display='none';
+    }
+  }
+
+  // 公安备案号（图标 + 编号）
+  if(policeLine){
+    const policeNo=data.POLICE_NO||'';
+    if(policeNo){
+      const code=normalizePoliceCode(policeNo);
+      const url=(data.POLICE_URL && data.POLICE_URL.indexOf('#')<0
+        ? data.POLICE_URL
+        : 'https://beian.mps.gov.cn/#/query/webSearch')
+        + (code ? '?code='+encodeURIComponent(code) : '');
+      const a=document.createElement('a');
+      a.href=url; a.target='_blank'; a.rel='noopener';
+      a.style.cssText='display:inline-flex;align-items:center;gap:4px;text-decoration:none;';
+      const icon=document.createElement('img');
+      icon.className='police';
+      icon.src=data.POLICE_ICON_URL || '/static/images/police.png';
+      icon.alt='';
+      icon.onerror=()=>{ icon.style.display='none'; };
+      const span=document.createElement('span');
+      span.textContent=policeNo;
+      a.appendChild(icon);
+      a.appendChild(span);
+      policeLine.appendChild(a);
+    } else {
+      policeLine.style.display='none';
+    }
+  }
+}
+
 /* 网站图标 favicon 套用纯图标 LOGO（LOGO_ICON_URL），缺省回退 logo.png */
 async function applyFavicon(){
   const link=document.querySelector('link[rel="icon"]');

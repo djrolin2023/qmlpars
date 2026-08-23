@@ -93,9 +93,7 @@
   </svg>
   仅支持 IPv6 访问<br>
   <span id="icpLine"></span>
-  <a id="policeLine" href="https://beian.mps.gov.cn/#/query/webSearch" target="_blank" rel="noopener">
-    <img class="police" src="/static/images/police.png" alt="" onerror="this.style.display='none'"> <span id="policeNo">网络不是非法之地，切莫侥幸以身试法</span>
-  </a>
+  <span id="policeLine"></span>
 </footer>
 
 <!-- 底部 Tab（与 APP 一致：车牌识别 / 车辆管理） -->
@@ -121,6 +119,7 @@
     applyFavicon();
     applyBrandLogo(document.getElementById('orgLogo'), 'icon');
     applyBrandLogo(document.getElementById('footerLogo'), 'icon');
+    applyBeian();
   } else {
     goLogin();
   }
