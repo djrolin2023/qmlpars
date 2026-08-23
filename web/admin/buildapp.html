@@ -687,7 +687,9 @@
           if (!c) return
           if (c.appName) appName.value = c.appName
           if (c.appId) { appId.value = c.appId; appId.dataset.touched = '1' }
+          // 服务器地址：优先用已保存值；否则自动获取当前访问域名（协议+host），无需手动填写
           if (c.serverUrl) serverUrl.value = c.serverUrl
+          else serverUrl.value = window.location.origin
           if (c.splash && c.splash.bg) $('splashBg').value = c.splash.bg
           if (c.splash && c.splash.duration) $('splashDuration').value = c.splash.duration
           if (c.orientation) $('orientation').value = c.orientation
