@@ -58,8 +58,8 @@ module.exports = function (ctx) {
       await fsp.writeFile(VERSION_FILE, JSON.stringify(cur, null, 2) + '\n')
     } catch (_) {}
   }
-  // 简单版本号校验：x.y.z 或 x.y.z.w（数字与点）
-  function isValidVersion(v) { return /^\d+(\.\d+){0,3}$/.test(String(v || '').trim()) }
+  // 版本号校验：推荐 SemVer 三段式（主版本.次版本.修订号），如 1.0.0
+  function isValidVersion(v) { return /^\d+\.\d+\.\d+$/.test(String(v || '').trim()) }
 
   function haveAndroidSDK() {
     // install.sh 将构建链固定安装到 /opt/android-sdk；后端由 systemd + env -i 启动，
@@ -364,7 +364,7 @@ export default config;
     // 版本号：优先采用前端传入（用户在打包页编辑后的），否则读 version.json
     let version = (req.body.version || '').trim()
     if (version && !isValidVersion(version)) {
-      return res.status(400).json({ success: false, message: '版本号格式不合法，应为数字与点，如 1.0.0' })
+      return res.status(400).json({ success: false, message: '版本号格式不合法，应为 SemVer 三段式（主版本.次版本.修订号），如 1.0.0' })
     }
     if (!version) version = readVersion()
     // 同步更新到 version.json，使系统版本号与本次一致
