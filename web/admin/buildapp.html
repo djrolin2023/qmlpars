@@ -117,6 +117,9 @@
 
     .default-note { font-size:12px; color:#86909C; margin-top:8px; }
     .default-note b { color:#36CFC9; }
+    .logo-tooltip { position:relative; cursor:pointer; }
+    .logo-tooltip img { position:absolute; left:0; bottom:120%; width:120px; height:120px; object-fit:contain; border-radius:8px; background:#0b1120; border:1px solid rgba(120,200,255,.35); box-shadow:0 8px 24px rgba(0,0,0,.45); opacity:0; visibility:hidden; transform:translateY(6px); transition:opacity .18s, transform .18s, visibility .18s; z-index:10; }
+    .logo-tooltip:hover img { opacity:1; visibility:visible; transform:translateY(0); }
 
     /* 签名教程折叠块 */
     .tutorial { background:rgba(56,189,248,.05); border:1px solid rgba(120,200,255,.2); border-radius:11px; padding:12px 14px; }
@@ -253,7 +256,7 @@
               <div class="up-progress" id="iconProgress"><div class="up-progress-fill" id="iconProgressFill"></div><div class="up-progress-label" id="iconProgressLabel"></div></div>
             </div>
             <input type="file" id="iconInput" accept="image/*" hidden>
-            <div class="default-note">未上传时默认图标：<b>logo.png</b></div>
+            <div class="default-note">未上传时默认图标：<span class="logo-tooltip"><b>logo.png</b><img src="/static/images/logo.png" alt="默认图标预览"></span></div>
           </div>
           <div class="panel-nav">
             <button class="btn ghost" data-prev>← 上一步</button>
