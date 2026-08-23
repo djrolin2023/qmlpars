@@ -160,7 +160,15 @@ install_android_chain() {
   if [ "$NEED_JDK17" = "1" ]; then
     echo "==> 安装 JDK17 ..."
     case "$PKG_MGR" in
-      apt) $PKG_INSTALL openjdk-17-jdk-headless && echo "openjdk-17 安装完成" || echo "WARN: JDK17 安装失败，请手动安装" ;;
+      apt)
+        apt-get update >/dev/null 2>&1 || true
+        if $PKG_INSTALL openjdk-17-jdk-headless 2>&1 | tail -5; then
+          echo "openjdk-17 安装完成"
+        elif $PKG_INSTALL openjdk-17-jre-headless 2>&1 | tail -5; then
+          echo "openjdk-17-jre 安装完成"
+        else
+          echo "WARN: JDK17 安装失败，请手动安装： apt-get install -y openjdk-17-jdk-headless"
+        fi ;;
       dnf|yum) $PKG_INSTALL java-17-openjdk-devel && echo "JDK17 安装完成" || echo "WARN: JDK17 安装失败，请手动安装" ;;
       zypper) $PKG_INSTALL java-17-openjdk-devel && echo "JDK17 安装完成" || echo "WARN: JDK17 安装失败，请手动安装" ;;
       *) echo "WARN: 未知包管理器，请手动安装 JDK17" ;;
