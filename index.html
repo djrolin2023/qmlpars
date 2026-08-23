@@ -113,7 +113,54 @@ body{
 
   <div class="foot">
     © 乾明车牌识别系统 · 基于 AGPL-3.0 开源<br>
-    数据本地存储，仅支持 IPv6 访问
+    数据本地存储，仅支持 IPv6 访问<br>
+    <span id="icp-line"></span>
+    <span id="police-line"></span>
   </div>
+
+  <script>
+  // 页脚备案信息（来自后台设置，未填写则不显示）
+  (function () {
+    function normalizePoliceCode(no) {
+      return String(no || '').replace(/^粤公网安备/, '').replace(/号$/, '').trim();
+    }
+    fetch('/api/settings/public').then(function (r) { return r.json(); }).then(function (j) {
+      var d = (j && j.success && j.data) ? j.data : {};
+      var icp = document.getElementById('icp-line');
+      if (icp) {
+        if (d.ICP_NO) {
+          var a = document.createElement('a');
+          a.href = 'https://beian.miit.gov.cn/';
+          a.target = '_blank'; a.rel = 'noopener';
+          a.textContent = d.ICP_NO;
+          icp.appendChild(a);
+        } else { icp.style.display = 'none'; }
+      }
+      var police = document.getElementById('police-line');
+      if (police) {
+        if (d.POLICE_NO) {
+          var code = normalizePoliceCode(d.POLICE_NO);
+          var url = ((d.POLICE_URL && d.POLICE_URL.indexOf('#') < 0)
+            ? d.POLICE_URL
+            : 'https://beian.mps.gov.cn/#/query/webSearch')
+            + (code ? '?code=' + encodeURIComponent(code) : '');
+          var a2 = document.createElement('a');
+          a2.href = url; a2.target = '_blank'; a2.rel = 'noopener';
+          a2.style.cssText = 'display:inline-flex;align-items:center;gap:4px;text-decoration:none;';
+          var icon = document.createElement('img');
+          icon.className = 'police';
+          icon.src = d.POLICE_ICON_URL || '/static/images/police.png';
+          icon.alt = '';
+          icon.onerror = function () { icon.style.display = 'none'; };
+          var span = document.createElement('span');
+          span.textContent = d.POLICE_NO;
+          a2.appendChild(icon);
+          a2.appendChild(span);
+          police.appendChild(a2);
+        } else { police.style.display = 'none'; }
+      }
+    }).catch(function () { /* 备案非关键，失败静默 */ });
+  })();
+  </script>
 </body>
 </html>
