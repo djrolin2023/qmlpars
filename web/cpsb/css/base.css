@@ -16,8 +16,10 @@ body{
 }
 
 /* 悬浮分享按钮 */
-.fab-share{ position:fixed; bottom:14px; right:14px; z-index:30; width:44px; height:44px; border-radius:50%; border:1px solid var(--line); background:rgba(29,39,51,.85); color:var(--txt); display:flex; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(6px); box-shadow:0 4px 16px rgba(0,0,0,.35); }
+.fab-share{ position:fixed; bottom:76px; right:14px; z-index:70; width:44px; height:44px; border-radius:50%; border:1px solid var(--line); background:rgba(29,39,51,.85); color:var(--txt); display:flex; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(6px); box-shadow:0 4px 16px rgba(0,0,0,.35); }
 .fab-share:active{ transform:scale(.94); }
+/* 桌面端无底部 Tab，分享按钮回到右下角原位置 */
+@media (min-width: 600px){ .fab-share{ bottom:14px; } }
 
 /* 学校标识（随页面下拉滚动） */
 .org-stack{ text-align:center; padding:20px 0 4px; }
