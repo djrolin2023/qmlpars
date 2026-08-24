@@ -65,6 +65,7 @@ module.exports = {
   TOKEN_EXPIRE_HOURS: 24 * 7, // 7 天
   MAX_LOGIN_FAILS: 5,
   LOCK_MINUTES: 10,
+  MAX_USER_DEVICES: 3, // 同一账号最多同时在线设备数（超出则挤掉最早登录的设备）
 
   // 百度 OCR 配置（车牌识别）
   get BAIDU_API_KEY() { return dbGet('BAIDU_API_KEY', process.env.BAIDU_API_KEY || '') },

@@ -5,6 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>用户管理 - 乾明车牌识别系统 - 管理后台</title>
   <link rel="stylesheet" href="css/base.css">
+  <style>
+    .perm-list { display: flex; flex-direction: column; gap: 14px; }
+    .perm-item { padding: 14px 16px; border: 1px solid rgba(120,200,255,.16); border-radius: 10px; background: rgba(15,20,25,.4); }
+    .perm-name { font-size: 15px; font-weight: 700; color: #38bdf8; margin-bottom: 6px; }
+    .perm-desc { font-size: 13.5px; line-height: 1.7; color: #cbd5e1; }
+    .online-list { max-height: 56vh; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+    .online-group { border: 1px solid rgba(120,200,255,.16); border-radius: 10px; padding: 10px 12px; background: rgba(15,20,25,.4); }
+    .online-group-title { font-weight: 700; color: #38bdf8; margin-bottom: 8px; }
+    .online-item { padding: 8px 0; border-top: 1px dashed rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 4px; }
+    .online-item:first-child { border-top: none; }
+    .online-main { display: flex; gap: 12px; align-items: center; }
+    .online-device { font-weight: 600; color: #e2e8f0; }
+    .online-ip { font-family: monospace; color: #94a3b8; }
+    .online-sub { font-size: 12.5px; color: #94a3b8; word-break: break-all; }
+    .btn.sm { padding: 4px 10px; font-size: 12.5px; align-self: flex-start; }
+  </style>
 </head>
 <body class="embed">
   <div class="main">
@@ -12,14 +28,19 @@
       <nav class="crumb" id="crumb"></nav>
 
       <div class="toolbar" style="justify-content: space-between">
-        <span class="tip">提示：用户可使用「ID / 账号 / 手机号」任一方式登录。</span>
-        <button class="btn primary" id="add-btn">+ 新增用户</button>
+        <span class="tip">提示：用户可使用「ID / 账号 / 手机号」任一方式登录。同一账号最多同时在线 <b id="maxDevicesTip">3</b> 台设备，超出将自动挤掉最早登录的设备。</span>
+        <div>
+          <button class="btn" id="online-btn">在线设备 (<span id="onlineCount">0</span>)</button>
+          <button class="btn" id="perm-btn">权限说明</button>
+          <button class="btn primary" id="add-btn">+ 新增用户</button>
+        </div>
       </div>
 
       <div class="panel" style="padding:0;overflow:auto">
         <table class="data" id="userTbl">
+          <colgroup id="userColgroup"></colgroup>
           <thead>
-            <tr><th>ID</th><th>账号</th><th>姓名</th><th>手机号</th><th>备注</th><th>创建日期</th><th>操作</th></tr>
+            <tr><th data-col="id">ID</th><th data-col="username">账号</th><th data-col="name">姓名</th><th data-col="role">角色</th><th data-col="phone">手机号</th><th data-col="remark">备注</th><th data-col="createdAt">创建日期</th><th data-col="op">操作</th></tr>
           </thead>
           <tbody id="userBody"></tbody>
         </table>
@@ -51,6 +72,13 @@
           </div>
         </div>
         <div class="form-row">
+          <label>角色权限</label>
+          <select id="newRole">
+            <option value="user">普通用户（前台：扫描；H5：添加车辆）</option>
+            <option value="manager">普通管理员（含普通用户权限 + 后台增删改/重置密码/清空记录）</option>
+          </select>
+        </div>
+        <div class="form-row">
           <label>备注</label>
           <input id="newRemark" placeholder="选填">
         </div>
@@ -66,7 +94,50 @@
     <div class="page-footer" id="site-footer-text"></div>
   </div>
 
+  <!-- 权限说明弹窗 -->
+  <div class="modal-mask" id="perm-modal">
+    <div class="modal" style="max-width:520px">
+      <div class="modal-head"><span>角色权限说明</span><span class="x" id="perm-modal-close">×</span></div>
+      <div class="modal-body">
+        <div class="perm-list">
+          <div class="perm-item">
+            <div class="perm-name">超级管理员</div>
+            <div class="perm-desc">系统内置，全局唯一（仅 1 个）。拥有全部权限：系统设置、OCR 配置、APP 打包、备份恢复、用户管理、日志管理等所有功能。</div>
+          </div>
+          <div class="perm-item">
+            <div class="perm-name">普通管理员</div>
+            <div class="perm-desc">含普通用户全部权限，并可进入后台进行车辆增删改、用户增删改、重置密码、清空识别/操作记录等管理操作（不含超级管理员专属的系统级配置）。</div>
+          </div>
+          <div class="perm-item">
+            <div class="perm-name">普通用户</div>
+            <div class="perm-desc">前台：车牌扫描识别；H5：添加/管理自己的车辆。无后台管理权限。</div>
+          </div>
+        </div>
+        <div class="hint">提示：超级管理员为系统唯一内置账号，不可在用户管理中创建或删除，因此下方角色下拉不包含该选项。</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn primary" id="perm-ok">我知道了</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 在线设备弹窗 -->
+  <div class="modal-mask" id="online-modal">
+    <div class="modal" style="max-width:680px">
+      <div class="modal-head"><span>在线设备（最多 <span id="onlineMax">3</span> 台/账号）</span><span class="x" id="online-modal-close">×</span></div>
+      <div class="modal-body">
+        <div id="onlineList" class="online-list"></div>
+        <div class="empty" id="onlineEmpty" style="display:none">当前无在线设备</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn primary" id="online-refresh">刷新</button>
+        <button class="btn" id="online-ok">关闭</button>
+      </div>
+    </div>
+  </div>
+
   <script src="js/common.js"></script>
+  <script src="js/colresize.js"></script>
   <script src="js/upgrade.js"></script>
   <script src="js/users.js"></script>
   <script>

@@ -6,6 +6,7 @@
 // 后端接口：GET /api/admin/upgrade/check  POST /api/admin/upgrade/do  GET /version.json
 
 (function () {
+  const API = '' // API 前缀；版本号读取使用 /version.json 根路径
   // ---------------- 动态注入 DOM ----------------
   function injectVersionNode() {
     if (document.getElementById('version-info')) return
@@ -20,8 +21,8 @@
   }
 
   const MODAL_HTML = `
-  <div class="modal-mask" id="upgrade-modal">
-    <div class="modal">
+  <div class="modal-mask" id="upgrade-modal" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;z-index:9999;">
+    <div class="modal" style="margin:auto;">
       <div class="modal-head"><span>版本更新</span><span class="x" data-close="upgrade-modal">×</span></div>
       <div class="modal-body">
         <div class="up-row"><span class="up-label">当前版本</span><span id="up-current" class="up-val">—</span></div>
@@ -242,15 +243,13 @@
 
     // 打开模态框（不自动检测）
     function openUpgradeModal() {
-      showLocalVersion()
-      upResult.style.display = 'none'
-      upLoading.style.display = 'none'
-      upError.style.display = 'none'
-      upBtn.style.display = 'none'
-      upBtn.disabled = false
-      upBtn.textContent = '立即升级'
-      renderUpSettings()
-      upModal.classList.add('show')
+      try { showLocalVersion() } catch (e) { /* 版本号获取失败不影响弹窗 */ }
+      if (upResult) upResult.style.display = 'none'
+      if (upLoading) upLoading.style.display = 'none'
+      if (upError) upError.style.display = 'none'
+      if (upBtn) { upBtn.style.display = 'none'; upBtn.disabled = false; upBtn.textContent = '立即升级' }
+      try { renderUpSettings() } catch (e) {}
+      if (upModal) upModal.classList.add('show')
     }
 
     // 事件绑定
@@ -294,8 +293,15 @@
       const wait = Math.max(60000, freqMs() - since)
       upTimer = setTimeout(() => { runCheck({ fromAuto: true }).finally(scheduleNext) }, wait)
     }
-    renderUpSettings()
-    scheduleNext()
+    // 暴露全局入口，便于 html 内联 onClick 兜底（尽早暴露，避免后续逻辑异常导致按钮失效）
+    window.openUpgradeModal = openUpgradeModal
+
+    try {
+      renderUpSettings()
+      scheduleNext()
+    } catch (e) {
+      console.warn('[upgrade] 自动检查/设置渲染失败（不影响手动打开弹窗）：', e)
+    }
   }
 
   // DOM 就绪后初始化（页面已引入 common.js，api/toast 全局可用）

@@ -42,14 +42,22 @@ async function loadLogs() {
     } else {
       document.getElementById('empty').style.display = 'none';
       tbody.innerHTML = list.map(r => {
-        const chan = r.channel === 'mini' ? '<span class="pill mini">小程序</span>' : '<span class="pill web">网页</span>';
+        // 渠道：app/H5/mini（兼容旧数据 web）
+        let chan;
+        if (r.channel === 'app') chan = '<span class="pill app">APP</span>';
+        else if (r.channel === 'h5' || r.channel === 'web') chan = '<span class="pill web">H5</span>';
+        else chan = '<span class="pill mini">小程序</span>';
         let res;
-        if ((r.result || '').includes('命中')) res = '<span class="pill ok">内部</span>';
+        if ((r.result || '').includes('成功')) res = '<span class="pill ok">成功</span>';
+        else if ((r.result || '').includes('无车辆数据')) res = '<span class="pill no">无车辆数据</span>';
+        else if ((r.result || '').includes('命中')) res = '<span class="pill ok">内部</span>';
         else if ((r.result || '').includes('失败')) res = '<span class="pill no">失败</span>';
         else res = '<span class="pill web">外部</span>';
         const checked = selectedIds.has(r.id) ? 'checked' : '';
+        // 抓拍图带 token，便于 <img>/<a> 直接访问
+        const imgUrl = r.image ? r.image + (r.image.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(getToken() || '') : '';
         const img = r.image
-          ? `<a href="${r.image}" target="_blank"><img class="thumb" src="${r.image}" alt="抓拍"></a>`
+          ? `<a href="${imgUrl}" target="_blank"><img class="thumb" src="${imgUrl}" alt="抓拍" onerror="this.parentNode.textContent='—'"></a>`
           : '<span class="muted">—</span>';
         return '<tr>' +
           `<td><input type="checkbox" class="row-check" value="${r.id}" ${checked}></td>` +
@@ -58,7 +66,7 @@ async function loadLogs() {
           '<td>' + res + '</td>' +
           '<td>' + (r.confidence != null ? Math.round(r.confidence * 100) + '%' : '-') + '</td>' +
           '<td>' + img + '</td>' +
-          '<td>' + (r.userName ? escapeHtml(r.userName) + (r.userId ? ' <span class="muted">#' + r.userId + '</span>' : '') : '<span class="muted">—</span>') + '</td>' +
+          '<td>' + (r.userName || r.username ? escapeHtml((r.username || '') + (r.username && r.userName ? '/' : '') + (r.userName || '')) : '<span class="muted">—</span>') + '</td>' +
           '<td>' + escapeHtml(formatDate(r.createdAt)) + '</td>' +
           '<td><button class="btn sm danger" onclick="deleteLog(' + r.id + ')">删除</button></td>' +
           '</tr>';
@@ -118,6 +126,10 @@ async function batchDelete() {
 }
 
 function initLogs() {
+  initColResize('logTbl',
+    ['check', 'plate', 'channel', 'result', 'conf', 'img', 'opby', 'time', 'op'],
+    { check: 42, plate: 110, channel: 90, result: 160, conf: 80, img: 120, opby: 90, time: 160, op: 150 },
+    'logTbl_colwidths', { lastFixed: 'op' })
   loadLogs();
   document.getElementById('channel').addEventListener('change', e => { lState.channel = e.target.value; lState.page = 1; loadLogs(); });
   document.getElementById('start').addEventListener('change', e => { lState.start = e.target.value; lState.page = 1; });

@@ -1,153 +1,187 @@
-// 系统设置：站点信息 + 备案信息 + 站点图片 + 修改密码
-const SITE_KEYS = ['COMPANY_NAME'];
-const ICP_KEYS = ['ICP_NO', 'POLICE_NO'];
-const INFO_KEYS = [...SITE_KEYS, ...ICP_KEYS];
-
 function initSettings() {
-  loadInfo();
-  loadImgGrid();
-  initImgGrid();
+  const API = '/api/admin/settings'
+  const toast = window.toast || ((m) => { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000) })
 
-  document.getElementById('save-site').onclick = saveSite;
-  document.getElementById('save-info').onclick = saveInfo;
-  document.getElementById('save-img').onclick = saveImg;
-}
-
-// ---------- 站点信息 + 备案信息 ----------
-async function loadInfo() {
-  try {
-    const r = await api('/api/admin/settings');
-    if (!r.success) throw new Error(r.message || '读取失败');
-    const list = r.data || [];
-    INFO_KEYS.forEach(key => {
-      const f = list.find(x => x.key === key);
-      const input = document.getElementById(key);
-      if (input && f) input.value = f.value || '';
-    });
-  } catch (e) { toast('读取设置失败：' + e.message); }
-}
-
-async function saveSite() {
-  await saveKeys(SITE_KEYS, 'save-site', '保存站点信息');
-}
-
-async function saveInfo() {
-  await saveKeys(ICP_KEYS, 'save-info', '保存备案信息');
-}
-
-async function saveKeys(keys, btnId, btnText) {
-  const body = {};
-  keys.forEach(key => {
-    const input = document.getElementById(key);
-    if (input) body[key] = input.value.trim();
-  });
-  const btn = document.getElementById(btnId);
-  btn.disabled = true; btn.textContent = '保存中…';
-  try {
-    const r = await api('/api/admin/settings', { method: 'POST', body: JSON.stringify(body) });
-    if (!r.success) throw new Error(r.message || '保存失败');
-    toast(r.message || '保存成功');
-    await loadInfo(); // 保存后重新回填，确保各面板显示一致
-  } catch (e) {
-    toast('保存失败：' + e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = btnText;
+  // 字段分类（与后端 SETTING_FIELDS 对应）
+  const GROUPS = {
+    site: ['COMPANY_NAME'],
+    icp: ['ICP_NO', 'POLICE_NO'],
+    img: ['LOGO_URL', 'LOGO_ICON_URL', 'LOGO_HORIZONTAL_URL', 'LOGO_VERTICAL_URL'],
+    ocr: ['BAIDU_API_KEY', 'BAIDU_SECRET_KEY', 'TENCENT_SECRET_ID', 'TENCENT_SECRET_KEY']
   }
-}
+  const LABELS = {
+    COMPANY_NAME: '公司名称',
+    ICP_NO: 'ICP 备案号',
+    POLICE_NO: '公安备案号',
+    POLICE_URL: '公安备案链接',
+    LOGO_URL: '站点 LOGO',
+    LOGO_ICON_URL: 'LOGO-纯图标（菜单/页脚）',
+    LOGO_HORIZONTAL_URL: 'LOGO-横版（图标+公司名）',
+    LOGO_VERTICAL_URL: 'LOGO-竖版（图标在上+公司名）',
+    BAIDU_API_KEY: '百度 OCR API Key',
+    BAIDU_SECRET_KEY: '百度 OCR Secret Key',
+    TENCENT_SECRET_ID: '腾讯云 SecretId',
+    TENCENT_SECRET_KEY: '腾讯云 SecretKey'
+  }
+  const PLACEHOLDERS = {
+    COMPANY_NAME: '如：乾明车牌识别系统 / XX公司',
+    ICP_NO: '如：粤ICP备XXXXXXXX号',
+    POLICE_NO: '如：粤公网安备XXXXXXXX号',
+    POLICE_URL: 'https://beian.mps.gov.cn/#/query/webSearch',
+    BAIDU_API_KEY: '百度智能云 OCR 应用的 API Key',
+    BAIDU_SECRET_KEY: '百度智能云 OCR 应用的 Secret Key',
+    TENCENT_SECRET_ID: '腾讯云账号 SecretId',
+    TENCENT_SECRET_KEY: '腾讯云账号 SecretKey'
+  }
+  const allKeys = [...GROUPS.site, ...GROUPS.icp, ...GROUPS.img, ...GROUPS.ocr]
+  const store = {} // key -> {value, secret, image}
 
-// ---------- 站点图片（photo-box：点击/拖拽/粘贴 → 立即上传） ----------
-function initImgGrid() {
-  document.querySelectorAll('.set-card').forEach(card => {
-    const box = card.querySelector('.photo-box');
-    const file = card.querySelector('[data-file]');
-    const done = card.querySelector('[data-done]');
-    box.addEventListener('click', () => { if (done.style.display === 'none') file.click(); });
-    file.onchange = () => { if (file.files && file.files[0]) uploadImg(card, file.files[0]); file.value = ''; };
-    ['dragenter', 'dragover'].forEach(ev => box.addEventListener(ev, e => { e.preventDefault(); box.classList.add('drag'); }));
-    ['dragleave', 'drop'].forEach(ev => box.addEventListener(ev, e => { e.preventDefault(); box.classList.remove('drag'); }));
-    box.addEventListener('drop', e => {
-      const f = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) uploadImg(card, f);
-    });
-    card.querySelector('[data-remove]').onclick = e => {
-      e.stopPropagation();
-      card.querySelector('[data-key]').value = '';
-      setImgState(card, 'empty');
-    };
-  });
-  // 粘贴上传
-  document.addEventListener('paste', e => {
-    const items = e.clipboardData && e.clipboardData.items;
-    for (const it of items || []) {
-      if (it.type.indexOf('image/') === 0) {
-        const card = document.querySelector('.set-card .photo-box:hover') && document.querySelector('.set-card .photo-box:hover').closest('.set-card');
-        if (card) { uploadImg(card, it.getAsFile()); break; }
-      }
+  let uploaded = {} // image key -> 已上传的 url（pending）
+
+  async function load() {
+    const j = await api(API)
+    if (!j.success) return
+    for (const f of (j.data || [])) {
+      store[f.key] = { value: f.value || '', secret: !!f.secret, image: !!f.image }
     }
-  });
-}
-
-async function loadImgGrid() {
-  try {
-    const r = await api('/api/admin/settings');
-    if (!r.success) throw new Error(r.message || '读取失败');
-    const list = r.data || [];
-    document.querySelectorAll('.set-card').forEach(card => {
-      const key = card.querySelector('[data-key]').getAttribute('data-key');
-      const f = list.find(x => x.key === key);
-      const val = f ? (f.value || '') : '';
-      card.querySelector('[data-key]').value = val;
-      if (val) setImgState(card, 'done', absUrl(val));
-      else setImgState(card, 'empty');
-    });
-  } catch (e) { toast('读取图片设置失败：' + e.message); }
-}
-
-function setImgState(card, state, url) {
-  card.querySelector('[data-empty]').style.display = state === 'empty' ? '' : 'none';
-  card.querySelector('[data-loading]').style.display = state === 'loading' ? '' : 'none';
-  card.querySelector('[data-done]').style.display = state === 'done' ? '' : 'none';
-  if (state === 'done' && url) card.querySelector('[data-img]').src = url;
-}
-
-async function uploadImg(card, f) {
-  if (!f || f.type.indexOf('image/') !== 0) { toast('请选择图片文件'); return; }
-  const fd = new FormData();
-  fd.append('image', f);
-  setImgState(card, 'loading');
-  try {
-    const r = await api('/api/admin/upload', { method: 'POST', body: fd, noJson: true });
-    if (!r.success) throw new Error(r.message || '上传失败');
-    card.querySelector('[data-key]').value = r.url;
-    setImgState(card, 'done', absUrl(r.url));
-  } catch (e) {
-    setImgState(card, 'empty');
-    toast('上传失败：' + e.message);
+    renderAll()
   }
-}
 
-async function saveImg() {
-  const body = {};
-  document.querySelectorAll('.set-card').forEach(card => {
-    const key = card.querySelector('[data-key]').getAttribute('data-key');
-    body[key] = card.querySelector('[data-key]').value.trim();
-  });
-  const btn = document.getElementById('save-img');
-  btn.disabled = true; btn.textContent = '保存中…';
-  try {
-    const r = await api('/api/admin/settings', { method: 'POST', body: JSON.stringify(body) });
-    if (!r.success) throw new Error(r.message || '保存失败');
-    toast(r.message || '保存成功');
-  } catch (e) {
-    toast('保存失败：' + e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = '保存图片设置';
+  function fieldHtml(key) {
+    const s = store[key] || { value: '', secret: false }
+    const label = LABELS[key] || key
+    const ph = PLACEHOLDERS[key] || ''
+    const hint = s.secret ? '<div class="hint">留空则不修改</div>' : ''
+    return `<div class="form-row">
+      <label>${label}</label>
+      <input type="text" data-key="${key}" value="${escapeAttr(s.value)}" placeholder="${ph}">
+      ${hint}
+    </div>`
   }
+
+  function renderAll() {
+    document.getElementById('site-fields').innerHTML = GROUPS.site.map(fieldHtml).join('')
+    document.getElementById('icp-fields').innerHTML = GROUPS.icp.map(fieldHtml).join('')
+    document.getElementById('ocr-fields').innerHTML = GROUPS.ocr.map(fieldHtml).join('')
+    renderImg()
+    renderFooter()
+  }
+
+  function renderImg() {
+    const grid = document.getElementById('img-grid')
+    grid.innerHTML = GROUPS.img.map(key => {
+      const cur = uploaded[key] !== undefined ? uploaded[key] : (store[key] ? store[key].value : '')
+      const body = cur
+        ? `<div class="photo-done"><img src="${cur}" alt=""><button class="photo-remove" data-rm="${key}">×</button></div>`
+        : `<div class="photo-placeholder">点击 / 拖拽 / 粘贴上传</div>`
+      return `<div class="set-card">
+        <div class="card-title">${LABELS[key] || key}</div>
+        <div class="photo-box" data-img="${key}">${body}</div>
+        <div class="img-key">${cur || '未设置'}</div>
+      </div>`
+    }).join('')
+    grid.querySelectorAll('.photo-box').forEach(box => {
+      const key = box.getAttribute('data-img')
+      box.addEventListener('click', () => pickImage(key))
+      box.addEventListener('dragover', e => { e.preventDefault(); box.classList.add('drag') })
+      box.addEventListener('dragleave', () => box.classList.remove('drag'))
+      box.addEventListener('drop', e => {
+        e.preventDefault(); box.classList.remove('drag')
+        const f = e.dataTransfer.files && e.dataTransfer.files[0]
+        if (f) uploadImage(key, f)
+      })
+    })
+    grid.querySelectorAll('.photo-remove').forEach(b => {
+      b.addEventListener('click', e => {
+        e.stopPropagation()
+        const key = b.getAttribute('data-rm')
+        uploaded[key] = ''
+        renderImg()
+      })
+    })
+  }
+
+  function pickImage(key) {
+    const inp = document.createElement('input')
+    inp.type = 'file'; inp.accept = 'image/*'
+    inp.onchange = () => { if (inp.files[0]) uploadImage(key, inp.files[0]) }
+    inp.click()
+  }
+
+  async function uploadImage(key, file) {
+    const box = document.querySelector(`.photo-box[data-img="${key}"]`)
+    if (box) box.innerHTML = '<div class="photo-loading">上传中…</div>'
+    const fd = new FormData()
+    fd.append('image', file)
+    try {
+      const r = await api('/api/admin/upload', { method: 'POST', body: fd, noJson: true })
+      if (!r.success) throw new Error(r.message || '上传失败')
+      uploaded[key] = r.url
+      renderImg()
+    } catch (e) {
+      toast('上传失败：' + e.message)
+      renderImg()
+    }
+  }
+
+  function renderFooter() {
+    const cn = store.COMPANY_NAME ? store.COMPANY_NAME.value : ''
+    const foot = document.getElementById('site-footer-text')
+    foot.style.cssText = 'margin-top:26px;color:#64748b;font-size:12px;text-align:center'
+    foot.innerHTML = (cn ? cn : '')
+  }
+
+  function collect(keys) {
+    const obj = {}
+    for (const key of keys) {
+      const el = document.querySelector(`input[data-key="${key}"]`)
+      obj[key] = el ? el.value.trim() : ''
+    }
+    return obj
+  }
+
+  async function saveGroup(keys, btnId, msg) {
+    const btn = document.getElementById(btnId)
+    const old = btn.textContent; btn.disabled = true; btn.textContent = '保存中…'
+    try {
+      const obj = collect(keys)
+      const r = await api(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) })
+      if (!r.success) throw new Error(r.message || '保存失败')
+      toast(msg || '已保存')
+      await load()
+    } catch (e) {
+      toast(e.message)
+    } finally { btn.disabled = false; btn.textContent = old }
+  }
+
+  document.getElementById('save-site').onclick = () => saveGroup(GROUPS.site, 'save-site', '站点信息已保存')
+  document.getElementById('save-info').onclick = () => saveGroup(GROUPS.icp, 'save-info', '备案信息已保存')
+  document.getElementById('save-ocr').onclick = () => saveGroup(GROUPS.ocr, 'save-ocr', 'OCR 配置已保存')
+  document.getElementById('save-img').onclick = async () => {
+    const btn = document.getElementById('save-img'); const old = btn.textContent; btn.disabled = true; btn.textContent = '保存中…'
+    try {
+      const obj = {}
+      for (const key of GROUPS.img) obj[key] = uploaded[key] !== undefined ? uploaded[key] : (store[key] ? store[key].value : '')
+      const r = await api(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) })
+      if (!r.success) throw new Error(r.message || '保存失败')
+      toast('图片设置已保存')
+      await load()
+    } catch (e) { toast(e.message) } finally { btn.disabled = false; btn.textContent = old }
+  }
+  // 左侧导航切换
+  const nav = document.getElementById('set-nav')
+  nav.addEventListener('click', e => {
+    const item = e.target.closest('.nav-item')
+    if (!item) return
+    const tab = item.getAttribute('data-tab')
+    nav.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'))
+    item.classList.add('active')
+    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.getAttribute('data-panel') === tab))
+  })
+
+  load()
 }
 
-// ---------- 部门管理 ----------
-function absUrl(u) {
-  if (!u) return u;
-  if (/^https?:\/\//.test(u)) return u;
-  return location.origin + (u.charAt(0) === '/' ? u : '/' + u);
+function escapeAttr(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 }

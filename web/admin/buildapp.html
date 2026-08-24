@@ -7,6 +7,7 @@
   <style>
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; height: 100%; }
+    .page { padding: 28px 24px 56px; }
     body {
       background-color:#0B1118;
       background-image:
@@ -20,32 +21,12 @@
       color: #e2e8f0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
     }
-    .page { max-width: 1200px; margin: 0 auto; padding: 28px 24px 56px; }
-    .page-head { display:flex; align-items:center; gap:12px; margin-bottom: 14px; }
-    .page-head h2 { margin:0; font-size: 20px; font-weight: 700; }
-    .page-head .sub { color:#86909C; font-size:13px; }
-
     /* 顶部全局提示 */
     .global-warn { background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.35); border-left:4px solid #f59e0b;
       color:#fde68a; font-size:13px; line-height:1.6; border-radius:10px; padding:12px 16px; margin-bottom:14px; }
     .global-warn b { color:#fbbf24; }
 
-    /* 左侧导航步骤序号（按 STEPS 顺序，仅前 7 项；history 不编号） */
-    .nav-item[data-tab="base"]   .ic::before { content: "1"; }
-    .nav-item[data-tab="icon"]   .ic::before { content: "2"; }
-    .nav-item[data-tab="splash"] .ic::before { content: "3"; }
-    .nav-item[data-tab="perm"]   .ic::before { content: "4"; }
-    .nav-item[data-tab="other"]  .ic::before { content: "5"; }
-    .nav-item[data-tab="sign"]   .ic::before { content: "6"; }
-    .nav-item[data-tab="code"]   .ic::before { content: "7"; }
-    .nav-item .ic::before {
-      display:inline-flex; align-items:center; justify-content:center;
-      width:20px; height:20px; border-radius:50%;
-      background:#334155; color:#cbd5e1; font-size:12px; font-weight:600;
-      font-family:-apple-system,BlinkMacSystemFont,sans-serif;
-    }
-    .nav-item.active .ic::before { background:rgba(255,255,255,.85); color:#04283a; }
-    .nav-item[data-tab="history"] .ic::before { content:none; }
+    /* 左侧导航步骤图标（由 data-icon + applyIcons 填充 SVG） */
 
     /* 自动保存右上角提示 */
     .toast { position:fixed; top:20px; right:20px; z-index:9999; background:rgba(16,185,129,.95); color:#04231a;
@@ -59,8 +40,11 @@
       border:1px solid rgba(120,200,255,.18); border-radius:14px; padding:10px; position:sticky; top:18px; }
     .nav-item { display:flex; align-items:center; gap:10px; padding:11px 13px; border-radius:10px; cursor:pointer; font-size:14px; color:#cbd5e1; transition:all .15s; margin-bottom:4px; }
     .nav-item:hover { background:rgba(120,200,255,.08); color:#fff; }
-    .nav-item.active { background:linear-gradient(135deg,#1890FF,#36CFC9); color:#04283a; font-weight:600; box-shadow:0 4px 14px rgba(0,170,230,.35); }
-    .nav-item .ic { font-size:14px; width:20px; text-align:center; flex:none; }
+    .nav-item.active { background:rgba(24,144,255,.14); color:#4cb3ff; font-weight:600; box-shadow:none; border-left:3px solid #1890ff; padding-left:10px; }
+    .nav-item .ic { width:20px; height:20px; flex:none; display:inline-flex; align-items:center; justify-content:center; }
+    .nav-item .ic svg,
+    .btn svg,
+    .bm-title svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; vertical-align:-2px; }
     .nav-sep { height:1px; background:rgba(120,200,255,.12); margin:8px 6px; }
 
     /* 右侧详情 */
@@ -150,15 +134,17 @@
 
     /* 面板内底部导航（上一步/下一步） */
     .panel-nav { display:flex; justify-content:flex-end; gap:12px; margin-top:26px; padding-top:18px; border-top:1px solid rgba(120,200,255,.12); }
-    .btn { border:1px solid #334155; background:#334155; color:#e2e8f0; border-radius:9px; padding:11px 20px; font-size:14px; cursor:pointer; }
-    .btn.primary { background:linear-gradient(135deg,#1890FF,#36CFC9); border-color:transparent; color:#04283a; font-weight:600; box-shadow:0 4px 16px rgba(0,170,230,.35); }
+    .btn { border:1px solid #334155; background:#334155; color:#e2e8f0; border-radius:9px; padding:11px 20px; font-size:14px; cursor:pointer; transition:background .15s,border-color .15s; }
+    .btn.primary { background:rgba(24,144,255,.12); border-color:rgba(24,144,255,.5); color:#4cb3ff; font-weight:600; box-shadow:none; }
+    .btn.primary:hover { background:rgba(24,144,255,.22); }
     .btn.primary:disabled { opacity:.5; cursor:not-allowed; }
     .btn.ghost { background:transparent; border-color:rgba(120,200,255,.3); }
+    .btn.ghost:hover { background:rgba(120,200,255,.1); }
     .btn:active { transform:translateY(1px); }
     .btn[hidden] { display:none; }
 
     /* 全局操作条（顶部：保存 + 进度/下载） */
-    .topbar { display:flex; gap:12px; align-items:center; margin-bottom:16px; }
+    .topbar { display:flex; gap:12px; align-items:center; margin-bottom:16px; justify-content:flex-end; }
     .topbar .btn { padding:8px 16px; font-size:13px; }
     .status-pill { font-size:13px; padding:4px 12px; border-radius:20px; display:none; }
     .status-pill.running { background:rgba(250,204,21,.15); color:#facc15; display:inline-block; }
@@ -204,11 +190,6 @@
 </head>
 <body>
   <div class="page">
-    <div class="page-head">
-      <h2>APP 打包</h2>
-      <span class="sub">离线打包安卓 APP，构建于本机</span>
-    </div>
-
     <!-- 顶部全局提示 -->
     <div class="global-warn">
       ⚠ <b>更换签名证书会导致已安装用户无法覆盖升级</b>（需先卸载再装）。请妥善备份 <b>qianming.keystore</b>，密码仅在打包时使用、请自行记录。
@@ -219,21 +200,21 @@
 
     <!-- 顶部操作条：手动保存 -->
     <div class="topbar">
-      <button class="btn ghost" id="saveCfgBtn">💾 保存配置</button>
+      <button class="btn ghost" id="saveCfgBtn"><span class="btn-ic" data-icon="save"></span> 保存配置</button>
     </div>
 
     <div class="layout">
       <!-- 左侧分类导航（保留） -->
       <div class="nav" id="nav">
-        <div class="nav-item active" data-tab="base"><span class="ic"></span>基础配置</div>
-        <div class="nav-item" data-tab="icon"><span class="ic"></span>图标配置</div>
-        <div class="nav-item" data-tab="splash"><span class="ic"></span>启动界面</div>
-        <div class="nav-item" data-tab="perm"><span class="ic"></span>权限配置</div>
-        <div class="nav-item" data-tab="other"><span class="ic"></span>其它设置</div>
-        <div class="nav-item" data-tab="sign"><span class="ic"></span>签名配置</div>
-        <div class="nav-item" data-tab="code"><span class="ic"></span>配置概览</div>
+        <div class="nav-item active" data-tab="base"><span class="ic" data-icon="base"></span>基础配置</div>
+        <div class="nav-item" data-tab="icon"><span class="ic" data-icon="icon"></span>图标配置</div>
+        <div class="nav-item" data-tab="splash"><span class="ic" data-icon="splash"></span>启动界面</div>
+        <div class="nav-item" data-tab="perm"><span class="ic" data-icon="perm"></span>权限配置</div>
+        <div class="nav-item" data-tab="other"><span class="ic" data-icon="other"></span>其它设置</div>
+        <div class="nav-item" data-tab="sign"><span class="ic" data-icon="sign"></span>签名配置</div>
+        <div class="nav-item" data-tab="code"><span class="ic" data-icon="overview"></span>配置概览</div>
         <div class="nav-sep"></div>
-        <div class="nav-item" data-tab="history"><span class="ic">📦</span>历史安装包</div>
+        <div class="nav-item" data-tab="history"><span class="ic" data-icon="history"></span>历史安装包</div>
       </div>
 
       <!-- 右侧详情 -->
@@ -450,7 +431,7 @@
   <!-- 构建进度模态框（打包时弹出，可最小化/还原，刷新或切页不中断） -->
   <div class="build-modal" id="buildModal" style="display:none">
     <div class="build-modal-header" id="buildModalHeader">
-      <span class="bm-title">📦 正在打包 APP</span>
+      <span class="bm-title"><span class="bm-ic" data-icon="box"></span> 正在打包 APP</span>
       <span class="bm-actions">
         <span class="status-pill" id="statusPill"></span>
         <button class="bm-btn" id="buildMinBtn" title="最小化">－</button>
@@ -472,10 +453,11 @@
 
   <!-- 最小化后的悬浮条 -->
   <div class="build-mini" id="buildMini" style="display:none">
-    <span class="bm-title">📦 打包中 <b id="miniPct">0%</b></span>
+    <span class="bm-title"><span class="bm-ic" data-icon="box"></span> 打包中 <b id="miniPct">0%</b></span>
     <button class="bm-btn" id="buildMiniBtn">还原</button>
   </div>
 
+  <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
   <script>
     (async () => {

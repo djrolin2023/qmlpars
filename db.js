@@ -46,6 +46,16 @@ CREATE TABLE IF NOT EXISTS recognition_logs (
   createdAt TEXT DEFAULT (datetime('now','localtime'))
 );
 
+CREATE TABLE IF NOT EXISTS sys_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  action TEXT NOT NULL,
+  target TEXT,
+  detail TEXT,
+  operator TEXT,
+  ip TEXT,
+  createdAt TEXT DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS login_attempts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT NOT NULL,
@@ -74,6 +84,8 @@ CREATE TABLE IF NOT EXISTS user_sessions (
   token TEXT PRIMARY KEY,
   userId INTEGER NOT NULL,
   username TEXT NOT NULL,
+  ip TEXT,
+  ua TEXT,
   createdAt TEXT DEFAULT (datetime('now','localtime')),
   expireAt TEXT NOT NULL
 );
@@ -118,6 +130,10 @@ try {
   if (!cols.includes('userName')) {
     db.exec('ALTER TABLE recognition_logs ADD COLUMN userName TEXT')
   }
+  // 兼容旧表：补加 username 列（记录操作人账号，展示为 账号/姓名）
+  if (!cols.includes('username')) {
+    db.exec('ALTER TABLE recognition_logs ADD COLUMN username TEXT')
+  }
 } catch (e) {
   // 忽略
 }
@@ -127,6 +143,15 @@ try {
   const ucols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name)
   if (!ucols.includes('name')) db.exec('ALTER TABLE users ADD COLUMN name TEXT')
   if (!ucols.includes('phone')) db.exec('ALTER TABLE users ADD COLUMN phone TEXT')
+} catch (e) {
+  // 忽略
+}
+
+// 兼容旧表：user_sessions 补加 ip / ua 列（记录登录来源 IP 与设备信息）
+try {
+  const scols = db.prepare('PRAGMA table_info(user_sessions)').all().map(c => c.name)
+  if (!scols.includes('ip')) db.exec('ALTER TABLE user_sessions ADD COLUMN ip TEXT')
+  if (!scols.includes('ua')) db.exec('ALTER TABLE user_sessions ADD COLUMN ua TEXT')
 } catch (e) {
   // 忽略
 }

@@ -83,29 +83,101 @@
 <!-- 结果 -->
 <div class="result" id="result"></div>
 
+<!-- 修改密码弹窗 -->
+<div class="modal-mask" id="pwdModal" style="display:none;align-items:center;justify-content:center">
+  <div class="modal" style="width:min(360px,92vw);max-width:360px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px">
+    <div class="modal-head" style="font-size:16px;font-weight:700;color:#fff;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+      <span>修改密码</span>
+      <span class="x" id="pwdModalX" style="cursor:pointer;font-size:22px;color:var(--sub)">×</span>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <input type="password" id="pwdOld" class="login-input" placeholder="当前密码" autocomplete="current-password">
+      <input type="password" id="pwdNew" class="login-input" placeholder="新密码（至少6位）" autocomplete="new-password">
+      <input type="password" id="pwdNew2" class="login-input" placeholder="确认新密码" autocomplete="new-password">
+      <div class="err" id="pwdErr" style="min-height:18px;font-size:13px;color:#F76560"></div>
+    </div>
+    <div class="modal-foot" style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+      <button class="btn" id="pwdCancel" style="padding:10px 18px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--sub)">取消</button>
+      <button class="btn primary" id="pwdOk" style="padding:10px 18px;border-radius:10px;border:none;background:var(--accent);color:#04283a;font-weight:600">确定修改</button>
+    </div>
+  </div>
+</div>
+
 <!-- 底部 -->
 <footer id="siteFooter">
   <div class="footer-logo" id="footerLogo"></div>
   © 2026 乾明工作室 版权所有<br>
-  技术支持：<a href="#">乾明</a> &nbsp;|&nbsp;
-  <svg class="ipv6-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="IPv6">
-    <path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5l8-3z"></path>
-  </svg>
-  仅支持 IPv6 访问<br>
+  <a href="javascript:void(0)" id="openUsage">使用说明</a> &nbsp;|&nbsp;
+  <a href="javascript:void(0)" id="openPrivacy">隐私权限</a> &nbsp;|&nbsp;
+  技术支持：<a href="#">乾明</a><br>
   <span id="icpLine"></span>
   <span id="policeLine"></span>
 </footer>
 
+<!-- 使用说明 / 隐私权限 模态框 -->
+<div class="modal-mask" id="usageModal" style="display:none;align-items:center;justify-content:center">
+  <div class="modal" style="width:min(680px,94vw);max-height:86vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px">
+    <div class="modal-head" style="font-size:17px;font-weight:700;color:#fff;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+      <span>使用说明</span><span class="x" id="usageModalX" style="cursor:pointer;font-size:22px;line-height:1;color:var(--sub)">×</span>
+    </div>
+    <div class="modal-body" style="color:var(--sub);font-size:14px;line-height:1.8">
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">一、车牌识别</h3>
+        <p style="margin:0">打开首页，点击“摄像头扫描”，将车牌对准屏幕取景框并保持 1~2 秒，系统会自动识别车牌颜色与号码。若未识别成功，可点击“输入查询”手动输入车牌号查询。</p>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">二、车辆管理</h3>
+        <p style="margin:0">通过底部“车辆管理”入口，可以添加、编辑、删除车辆信息。添加车辆时可填写车牌号、车主、部门、手机号、有效期与备注，支持单条录入与批量录入。</p>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">三、账号说明</h3>
+        <p style="margin:0">点击顶部“当前用户”可展开下拉菜单，进行“修改密码”或“退出登录”。如忘记密码，请联系管理员重置。</p>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px">
+        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">四、注意事项</h3>
+        <p style="margin:0">请在光线充足的环境下扫描，避免车牌反光、遮挡或污损。识别结果仅供参考，最终以人工核验为准。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="privacyModal" style="display:none;align-items:center;justify-content:center">
+  <div class="modal" style="width:min(680px,94vw);max-height:86vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px">
+    <div class="modal-head" style="font-size:17px;font-weight:700;color:#fff;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+      <span>隐私权限</span><span class="x" id="privacyModalX" style="cursor:pointer;font-size:22px;line-height:1;color:var(--sub)">×</span>
+    </div>
+    <div class="modal-body" style="color:var(--sub);font-size:14px;line-height:1.8">
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">一、信息收集与使用</h3>
+        <p style="margin:0">本系统仅收集您主动录入的车牌、车主、联系方式等车辆管理信息，用于识别、登记与查询。识别过程临时使用摄像头画面，不会长期保存无关影像。</p>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">二、权限说明</h3>
+        <p style="margin:0">摄像头扫描功能需要您授权相机权限；若拒绝授权，仍可切换到“输入查询”模式手动使用。系统不会读取与业务无关的通讯录、位置、短信等隐私权限。</p>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">三、数据存储</h3>
+        <p style="margin:0">车辆与账号数据存储于您部署本系统的服务器本地数据库中，不会主动向第三方传输。数据安全由部署方负责管理。</p>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px">
+        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">四、您的权利</h3>
+        <p style="margin:0">您可以随时查看、修改或删除您录入的车辆数据；停止使用后可联系管理员清除账号及相关信息。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 底部 Tab（与 APP 一致：车牌识别 / 车辆管理） -->
 <nav class="bottom-tabs">
   <button class="bottom-tab active" data-tab="cpsb" onclick="location.href='/cpsb/'">
-    <span class="bt-icon">🔍</span><span class="bt-label">车牌识别</span>
+    <span class="bt-icon" data-icon="ocr"></span><span class="bt-label">车牌识别</span>
   </button>
   <button class="bottom-tab" data-tab="vehicles" onclick="location.href='/cpsb/h5-vehicles.html'">
-    <span class="bt-icon">🚗</span><span class="bt-label">车辆管理</span>
+    <span class="bt-icon" data-icon="vehicle"></span><span class="bt-label">车辆管理</span>
   </button>
 </nav>
 
+<script src="/admin/js/icons.js"></script>
 <script src="js/common.js"></script>
 <script src="js/query.js"></script>
 <script src="js/camera.js"></script>
@@ -115,6 +187,7 @@
   if(await checkLogin()){
     document.body.classList.remove('guard-loading');
     renderUserArea();
+    bindChangePwdEvents();
     applySiteName();
     applyFavicon();
     applyBrandLogo(document.getElementById('orgLogo'), 'icon');
@@ -124,6 +197,18 @@
     goLogin();
   }
 })();
+
+/* 使用说明 / 隐私权限 以模态框打开 */
+function openDoc(id){ const m=document.getElementById(id); if(m) m.classList.add('show'); }
+function closeDoc(id){ const m=document.getElementById(id); if(m) m.classList.remove('show'); }
+const usageModal=document.getElementById('usageModal');
+const privacyModal=document.getElementById('privacyModal');
+document.getElementById('openUsage').addEventListener('click', ()=>openDoc('usageModal'));
+document.getElementById('openPrivacy').addEventListener('click', ()=>openDoc('privacyModal'));
+document.getElementById('usageModalX').addEventListener('click', ()=>closeDoc('usageModal'));
+document.getElementById('privacyModalX').addEventListener('click', ()=>closeDoc('privacyModal'));
+usageModal.addEventListener('click', e=>{ if(e.target===usageModal) closeDoc('usageModal'); });
+privacyModal.addEventListener('click', e=>{ if(e.target===privacyModal) closeDoc('privacyModal'); });
 </script>
 </body>
 </html>

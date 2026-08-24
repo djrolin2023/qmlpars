@@ -52,10 +52,29 @@
   }
   .submit:hover{ opacity:.92; }
   .submit:active{ transform:translateY(1px); }
-  .submit:disabled{ opacity:.6; cursor:default; }
+  .submit:disabled{ opacity:1; cursor:not-allowed; background:#33414f; color:#7a8794; box-shadow:none; }
+  .agree.shake{ animation: shake .45s cubic-bezier(.36,.07,.19,.97); }
+  @keyframes shake{ 10%,90%{transform:translateX(-2px)} 20%,80%{transform:translateX(4px)} 30%,50%,70%{transform:translateX(-7px)} 40%,60%{transform:translateX(7px)} }
   .err{ min-height:18px; margin:12px 2px 0; color:#F76560; font-size:13px; text-align:left; }
-  .foot{ text-align:center; margin-top:22px; color:#5b6675; font-size:12px; line-height:1.7; }
-  .foot a{ color:#5b9bff; text-decoration:none; }
+  .page-footer{ text-align:center; color:var(--muted); font-size:12px; padding:16px; line-height:1.7; }
+  .page-footer a{ color:#86909C; text-decoration:none; }
+  .page-footer a:hover{ color:#1890FF; }
+  .agree{ display:flex; align-items:flex-start; gap:8px; margin:4px 0 4px; font-size:13px; color:#86909C; line-height:1.5; cursor:pointer; }
+  .agree input{ width:16px; height:16px; margin-top:2px; accent-color:#1890ff; flex:none; cursor:pointer; }
+  .agree a{ color:#5b9bff; text-decoration:none; }
+  .agree a:hover{ text-decoration:underline; }
+  .terms-mask{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:9999; padding:20px; }
+  .terms-mask.show{ display:flex; }
+  .terms-modal{ width:min(640px,94vw); max-height:86vh; overflow:auto; background:#1D2733; border:1px solid #2E3A4B; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  .terms-head{ display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid #2E3A4B; font-size:16px; font-weight:700; color:#fff; }
+  .terms-x{ cursor:pointer; font-size:22px; line-height:1; color:#86909C; }
+  .terms-x:hover{ color:#fff; }
+  .terms-body{ padding:18px 22px; font-size:14px; color:#cbd5e1; line-height:1.8; }
+  .terms-body h4{ margin:18px 0 8px; color:#e2e8f0; font-size:15px; }
+  .terms-body h4:first-child{ margin-top:0; }
+  .terms-body p{ margin:0 0 10px; }
+  .terms-foot{ padding:14px 20px 18px; text-align:right; border-top:1px solid #2E3A4B; }
+  .terms-foot .submit{ width:auto; padding:10px 22px; font-size:14px; }
 </style>
 </head>
 <body>
@@ -69,6 +88,12 @@
 
     <form class="card" id="loginForm" onsubmit="return false">
       <div class="field">
+        <label for="user">用户名</label>
+        <div class="input-wrap">
+          <input id="user" type="text" value="admin" readonly placeholder="请输入用户名" autocomplete="username">
+        </div>
+      </div>
+      <div class="field">
         <label for="pass">管理密码</label>
         <div class="input-wrap">
           <input id="pass" type="password" placeholder="请输入管理密码" autocomplete="current-password" autofocus>
@@ -77,24 +102,43 @@
           </button>
         </div>
       </div>
-      <button type="submit" class="submit" id="login-btn">登 录</button>
+      <label class="agree">
+        <input type="checkbox" id="agree">
+        <span>我已阅读并同意 <a href="#" id="showTerms">《使用条款》</a> 和 <a href="#" id="showPrivacy">《隐私条款》</a></span>
+      </label>
+      <button type="submit" class="submit" id="login-btn" disabled>登 录</button>
       <div class="err" id="loginErr"></div>
     </form>
 
-    <div class="foot">
-      © 2026 乾明工作室 版权所有<br>
-      用户端入口：<a href="/cpsb/">车牌识别</a>
+    <div class="page-footer">
+      <span id="site-footer-text"></span> · 用户端入口：<a href="/cpsb/">车牌识别</a>
+    </div>
+  </div>
+
+  <!-- 使用条款 / 隐私条款弹窗 -->
+  <div class="terms-mask" id="termsMask">
+    <div class="terms-modal">
+      <div class="terms-head"><span id="termsTitle">使用条款</span><span class="terms-x" id="termsClose">×</span></div>
+      <div class="terms-body" id="termsBody"></div>
+      <div class="terms-foot"><button class="submit" id="termsOk">我已知晓</button></div>
     </div>
   </div>
 
   <script src="js/common.js"></script>
   <script>
     const passEl = document.getElementById('pass');
+    const userEl = document.getElementById('user');
+    const agreeEl = document.getElementById('agree');
     const errEl = document.getElementById('loginErr');
 
     // 管理后台无"自动登录"：每次打开都要求手动输入密码
     async function doLogin(){
       const password = passEl.value;
+      if(!agreeEl.checked){
+        const a = document.querySelector('.agree');
+        a.classList.remove('shake'); void a.offsetWidth; a.classList.add('shake');
+        return;
+      }
       if(!password){ errEl.textContent='请输入管理密码'; return; }
       const btn = document.getElementById('login-btn');
       btn.disabled = true; btn.textContent = '登录中...'; errEl.textContent='';
@@ -120,6 +164,11 @@
     document.getElementById('login-btn').onclick = doLogin;
     passEl.addEventListener('keydown', e => { if(e.key === 'Enter') doLogin(); });
 
+    // 勾选使用条款后启用登录按钮
+    agreeEl.addEventListener('change', () => {
+      document.getElementById('login-btn').disabled = !agreeEl.checked;
+    });
+
     const pwdToggle = document.getElementById('pwdToggle');
     pwdToggle.addEventListener('click', () => {
       const show = passEl.type === 'password';
@@ -136,7 +185,34 @@
       const el = document.getElementById('brandName');
       if (el) { try { const n = await getSiteNameAdmin(); if (n) el.textContent = n; } catch (_) {} }
     })();
+    // 使用条款 / 隐私条款
+    const TERMS_TEXT = {
+      '使用条款': '<h4>一、服务说明</h4><p>本系统（乾明车牌识别系统）由乾明工作室提供，用于车牌识别、车辆管理与相关数据展示。您使用本系统即表示同意本条款。</p>' +
+        '<h4>二、账号与密码</h4><p>请妥善保管您的管理密码，因密码泄露导致的任何损失由您自行承担。系统管理员有权对系统进行配置与管理。</p>' +
+        '<h4>三、使用规范</h4><p>您承诺不利用本系统从事任何违反法律法规的活动，不得对系统进行逆向工程、恶意攻击或超出授权范围的使用。</p>' +
+        '<h4>四、责任限制</h4><p>本系统按"现状"提供，在法律法规允许的最大范围内，我们对因使用本系统产生的任何直接或间接损失不承担责任。</p>',
+      '隐私条款': '<h4>一、信息收集</h4><p>本系统仅在本地处理车牌识别结果及您录入的车辆、用户等管理数据，不会主动向第三方上传或共享您的业务数据。</p>' +
+        '<h4>二、数据存储</h4><p>所有数据均存储于您部署本系统的服务器本地数据库中。您对本数据的存储安全负有管理责任。</p>' +
+        '<h4>三、日志与统计</h4><p>系统会记录必要的操作日志（如登录、增删改）用于安全审计，这些信息仅用于系统管理与故障排查。</p>' +
+        '<h4>四、您的权利</h4><p>您可随时在系统中查看、导出或删除相关数据；停止使用后，可清除服务器本地数据以终止信息留存。</p>'
+    };
+    const termsMask = document.getElementById('termsMask');
+    const termsTitle = document.getElementById('termsTitle');
+    const termsBody = document.getElementById('termsBody');
+    function openTerms(name){
+      termsTitle.textContent = name;
+      termsBody.innerHTML = TERMS_TEXT[name] || '';
+      termsMask.classList.add('show');
+    }
+    function closeTerms(){ termsMask.classList.remove('show'); }
+    document.getElementById('showTerms').addEventListener('click', e => { e.preventDefault(); openTerms('使用条款'); });
+    document.getElementById('showPrivacy').addEventListener('click', e => { e.preventDefault(); openTerms('隐私条款'); });
+    document.getElementById('termsClose').addEventListener('click', closeTerms);
+    document.getElementById('termsOk').addEventListener('click', closeTerms);
+    termsMask.addEventListener('click', e => { if(e.target === termsMask) closeTerms(); });
+
     applyFavicon();
+    if (window.loadSiteFooter) loadSiteFooter();
   </script>
 </body>
 </html>

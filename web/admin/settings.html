@@ -4,109 +4,136 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>系统设置 - 乾明车牌识别系统 - 管理后台</title>
-  <link rel="stylesheet" href="css/base.css">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    .page { padding: 28px 24px 56px; }
+    body {
+      background-color:#0B1118;
+      background-image:
+        radial-gradient(900px 600px at 12% -8%, rgba(0,180,255,.16), transparent 60%),
+        radial-gradient(800px 600px at 100% 0%, rgba(54,207,201,.12), transparent 55%),
+        radial-gradient(700px 700px at 85% 110%, rgba(0,120,255,.12), transparent 60%),
+        linear-gradient(rgba(120,200,255,.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(120,200,255,.05) 1px, transparent 1px);
+      background-size: auto, auto, auto, 32px 32px, 32px 32px;
+      background-attachment: fixed;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    }
+    .layout { display:flex; gap:20px; align-items:flex-start; }
+    .nav { width: 200px; flex:none; background:rgba(29,39,51,.55); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+      border:1px solid rgba(120,200,255,.18); border-radius:14px; padding:24px 10px 10px; position:sticky; top:18px; }
+    .nav-item { display:flex; align-items:center; gap:10px; padding:11px 13px; border-radius:10px; cursor:pointer; font-size:14px; color:#cbd5e1; transition:all .15s; margin-bottom:4px; }
+    .nav-item:hover { background:rgba(120,200,255,.08); color:#fff; }
+    .nav-item.active { background:rgba(24,144,255,.14); color:#4cb3ff; font-weight:600; box-shadow:none; border-left:3px solid #1890ff; padding-left:10px; }
+    .nav-item .ic { width:20px; height:20px; flex:none; display:inline-flex; align-items:center; justify-content:center; font-size:18px; }
+
+    .panel-wrap { flex:1; min-width:0; }
+    .panel { display:none; background:rgba(29,39,51,.55); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+      border:1px solid rgba(120,200,255,.18); border-radius:14px; padding:24px 26px; box-shadow:0 8px 28px rgba(0,130,200,.16); }
+    .panel.active { display:block; }
+    .panel h3 { margin:0 0 4px; font-size:17px; }
+    .panel .panel-sub { color:#86909C; font-size:13px; margin-bottom:20px; }
+    .form-row { margin-bottom:18px; }
+    .form-row label { display:block; font-size:14px; margin-bottom:7px; color:#cbd5e1; }
+    .form-row .hint { font-size:12px; color:#64748b; margin-top:6px; }
+    input[type=text], input[type=password], textarea {
+      width:100%; background:rgba(15,20,25,.55); border:1px solid rgba(120,200,255,.18); color:#e2e8f0;
+      border-radius:9px; padding:11px 13px; font-size:14px; outline:none; transition:border-color .15s, box-shadow .15s;
+    }
+    input[type=text]:focus, input[type=password]:focus, textarea:focus { border-color:#00D4FF; box-shadow:0 0 0 3px rgba(0,212,255,.15); }
+    textarea { resize:vertical; font-family:inherit; }
+    .two-col { display:flex; gap:16px; }
+    .two-col .form-row { flex:1; }
+
+    .btn { border:1px solid #334155; background:#334155; color:#e2e8f0; border-radius:9px; padding:11px 20px; font-size:14px; cursor:pointer; font-weight:600; transition:background .15s,border-color .15s; }
+    .btn.primary { background:rgba(24,144,255,.12); border-color:rgba(24,144,255,.5); color:#4cb3ff; box-shadow:none; }
+    .btn.primary:hover { background:rgba(24,144,255,.22); }
+    .btn:disabled { opacity:.5; cursor:not-allowed; }
+    .save-bar { margin-top:8px; display:flex; gap:12px; align-items:center; justify-content:flex-end; }
+
+    /* 图片卡片网格 */
+    .img-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:16px; }
+    .set-card { background:rgba(15,20,25,.45); border:1px solid rgba(120,200,255,.16); border-radius:12px; padding:14px; }
+    .set-card .card-title { font-size:13px; color:#cbd5e1; margin-bottom:10px; }
+    .photo-box { border:1.5px dashed rgba(120,200,255,.35); border-radius:11px; min-height:96px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; position:relative; padding:8px; text-align:center; transition:border-color .15s; }
+    .photo-box:hover { border-color:#38bdf8; }
+    .photo-box.drag { border-color:#38bdf8; background:rgba(56,189,248,.06); }
+    .photo-placeholder { color:#64748b; font-size:12px; }
+    .photo-loading { color:#38bdf8; font-size:12px; }
+    .photo-done img { max-width:100%; max-height:96px; border-radius:8px; }
+    .photo-remove { position:absolute; top:4px; right:6px; background:rgba(0,0,0,.5); color:#fff; border:none; border-radius:50%; width:20px; height:20px; cursor:pointer; font-size:12px; line-height:1; }
+    .img-key { margin-top:8px; font-size:11px; color:#64748b; word-break:break-all; }
+    .steps { color:#86909C; font-size:13px; line-height:1.7; padding-left:20px; margin:6px 0 16px; }
+    .steps code { background:rgba(120,200,255,.1); padding:1px 6px; border-radius:5px; color:#7dd3fc; }
+    .badge { font-size:11px; background:rgba(54,207,201,.18); color:#5eead4; padding:2px 8px; border-radius:20px; margin-left:6px; }
+    .badge.green { background:rgba(16,185,129,.18); color:#34d399; }
+
+    .toast { position:fixed; top:20px; right:20px; z-index:9999; background:rgba(16,185,129,.95); color:#04231a;
+      font-size:13px; font-weight:600; padding:10px 18px; border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.3);
+      opacity:0; transform:translateY(-12px); transition:opacity .25s, transform .25s; pointer-events:none; }
+    .toast.show { opacity:1; transform:translateY(0); }
+
+    @media (max-width: 768px) {
+      .layout { flex-direction:column; }
+      .nav { width:100%; display:flex; gap:8px; overflow-x:auto; position:static; }
+      .nav-item { margin-bottom:0; white-space:nowrap; }
+      .two-col { flex-direction:column; gap:0; }
+    }
+  </style>
 </head>
 <body class="embed">
-  <div class="main">
-    <div class="content">
-      <nav class="crumb" id="crumb"></nav>
+  <div class="page">
+    <div class="layout">
+      <nav class="nav" id="set-nav">
+        <div class="nav-item active" data-tab="site"><span class="ic" data-icon="site"></span>站点信息</div>
+        <div class="nav-item" data-tab="icp"><span class="ic" data-icon="icp"></span>备案信息</div>
+        <div class="nav-item" data-tab="img"><span class="ic" data-icon="image"></span>站点图片</div>
+        <div class="nav-item" data-tab="ocr"><span class="ic" data-icon="ocr"></span>OCR 配置</div>
+      </nav>
 
-      <div class="panel">
-        <h3>站点信息</h3>
-        <div class="form-row">
-          <label>公司名称</label>
-          <input id="COMPANY_NAME" placeholder="如：乾明车牌识别系统 / XX公司">
-        </div>
-        <button class="btn primary" id="save-site">保存站点信息</button>
-      </div>
+      <div class="panel-wrap">
+        <!-- 站点信息 -->
+        <section class="panel active" data-panel="site">
+          <h3>站点信息</h3>
+          <div class="panel-sub">用于识别页、分享卡片等对外展示的公司名称</div>
+          <div id="site-fields"></div>
+          <div class="save-bar"><button class="btn primary" id="save-site">保存站点信息</button></div>
+        </section>
 
-      <div class="panel">
-        <h3>备案信息</h3>
-        <div class="form-row">
-          <label>ICP 备案号</label>
-          <input id="ICP_NO" placeholder="如：粤ICP备XXXXXXXX号">
-        </div>
-        <div class="form-row">
-          <label>公安备案号</label>
-          <input id="POLICE_NO" placeholder="如：粤公网安备XXXXXXXX号">
-        </div>
-        <button class="btn primary" id="save-info">保存备案信息</button>
-      </div>
+        <!-- 备案信息 -->
+        <section class="panel" data-panel="icp">
+          <h3>备案信息</h3>
+          <div class="panel-sub">ICP 与公安备案号将展示在页脚</div>
+          <div id="icp-fields"></div>
+          <div class="save-bar"><button class="btn primary" id="save-info">保存备案信息</button></div>
+        </section>
 
-      <div class="panel">
-        <h3>站点图片（点击 / 拖拽 / 粘贴上传）</h3>
-        <div class="set-grid">
-          <div class="set-card">
-            <label>站点 LOGO</label>
-            <div class="photo-box">
-              <input type="file" accept="image/*" hidden data-file>
-              <div class="photo-placeholder" data-empty>
-                <div class="photo-plus">+</div>
-                <div class="photo-tip">点击或拖拽上传</div>
-              </div>
-              <div class="photo-loading" data-loading style="display:none">上传中…</div>
-              <div class="photo-done" data-done style="display:none">
-                <img data-img alt="">
-                <button type="button" class="photo-remove" data-remove>×</button>
-              </div>
-            </div>
-            <input type="hidden" data-key="LOGO_URL">
-          </div>
-          <div class="set-card">
-            <label>LOGO-纯图标（菜单栏/页脚，无文字）</label>
-            <div class="photo-box">
-              <input type="file" accept="image/*" hidden data-file>
-              <div class="photo-placeholder" data-empty>
-                <div class="photo-plus">+</div>
-                <div class="photo-tip">点击或拖拽上传</div>
-              </div>
-              <div class="photo-loading" data-loading style="display:none">上传中…</div>
-              <div class="photo-done" data-done style="display:none">
-                <img data-img alt="">
-                <button type="button" class="photo-remove" data-remove>×</button>
-              </div>
-            </div>
-            <input type="hidden" data-key="LOGO_ICON_URL">
-          </div>
-          <div class="set-card">
-            <label>LOGO-横版（左图标右公司名）</label>
-            <div class="photo-box">
-              <input type="file" accept="image/*" hidden data-file>
-              <div class="photo-placeholder" data-empty>
-                <div class="photo-plus">+</div>
-                <div class="photo-tip">点击或拖拽上传</div>
-              </div>
-              <div class="photo-loading" data-loading style="display:none">上传中…</div>
-              <div class="photo-done" data-done style="display:none">
-                <img data-img alt="">
-                <button type="button" class="photo-remove" data-remove>×</button>
-              </div>
-            </div>
-            <input type="hidden" data-key="LOGO_HORIZONTAL_URL">
-          </div>
-          <div class="set-card">
-            <label>LOGO-竖版（上图标下公司名）</label>
-            <div class="photo-box">
-              <input type="file" accept="image/*" hidden data-file>
-              <div class="photo-placeholder" data-empty>
-                <div class="photo-plus">+</div>
-                <div class="photo-tip">点击或拖拽上传</div>
-              </div>
-              <div class="photo-loading" data-loading style="display:none">上传中…</div>
-              <div class="photo-done" data-done style="display:none">
-                <img data-img alt="">
-                <button type="button" class="photo-remove" data-remove>×</button>
-              </div>
-            </div>
-            <input type="hidden" data-key="LOGO_VERTICAL_URL">
-          </div>
-        </div>
-        <button class="btn primary" id="save-img" style="margin-top:14px">保存图片设置</button>
+        <!-- 站点图片 -->
+        <section class="panel" data-panel="img">
+          <h3>站点图片</h3>
+          <div class="panel-sub">LOGO 等图片资源（点击 / 拖拽 / 粘贴上传）</div>
+          <div class="img-grid" id="img-grid"></div>
+          <div class="save-bar"><button class="btn primary" id="save-img">保存图片设置</button></div>
+        </section>
+
+        <!-- OCR 配置 -->
+        <section class="panel" data-panel="ocr">
+          <h3>OCR 配置 <span class="badge">车牌识别</span></h3>
+          <div class="panel-sub">用于识别车牌的 OCR 服务密钥（仅本机存储，不对外传输）</div>
+          <div id="ocr-fields"></div>
+          <div class="save-bar"><button class="btn primary" id="save-ocr">保存 OCR 配置</button></div>
+        </section>
+
       </div>
     </div>
     <div class="page-footer" id="site-footer-text"></div>
   </div>
 
+  <div class="toast" id="toast"></div>
+
+  <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
   <script src="js/upgrade.js"></script>
   <script src="js/settings.js"></script>

@@ -15,24 +15,26 @@
         <div class="brand-text">车牌识别后台<small>乾明车牌识别系统 Admin</small></div>
       </div>
       <nav id="menu">
-        <a data-page="dashboard.html"><svg class="nav-ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>数据大屏</a>
-        <a data-page="vehicles.html"><svg class="nav-ic" viewBox="0 0 24 24"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11"/><path d="M3 11h18v5a1 1 0 0 1-1 1h-1v2h-3v-2H8v2H5v-2H4a1 1 0 0 1-1-1v-5z"/><circle cx="7.5" cy="16" r="1"/><circle cx="16.5" cy="16" r="1"/></svg>车辆管理</a>
-        <a data-page="users.html"><svg class="nav-ic" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><path d="M16 6.5a3 3 0 0 1 0 5.8M16.5 19a5.5 5.5 0 0 0-2.5-4.4"/></svg>用户管理</a>
-        <a data-page="logs.html"><svg class="nav-ic" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>识别记录</a>
-        <a data-page="ocr.html"><svg class="nav-ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>OCR 配置</a>
-        <a data-page="buildapp.html"><svg class="nav-ic" viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/></svg>APP打包</a>
-        <a data-page="settings.html"><svg class="nav-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>系统设置</a>
-        <a data-page="backup.html"><svg class="nav-ic" viewBox="0 0 24 24"><path d="M12 3v3m0 0 2-2m-2 2-2-2M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5M7 8h10M7 8a2 2 0 0 1 0 4h10a2 2 0 0 1 0-4M7 8a4 4 0 0 0-1.9 7.5M17 8a4 4 0 0 1 1.9 7.5"/></svg>备份恢复</a>
-        <a data-page="about.html"><svg class="nav-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/></svg>关于系统</a>
+        <a data-page="dashboard.html">数据大屏</a>
+        <a data-page="vehicles.html">车辆管理</a>
+        <a data-page="users.html">用户管理</a>
+        <a data-page="logs.html">识别记录</a>
+        <a data-page="backup.html">备份恢复</a>
+        <a data-page="buildapp.html">APP打包</a>
+        <a data-page="syslog.html">系统日志</a>
+        <a data-page="settings.html">系统设置</a>
+        <a data-page="about.html">关于系统</a>
       </nav>
       <div class="side-version">
-        <a href="javascript:void(0)" id="version-info" title="点击检查更新">版本号：加载中…</a>
+        <a href="javascript:void(0)" id="version-info" title="点击检查更新" onclick="if(window.openUpgradeModal){openUpgradeModal();return false;}">版本号：加载中…</a>
         <span class="update-dot" id="update-dot" style="display:none" title="有可用更新">● 可升级</span>
       </div>
     </aside>
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
     <div class="main-col">
       <div class="topbar">
+        <button class="menu-toggle" id="menu-toggle" aria-label="菜单">☰</button>
         <span id="page-title">数据大屏</span>
         <div class="tb-right">
           <span class="time-now" id="time-now">--</span>
@@ -70,11 +72,14 @@
     </div>
   </div>
 
+  <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
   <script src="js/upgrade.js"></script>
   <script>
     (async () => {
       if (!(await checkAuth())) { location.replace('login.html'); return; }
+      // 注入侧边栏菜单图标、面包屑、时钟等公共逻辑
+      if (typeof adminInit === 'function') adminInit();
       // 注意：checkAuth() 已自动把 #tb-user 填充为"当前登录用户：xxx"
 
       // 加载公开设置（备案号 / 公安图标 / 公司名等）
@@ -99,7 +104,7 @@
           if (policeLine) {
             const policeNo = d.POLICE_NO || '';
             if (policeNo) {
-              const code = String(policeNo).replace(/^粤公网安备/, '').replace(/号$/, '').trim();
+              const code = String(policeNo).replace(/^[\u4e00-\u9fa5]公网安备/, '').replace(/号$/, '').trim();
               const url = ((d.POLICE_URL && d.POLICE_URL.indexOf('#') < 0)
                 ? d.POLICE_URL
                 : 'https://beian.mps.gov.cn/#/query/webSearch')
@@ -135,13 +140,21 @@
       const frame = document.getElementById('frame');
       const titleEl = document.getElementById('page-title');
       const links = document.querySelectorAll('#menu a');
+      const sidebar = document.getElementById('menu');
+      const menuToggle = document.getElementById('menu-toggle');
       function activate(a) {
         links.forEach(x => x.classList.toggle('active', x === a));
         const page = a.dataset.page;
         frame.src = page;
         if (titleEl) titleEl.textContent = a.textContent.trim();
+        // 手机端点击菜单后收起侧栏
+        if (window.matchMedia('(max-width: 768px)').matches) sidebar.classList.remove('open');
       }
       links.forEach(a => a.addEventListener('click', () => activate(a)));
+      // 汉堡按钮切换侧栏
+      if (menuToggle) menuToggle.addEventListener('click', () => sidebar.classList.toggle('open'));
+      // 点击遮罩关闭侧栏（手机端）
+      document.getElementById('sidebar-overlay')?.addEventListener('click', () => sidebar.classList.remove('open'));
       // 默认高亮第一项
       if (links.length) links[0].classList.add('active');
 

@@ -34,7 +34,7 @@
             立即备份
           </h3>
           <p class="hint">备份内容：全部车辆档案、识别记录、系统配置（含 OCR 密钥）与上传图片。<br>备份文件为 .bin 格式，可设置密码加密（AES-256-GCM）。</p>
-          <button class="btn primary" id="btn-create" style="margin-top:12px">生成备份</button>
+          <button class="btn primary right" id="btn-create" style="margin-top:12px">生成备份</button>
         </div>
 
         <div class="bk-box">
@@ -43,8 +43,36 @@
             恢复备份
           </h3>
           <p class="hint">选择 .bin 备份文件并输入其密码（若有）。恢复会<strong style="color:#f87171">覆盖当前全部数据</strong>，系统会先把现有数据暂存到 backup/trash-* 目录，出问题可手动找回。</p>
-          <button class="btn danger" id="btn-restore" style="margin-top:12px">恢复数据</button>
+          <button class="btn danger right" id="btn-restore" style="margin-top:12px">恢复数据</button>
         </div>
+      </div>
+
+      <div class="bk-box" style="margin-top:16px">
+        <h3>
+          <svg class="ic" viewBox="0 0 24 24"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+          自动备份
+        </h3>
+        <p class="hint">开启后系统按设定周期（每天 / 每周一 / 每月 1 日 凌晨 3 点）自动生成加密备份，无需人工操作。</p>
+        <div class="form-row row2" style="margin-top:12px">
+          <div>
+            <label>启用自动备份</label>
+            <label class="switch"><input type="checkbox" id="ab-enabled"><span class="slider"></span></label>
+          </div>
+          <div>
+            <label>备份周期</label>
+            <select id="ab-period">
+              <option value="daily">每天</option>
+              <option value="weekly">每星期（周一）</option>
+              <option value="monthly">每月（1 日）</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>自动备份密码（加密用，建议与管理密码不同）</label>
+          <input id="ab-pwd" type="password" placeholder="留空则不加密" autocomplete="new-password">
+        </div>
+        <div class="hint" id="ab-info" style="margin:6px 0 12px"></div>
+        <button class="btn primary right" id="ab-save">保存自动备份设置</button>
       </div>
 
       <div class="panel" style="margin-top:16px">

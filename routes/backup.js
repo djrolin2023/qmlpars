@@ -12,7 +12,7 @@ module.exports = function (ctx) {
   const path = require('path')
   const crypto = require('crypto')
   const { execFileSync } = require('child_process')
-  const { router, db, config, authMiddleware } = ctx
+  const { router, db, config, authMiddleware, roleGate } = ctx
 
   const BACKUP_DIR = path.join(__dirname, '..', 'web', 'backup')
   const BACKUP_UPLOAD_DIR = path.join(BACKUP_DIR, '.upload')
@@ -20,6 +20,25 @@ module.exports = function (ctx) {
   fs.mkdirSync(BACKUP_DIR, { recursive: true })
   fs.mkdirSync(BACKUP_UPLOAD_DIR, { recursive: true })
   const BACKUP_MAGIC = Buffer.from('QMBK01', 'ascii')
+
+  // settings 表读写（与系统设置共用，key/value）
+  function getSetting(k, def) {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(k)
+    return row ? row.value : def
+  }
+  function setSetting(k, v) {
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(k, v)
+  }
+
+  // 生成一次备份（含加密），返回文件信息
+  function createBackup(password) {
+    const tgz = buildBackupTgz()
+    const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
+    const binName = `qmlpars-backup-${stamp}.bin`
+    fs.writeFileSync(path.join(BACKUP_DIR, binName), makeBinFile(tgz, password))
+    const st = fs.statSync(path.join(BACKUP_DIR, binName))
+    return { file: binName, size: st.size, time: st.mtimeMs, encrypted: !!password }
+  }
 
   function copyDirRecursive(src, dest) {
     fs.mkdirSync(dest, { recursive: true })
@@ -82,21 +101,104 @@ module.exports = function (ctx) {
     return buf.subarray(8)
   }
 
-  router.post('/api/admin/backup/create', authMiddleware, (req, res) => {
+  router.post('/api/admin/backup/create', ...roleGate('admin', 'manager'), (req, res) => {
     try {
       const password = (req.body && req.body.password) || ''
-      const tgz = buildBackupTgz()
-      const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
-      const binName = `qmlpars-backup-${stamp}.bin`
-      fs.writeFileSync(path.join(BACKUP_DIR, binName), makeBinFile(tgz, password))
-      const st = fs.statSync(path.join(BACKUP_DIR, binName))
-      res.json({ success: true, file: binName, size: st.size, time: st.mtimeMs, encrypted: !!password, message: '备份成功' })
+      const info = createBackup(password)
+      ctx.addSysLog('创建备份', info.file, password ? '已加密' : '未加密', req.admin.username, req.ip)
+      res.json({ success: true, ...info, message: '备份成功' })
     } catch (e) {
       res.status(500).json({ success: false, message: e.message })
     }
   })
 
-  router.get('/api/admin/backup/list', authMiddleware, (req, res) => {
+  // ===== 自动备份配置 =====
+  const AUTO_KEY = 'AUTO_BACKUP'
+  function loadAutoConfig() {
+    try {
+      const raw = getSetting(AUTO_KEY, '{}')
+      const o = JSON.parse(raw || '{}')
+      return {
+        enabled: !!o.enabled,
+        period: (o.period === 'weekly' || o.period === 'monthly' || o.period === 'daily') ? o.period : 'daily',
+        password: o.password || '',
+        lastRun: o.lastRun || null,
+        createdAt: o.createdAt || null
+      }
+    } catch (e) {
+      return { enabled: false, period: 'daily', password: '', lastRun: null, createdAt: null }
+    }
+  }
+  function nextRunAt(cfg, fromMs) {
+    const base = fromMs
+    const d = new Date(base)
+    if (cfg.period === 'daily') {
+      d.setDate(d.getDate() + 1); d.setHours(3, 0, 0, 0) // 每天 03:00
+    } else if (cfg.period === 'weekly') {
+      // 每周一 03:00
+      const day = d.getDay(); const diff = (8 - day) % 7 || 7
+      d.setDate(d.getDate() + diff); d.setHours(3, 0, 0, 0)
+    } else { // monthly
+      d.setMonth(d.getMonth() + 1, 1); d.setHours(3, 0, 0, 0) // 每月 1 日 03:00
+    }
+    return d.getTime()
+  }
+  function saveAutoConfig(cfg) {
+    setSetting(AUTO_KEY, JSON.stringify(cfg))
+  }
+  router.get('/api/admin/backup/auto', ...roleGate('admin', 'manager'), (req, res) => {
+    try {
+      const cfg = loadAutoConfig()
+      const nr = cfg.enabled ? nextRunAt(cfg, cfg.lastRun ? cfg.lastRun : Date.now()) : null
+      res.json({ success: true, data: { ...cfg, nextRun: nr } })
+    } catch (e) {
+      res.status(500).json({ success: false, message: e.message })
+    }
+  })
+  router.post('/api/admin/backup/auto', ...roleGate('admin', 'manager'), (req, res) => {
+    try {
+      const body = req.body || {}
+      const period = (body.period === 'weekly' || body.period === 'monthly' || body.period === 'daily') ? body.period : 'daily'
+      const enabled = !!body.enabled
+      const cfg = loadAutoConfig()
+      cfg.enabled = enabled
+      cfg.period = period
+      cfg.password = (body.password != null ? String(body.password) : cfg.password)
+      if (enabled && !cfg.createdAt) cfg.createdAt = Date.now()
+      saveAutoConfig(cfg)
+      ctx.addSysLog('设置自动备份', null, (enabled ? '启用，周期：' + period : '停用'), req.admin.username, req.ip)
+      const nr = enabled ? nextRunAt(cfg, cfg.lastRun ? cfg.lastRun : Date.now()) : null
+      res.json({ success: true, data: { ...cfg, nextRun: nr }, message: '自动备份设置已保存' })
+    } catch (e) {
+      res.status(500).json({ success: false, message: e.message })
+    }
+  })
+
+  // 进程内调度：每分钟检查一次，到点自动生成备份
+  function runAutoBackupIfDue() {
+    const cfg = loadAutoConfig()
+    if (!cfg.enabled) return
+    const now = Date.now()
+    const last = cfg.lastRun ? cfg.lastRun : 0
+    const next = nextRunAt(cfg, last)
+    if (now >= next) {
+      try {
+        const info = createBackup(cfg.password)
+        cfg.lastRun = Date.now()
+        saveAutoConfig(cfg)
+        ctx.addSysLog('自动备份', info.file, cfg.period + (cfg.password ? '，已加密' : ''), 'system', '内部调度')
+        console.log('[自动备份] 已生成：', info.file)
+      } catch (e) {
+        console.error('[自动备份] 失败：', e.message)
+      }
+    }
+  }
+  const autoTimer = setInterval(runAutoBackupIfDue, 60 * 1000)
+  if (autoTimer.unref) autoTimer.unref() // 不阻止进程退出
+  // 启动后立即检查一次（处理上次停机期间应执行但未执行的情况）
+  try { runAutoBackupIfDue() } catch (e) {}
+
+  router.get('/api/admin/backup/list', ...roleGate('admin', 'manager'), (req, res) => {
     try {
       const list = fs.readdirSync(BACKUP_DIR)
         .filter(f => f.endsWith('.bin'))
@@ -111,27 +213,29 @@ module.exports = function (ctx) {
     }
   })
 
-  router.get('/api/admin/backup/download', authMiddleware, (req, res) => {
+  router.get('/api/admin/backup/download', ...roleGate('admin', 'manager'), (req, res) => {
     const file = path.basename(req.query.file || '')
     const p = path.join(BACKUP_DIR, file)
     if (!/\.bin$/.test(file) || !fs.existsSync(p)) return res.status(404).json({ success: false, message: '备份文件不存在' })
     res.download(p, file)
   })
 
-  router.post('/api/admin/backup/delete', authMiddleware, (req, res) => {
+  router.post('/api/admin/backup/delete', ...roleGate('admin', 'manager'), (req, res) => {
     const file = path.basename((req.body && req.body.file) || '')
     const p = path.join(BACKUP_DIR, file)
     if (!/\.bin$/.test(file) || !fs.existsSync(p)) return res.status(404).json({ success: false, message: '备份文件不存在' })
     fs.unlinkSync(p)
+    ctx.addSysLog('删除备份', file, null, req.admin.username, req.ip)
     res.json({ success: true, message: '已删除' })
   })
 
-  router.post('/api/admin/backup/upload', authMiddleware, require('multer')({ dest: BACKUP_UPLOAD_DIR }).single('file'), (req, res) => {
+  router.post('/api/admin/backup/upload', ...roleGate('admin', 'manager'), require('multer')({ dest: BACKUP_UPLOAD_DIR }).single('file'), (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, message: '请选择备份文件' })
+    ctx.addSysLog('上传备份', req.file.originalname || req.file.filename, null, req.admin.username, req.ip)
     res.json({ success: true, file: req.file.filename })
   })
 
-  router.post('/api/admin/backup/restore', authMiddleware, (req, res) => {
+  router.post('/api/admin/backup/restore', ...roleGate('admin', 'manager'), (req, res) => {
     const uploaded = path.basename((req.body && req.body.file) || '')
     const password = (req.body && req.body.password) || ''
     let work = ''
@@ -176,6 +280,7 @@ module.exports = function (ctx) {
       if (fs.existsSync(newAssets)) copyDirRecursive(newAssets, ctx.ASSETS_DIR)
       fs.rmSync(work, { recursive: true, force: true })
       if (uploadTmp) { try { fs.unlinkSync(uploadTmp) } catch (e) {} }
+      ctx.addSysLog('恢复备份', uploaded, null, req.admin.username, req.ip)
       res.json({ success: true, message: '恢复成功，系统将在 3 秒后自动重启，请稍候重新登录' })
       setTimeout(() => { try { process.exit(0) } catch (e) {} }, 3000)
     } catch (e) {

@@ -6,6 +6,12 @@ let photoUrl = '';         // 已上传照片 URL
 let selectedIds = new Set();
 let depTags = [];          // 当前车辆所属部门标签（可多个）
 const PLATE_RE = /^[\u4e00-\u9fa5][A-Za-z0-9]{5,7}$/;
+// HTML 转义（用于动态拼接行内 input 的 value）
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 let plateAreas = {};       // 全国车牌地区映射（省份简称 -> {province, cities}）
 
 // 加载全国车牌归属地映射
@@ -221,6 +227,10 @@ function formatValidCell(v) {
 }
 
 function initVehicles() {
+  initColResize('vehTbl',
+    ['check', 'photo', 'plate', 'owner', 'phone', 'dept', 'valid', 'remark', 'op'],
+    { check: 42, photo: 76, plate: 110, owner: 90, phone: 120, dept: 110, valid: 120, remark: 150, op: 150 },
+    'vehTbl_colwidths', { lastFixed: 'op' })
   loadPlateAreas();
   loadVehicles();
 
@@ -250,6 +260,14 @@ function initVehicles() {
   document.getElementById('modal-save').onclick = saveVehicle;
 
   document.getElementById('batch-del-btn').onclick = batchDelete;
+
+  // 批量新增车辆：在新增车辆弹窗内切换为批量行表单
+  const batchInputBtn = document.getElementById('batch-input-btn')
+  if (batchInputBtn) batchInputBtn.onclick = openBatchAdd
+  // 批量表单底部「+ 添加一行」
+  const batchAddBtn = document.getElementById('batch-add-btn')
+  if (batchAddBtn) batchAddBtn.onclick = () => addBatchRow()
+
   document.getElementById('check-all').addEventListener('change', e => {
     const checked = e.target.checked;
     document.querySelectorAll('#list input.row-check').forEach(cb => {
@@ -313,7 +331,7 @@ async function loadVehicles() {
           <td>${formatValidCell(v.validUntil)}</td>
           <td class="remark-cell">${esc(v.remark || '')}</td>
           <td>
-            <button class="btn sm" onclick="editVehicle(${v.id})">编辑</button>
+            <button class="btn sm warn" onclick="editVehicle(${v.id})">编辑</button>
             <button class="btn sm danger" onclick="delVehicle(${v.id})">删除</button>
           </td>
         </tr>`;
@@ -423,6 +441,13 @@ function editVehicle(id) {
   const v = vRows[id];
   if (!v) { toast('数据不存在，请刷新后重试'); return; }
   editingId = id;
+  // 切回单条编辑视图（若此前处于批量视图）
+  modalMode = 'single';
+  document.getElementById('batch-single').style.display = '';
+  document.getElementById('batch-multi').style.display = 'none';
+  const box = document.getElementById('modal-box');
+  if (box) box.style.width = '';
+  document.getElementById('modal-save').textContent = '保存';
   document.getElementById('modal-title').textContent = '编辑车辆';
   document.getElementById('f-plate').value = v.plateNo || '';
   document.getElementById('f-owner').value = v.owner || '';
@@ -446,6 +471,7 @@ function editVehicle(id) {
 }
 
 async function saveVehicle() {
+  if (modalMode === 'batch') { await submitBatchCreate(); return; }
   const plate = document.getElementById('f-plate').value.trim().toUpperCase();
   const owner = document.getElementById('f-owner').value.trim();
   const phone = document.getElementById('f-phone').value.trim();
@@ -519,7 +545,10 @@ async function batchDelete() {
   } catch (e) { toast('删除失败：' + e.message); }
 }
 
-function closeModal() { document.getElementById('modal').classList.remove('show'); }
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+  modalMode = 'single';
+}
 
 // ---------- 照片上传（点击/拖拽/粘贴 → 先上传再保存） ----------
 function initPhotoBox() {
@@ -607,3 +636,159 @@ function zoomPhoto(url) {
   document.getElementById('lightbox').classList.add('show');
   document.getElementById('lightbox').onclick = () => document.getElementById('lightbox').classList.remove('show');
 }
+
+// ---------- 批量新增车辆（多行表单，无照片） ----------
+let modalMode = 'single';   // 'single' | 'batch'
+let batchRowSeq = 0;        // 行去重序号
+
+function openBatchAdd() {
+  modalMode = 'batch';
+  editingId = null;
+  document.getElementById('modal-title').textContent = '批量新增车辆';
+  document.getElementById('batch-single').style.display = 'none';
+  document.getElementById('batch-multi').style.display = '';
+  // 切换模式时让 modal 更宽
+  const box = document.getElementById('modal-box');
+  if (box) box.style.width = 'min(1100px,96vw)';
+  document.getElementById('modal-save').textContent = '批量添加';
+  const hint = document.getElementById('batch-hint');
+  if (hint) { hint.textContent = ''; hint.style.color = 'var(--no)'; }
+  // 初始给 2 个空行
+  const wrap = document.getElementById('batch-rows');
+  wrap.innerHTML = '';
+  for (let i = 0; i < 2; i++) addBatchRow();
+  document.getElementById('modal').classList.add('show');
+}
+
+// 切换回单条新增
+function openAdd() {
+  modalMode = 'single';
+  editingId = null; photoUrl = ''; photoUploaded = false; photoRemoteUrl = '';
+  document.getElementById('modal-title').textContent = '新增车辆';
+  document.getElementById('batch-single').style.display = '';
+  document.getElementById('batch-multi').style.display = 'none';
+  const box = document.getElementById('modal-box');
+  if (box) box.style.width = '';
+  document.getElementById('modal-save').textContent = '保存';
+  document.getElementById('f-plate').value = '';
+  document.getElementById('f-owner').value = '';
+  document.getElementById('f-phone').value = '';
+  document.getElementById('f-remark').value = '';
+  depTags = [];
+  renderDepTags();
+  const td = new Date();
+  dpStart = { y: td.getFullYear(), m: td.getMonth(), d: td.getDate() };
+  dpEnd = null;
+  toggleValidUntilClear();
+  showPhotoEmpty();
+  document.getElementById('modal').classList.add('show');
+  updatePlateArea(document.getElementById('f-plate').value);
+  document.getElementById('f-plate').focus();
+}
+
+// 单行 HTML：车牌号 / 车主 / 部门 / 手机号 / 有效期(开始~结束) / 备注 / 操作
+function addBatchRow(values) {
+  values = values || {};
+  const seq = ++batchRowSeq;
+  const wrap = document.getElementById('batch-rows');
+  const row = document.createElement('div');
+  row.className = 'batch-row';
+  row.dataset.seq = seq;
+  row.innerHTML =
+    '<input data-f="plateNo" maxlength="10" placeholder="粤B12345" value="' + esc(values.plateNo || '') + '">' +
+    '<input data-f="owner" placeholder="车主" value="' + esc(values.owner || '') + '">' +
+    '<input data-f="department" placeholder="部门" value="' + esc(values.department || '') + '">' +
+    '<input data-f="phone" placeholder="手机号" value="' + esc(values.phone || '') + '">' +
+    '<div class="batch-valid">' +
+      '<input type="date" data-f="validStart" value="' + esc(values.validStart || '') + '">' +
+      '<span class="batch-valid-sep">~</span>' +
+      '<input type="date" data-f="validEnd" value="' + esc(values.validEnd || '') + '">' +
+    '</div>' +
+    '<input data-f="remark" placeholder="备注" value="' + esc(values.remark || '') + '">' +
+    '<div class="batch-actions">' +
+      '<button type="button" class="add" title="新增一行" onclick="addBatchRow()">+</button>' +
+      '<button type="button" class="del" title="删除本行" onclick="removeBatchRow(' + seq + ')">×</button>' +
+    '</div>';
+  // 车牌输入时实时校验格式
+  row.querySelector('[data-f="plateNo"]').addEventListener('input', e => {
+    const v = e.target.value.trim().toUpperCase();
+    e.target.value = v;
+    e.target.classList.toggle('error', v && !PLATE_RE.test(v));
+  });
+  wrap.appendChild(row);
+  refreshBatchDelState();
+  return row;
+}
+
+function removeBatchRow(seq) {
+  const row = document.querySelector('.batch-row[data-seq="' + seq + '"]');
+  if (row) row.remove();
+  refreshBatchDelState();
+}
+
+// 至少保留一行（首行删除按钮禁用）
+function refreshBatchDelState() {
+  const rows = document.querySelectorAll('#batch-rows .batch-row');
+  rows.forEach((r, i) => {
+    const delBtn = r.querySelector('.batch-actions .del');
+    if (delBtn) {
+      // 仅当只有一行时禁用删除，否则允许
+      delBtn.disabled = rows.length <= 1;
+    }
+  });
+}
+
+// 收集并校验所有有效行（车牌号非空视为有效行）
+function collectBatchRows() {
+  const rows = document.querySelectorAll('#batch-rows .batch-row');
+  const items = [];
+  let firstErr = '';
+  rows.forEach(r => {
+    const get = f => (r.querySelector('[data-f="' + f + '"]') || {}).value || '';
+    const plateNo = get('plateNo').trim().toUpperCase();
+    const owner = get('owner').trim();
+    const department = get('department').trim();
+    const phone = get('phone').trim();
+    const validStart = get('validStart').trim();
+    const validEnd = get('validEnd').trim();
+    const remark = get('remark').trim();
+    if (!plateNo && !owner && !department && !phone && !remark) return; // 空行跳过
+    // 校验
+    if (!plateNo) { firstErr = firstErr || '存在车牌号为空行，请补全'; return; }
+    if (!PLATE_RE.test(plateNo)) { firstErr = firstErr || ('车牌号格式不正确：' + plateNo); return; }
+    if (!owner) { firstErr = firstErr || ('车主不能为空：' + plateNo); return; }
+    if (phone && !/^1[3-9]\d{9}$/.test(phone)) { firstErr = firstErr || ('手机号格式不正确：' + plateNo); return; }
+    if (validEnd && validStart && validEnd < validStart) { firstErr = firstErr || ('结束时间早于开始时间：' + plateNo); return; }
+    const validUntil = validEnd ? (validStart ? (validStart + '~' + validEnd) : validEnd) : (validStart || '');
+    items.push({ plateNo, owner, department, phone, validUntil, remark });
+  });
+  return { items, error: firstErr };
+}
+
+// 批量保存：在 saveVehicle 内根据 modalMode 分流
+async function submitBatchCreate() {
+  const btn = document.getElementById('modal-save');
+  const hint = document.getElementById('batch-hint');
+  const { items, error } = collectBatchRows();
+  if (error) { if (hint) { hint.textContent = error; hint.style.color = 'var(--no)'; } return; }
+  if (!items.length) { if (hint) { hint.textContent = '请至少填写一行有效数据（车牌号必填）'; hint.style.color = 'var(--no)'; } return; }
+  if (hint) { hint.textContent = ''; }
+  btn.disabled = true; btn.textContent = '提交中…';
+  try {
+    const r = await api('/api/admin/vehicles/batch-create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items })
+    });
+    if (!r.success) throw new Error(r.message || '导入失败');
+    toast(r.message || '批量导入成功');
+    closeModal();
+    loadVehicles();
+  } catch (e) {
+    if (hint) { hint.textContent = e.message; hint.style.color = 'var(--no)'; }
+  } finally {
+    btn.disabled = false; btn.textContent = '批量添加';
+  }
+}
+
+// 供 HTML 内联 onclick 调用
+window.addBatchRow = addBatchRow
+window.removeBatchRow = removeBatchRow

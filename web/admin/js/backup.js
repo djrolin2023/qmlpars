@@ -123,11 +123,61 @@ function showRestoreModal(fileName) {
   openModal('rs-modal');
 }
 
+function fmtNextRun(ms) {
+  if (!ms) return '';
+  const d = new Date(ms);
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+async function loadAutoBackup() {
+  try {
+    const r = await api('/api/admin/backup/auto');
+    const c = r.data || {};
+    document.getElementById('ab-enabled').checked = !!c.enabled;
+    document.getElementById('ab-period').value = c.period || 'daily';
+    document.getElementById('ab-pwd').value = ''; // 出于安全不回显密码
+    const info = document.getElementById('ab-info');
+    if (c.enabled) {
+      let txt = '已启用自动备份（' + ({ daily: '每天', weekly: '每星期', monthly: '每月' }[c.period] || c.period) + (c.password ? '，已加密' : '，未加密') + '）';
+      if (c.lastRun) txt += '；上次执行：' + fmtTime(c.lastRun);
+      if (c.nextRun) txt += '；下次执行：' + fmtNextRun(c.nextRun);
+      info.textContent = txt;
+    } else {
+      info.textContent = '自动备份未启用';
+    }
+  } catch (e) {
+    toast('读取自动备份设置失败：' + e.message, 'error');
+  }
+}
+
+async function saveAutoBackup() {
+  const btn = document.getElementById('ab-save');
+  btn.disabled = true;
+  try {
+    const r = await api('/api/admin/backup/auto', {
+      method: 'POST',
+      body: JSON.stringify({
+        enabled: document.getElementById('ab-enabled').checked,
+        period: document.getElementById('ab-period').value,
+        password: document.getElementById('ab-pwd').value
+      })
+    });
+    toast(r.message || '已保存', 'success');
+    loadAutoBackup();
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 function initBackup() {
   const crumb = document.getElementById('crumb');
   if (crumb) crumb.innerHTML = '<a href="index.html">控制台</a> / 备份恢复';
 
   loadBackupList();
+  loadAutoBackup();
 
   // 点击遮罩 / × / 取消 关闭所有模态框
   document.querySelectorAll('.modal-mask').forEach(m => {
@@ -181,4 +231,7 @@ function initBackup() {
       showRestoreModal(file);
     }
   });
+
+  // 自动备份设置
+  document.getElementById('ab-save').addEventListener('click', saveAutoBackup);
 }

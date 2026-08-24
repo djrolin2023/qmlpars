@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>系统日志 - 乾明车牌识别系统 - 管理后台</title>
+  <link rel="stylesheet" href="css/base.css">
+  <style>
+    .filters { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:18px; align-items:center; }
+    .filters select, .filters input { padding:9px 12px; border-radius:9px; border:1px solid rgba(120,200,255,.18); background:rgba(15,20,25,.5); color:#e2e8f0; font-size:14px; outline:none; }
+    .filters select:focus, .filters input:focus { border-color:#38bdf8; }
+    .btn-danger { background:rgba(239,68,68,.18); color:#f87171; border:1px solid rgba(239,68,68,.35); }
+    .btn-danger:hover { background:rgba(239,68,68,.28); }
+    .filters button { align-self: stretch; }
+    .log-table-wrap { overflow-x:auto; background:rgba(15,20,25,.4); border:1px solid rgba(120,200,255,.16); border-radius:12px; margin-top:16px; }
+    table.log-table { width:100%; border-collapse:collapse; font-size:13.5px; min-width:760px; }
+    table.log-table th, table.log-table td { text-align:center; padding:12px 14px; border-bottom:1px solid rgba(120,200,255,.08); white-space:nowrap; }
+    table.log-table th { color:#9fb3c8; font-weight:600; position:sticky; top:0; background:rgba(20,28,38,.9); }
+    table.log-table td.wrap { white-space:normal; max-width:320px; word-break:break-all; }
+    table.log-table tr:hover td { background:rgba(120,200,255,.04); }
+    .act-tag { display:inline-block; padding:2px 9px; border-radius:20px; font-size:12px; font-weight:600; }
+    .act-login { background:rgba(16,185,129,.16); color:#34d399; }
+    .act-logout { background:rgba(148,163,184,.16); color:#cbd5e1; }
+    .act-fail { background:rgba(239,68,68,.16); color:#f87171; }
+    .act-cud { background:rgba(56,189,248,.16); color:#38bdf8; }
+    .act-backup { background:rgba(168,85,247,.16); color:#c084fc; }
+    .pager { display:flex; gap:10px; align-items:center; margin-top:20px; padding-top:6px; justify-content:flex-end; }
+    .pager button { padding:7px 14px; border-radius:8px; border:1px solid rgba(120,200,255,.18); background:rgba(15,20,25,.5); color:#e2e8f0; cursor:pointer; }
+    .pager button:disabled { opacity:.4; cursor:default; }
+    .empty { text-align:center; color:#64748b; padding:40px; }
+  </style>
+</head>
+<body class="embed">
+  <div class="page">
+    <div class="filters">
+      <select id="f-action">
+        <option value="">全部操作</option>
+        <option value="登录成功">登录成功</option>
+        <option value="登录失败">登录失败</option>
+        <option value="退出登录">退出登录</option>
+        <option value="修改密码">修改密码</option>
+        <option value="创建用户">创建用户</option>
+        <option value="编辑用户">编辑用户</option>
+        <option value="删除用户">删除用户</option>
+        <option value="重置密码">重置密码</option>
+        <option value="新增车辆">新增车辆</option>
+        <option value="编辑车辆">编辑车辆</option>
+        <option value="删除车辆">删除车辆</option>
+        <option value="批量新增车辆">批量新增车辆</option>
+        <option value="批量删除车辆">批量删除车辆</option>
+        <option value="保存系统设置">保存系统设置</option>
+        <option value="创建备份">创建备份</option>
+        <option value="设置自动备份">设置自动备份</option>
+        <option value="恢复备份">恢复备份</option>
+      </select>
+      <button class="btn" id="refresh-btn">刷新</button>
+      <button class="btn btn-danger" id="clear-btn">清空全部</button>
+    </div>
+
+    <div class="log-table-wrap">
+      <table class="log-table" id="syslogTbl">
+        <colgroup id="syslogColgroup"></colgroup>
+        <thead>
+          <tr><th data-col="time">时间</th><th data-col="action">操作</th><th data-col="target">对象</th><th data-col="detail">详情</th><th data-col="opby">操作人</th><th data-col="ip">IP</th></tr>
+        </thead>
+        <tbody id="logBody"></tbody>
+      </table>
+      <div class="empty" id="emptyTip" style="display:none">暂无日志</div>
+    </div>
+
+    <div class="pager">
+      <span id="totalTip" style="color:#86909c;font-size:13px"></span>
+      <button class="btn sm" id="prevBtn">上一页</button>
+      <span id="pageTip" style="color:#cbd5e1;font-size:13px"></span>
+      <button class="btn sm" id="nextBtn">下一页</button>
+    </div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script src="js/colresize.js"></script>
+  <script src="js/upgrade.js"></script>
+  <script>
+    (async () => {
+      if (!(await checkAuth())) { location.replace('login.html'); return }
+      initSysLog()
+    })()
+
+    function initSysLog() {
+      initColResize('syslogTbl',
+        ['time', 'action', 'target', 'detail', 'opby', 'ip'],
+        { time: 170, action: 120, target: 110, detail: 280, opby: 90, ip: 130 },
+        'syslogTbl_colwidths', { lastFixed: 'ip' })
+      const body = document.getElementById('logBody')
+      const emptyTip = document.getElementById('emptyTip')
+      const totalTip = document.getElementById('totalTip')
+      const pageTip = document.getElementById('pageTip')
+      const fAction = document.getElementById('f-action')
+      let page = 1
+      const pageSize = 20
+
+      function actClass(a) {
+        if (a === '登录成功') return 'act-login'
+        if (a === '退出登录') return 'act-logout'
+        if (a === '登录失败') return 'act-fail'
+        if (a && a.indexOf('备份') >= 0) return 'act-backup'
+        return 'act-cud'
+      }
+
+      async function load() {
+        const q = new URLSearchParams({ page, pageSize })
+        if (fAction.value) q.set('action', fAction.value)
+        const j = await api('/api/admin/sys-logs?' + q.toString())
+        if (!j.success) return
+        const list = j.data || []
+        body.innerHTML = ''
+        emptyTip.style.display = list.length ? 'none' : 'block'
+        for (const r of list) {
+          const tr = document.createElement('tr')
+          tr.innerHTML = `
+            <td>${r.createdAt || ''}</td>
+            <td><span class="act-tag ${actClass(r.action)}">${escapeHtml(r.action)}</span></td>
+            <td>${escapeHtml(r.target || '—')}</td>
+            <td class="wrap">${escapeHtml(r.detail || '—')}</td>
+            <td>${escapeHtml(r.operator || '—')}</td>
+            <td>${escapeHtml(r.ip || '—')}</td>`
+          body.appendChild(tr)
+        }
+        totalTip.textContent = '共 ' + (j.total || 0) + ' 条'
+        pageTip.textContent = '第 ' + page + ' 页'
+        document.getElementById('prevBtn').disabled = page <= 1
+        document.getElementById('nextBtn').disabled = page * pageSize >= (j.total || 0)
+      }
+
+      fAction.onchange = () => { page = 1; load() }
+      document.getElementById('refresh-btn').onclick = () => load()
+      document.getElementById('clear-btn').onclick = async () => {
+        if (!confirm('确定要清空全部系统日志吗？此操作不可恢复。')) return
+        const j = await api('/api/admin/sys-logs', { method: 'DELETE' })
+        if (j && j.success) {
+          page = 1
+          await load()
+          totalTip.textContent = '已清空'
+        } else {
+          alert((j && j.message) || '清空失败')
+        }
+      }
+      document.getElementById('prevBtn').onclick = () => { if (page > 1) { page--; load() } }
+      document.getElementById('nextBtn').onclick = () => { page++; load() }
+      load()
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+    }
+  </script>
+</body>
+</html>

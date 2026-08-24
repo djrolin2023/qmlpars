@@ -10,6 +10,26 @@ module.exports = function (ctx) {
   const { normalizePlate, toPlateKey } = require('../plate')
   const { recognizeByBaidu, recognizeByTencent } = require('../ocr')
 
+  // 限制同一账号同时在线设备数：先清理过期会话，若仍超出上限则删除「最早登录」的设备会话
+  function enforceDeviceLimit(userId, req) {
+    try {
+      const max = config.MAX_USER_DEVICES || 3
+      const now = new Date().toLocaleString('sv')
+      // 清理已过期会话
+      db.prepare("DELETE FROM user_sessions WHERE userId = ? AND datetime(expireAt) < datetime(?)").run(userId, now)
+      const rows = db.prepare(
+        'SELECT token FROM user_sessions WHERE userId = ? ORDER BY datetime(createdAt) ASC'
+      ).all(userId)
+      // 预留 1 个名额给本次新登录，超出则从头删除最旧的会话
+      const overflow = rows.length - (max - 1)
+      if (overflow > 0) {
+        for (let i = 0; i < overflow && i < rows.length; i++) {
+          db.prepare('DELETE FROM user_sessions WHERE token = ?').run(rows[i].token)
+        }
+      }
+    } catch (e) { /* 忽略，不影响登录 */ }
+  }
+
   // 用户登录（H5/APP 端）：普通用户（账号/手机号/ID）或管理员账号均可登录
   router.post('/api/auth/login', (req, res) => {
     const account = String((req.body && req.body.username) || '').trim()
@@ -35,9 +55,12 @@ module.exports = function (ctx) {
     if (user && verifyPassword(password, user.password_hash)) {
       const token = genUserToken()
       const expireAt = new Date(Date.now() + config.TOKEN_EXPIRE_HOURS * 3600000).toLocaleString('sv')
-      db.prepare('INSERT INTO user_sessions (token, userId, username, expireAt) VALUES (?,?,?,?)').run(token, user.id, user.username, expireAt)
-      db.prepare('INSERT INTO login_attempts (username, success) VALUES (?,?)').run(account, 1)
-      return res.json({ success: true, data: { token, userId: user.id, username: user.username, name: user.name || '', role: user.role } })
+      // 限制同时在线设备数：先清理过期会话，再若超出上限则挤掉最早登录的设备
+      enforceDeviceLimit(user.id, req)
+      db.prepare('INSERT INTO user_sessions (token, userId, username, ip, ua, expireAt) VALUES (?,?,?,?,?,?)')
+        .run(token, user.id, user.username, req.ip || null, (req.headers['user-agent'] || '').slice(0, 255), expireAt)
+      db.prepare('INSERT INTO login_attempts (username, success, ip) VALUES (?,?,?)').run(account, 1, req.ip || null)
+      return res.json({ success: true, data: { token, userId: user.id, username: user.username, name: user.name || '', role: user.role, loginIp: req.ip || '' } })
     }
 
     // 2) 兜底：管理员账号登录（用户名固定 admin）
@@ -48,13 +71,15 @@ module.exports = function (ctx) {
       if (ok) {
         const token = genUserToken()
         const expireAt = new Date(Date.now() + config.TOKEN_EXPIRE_HOURS * 3600000).toLocaleString('sv')
-        db.prepare('INSERT INTO user_sessions (token, userId, username, expireAt) VALUES (?,?,?,?)').run(token, 0, 'admin', expireAt)
-        db.prepare('INSERT INTO login_attempts (username, success) VALUES (?,?)').run(account, 1)
-        return res.json({ success: true, data: { token, userId: 0, username: 'admin', name: '管理员', role: 'admin' } })
+        enforceDeviceLimit(0, req)
+        db.prepare('INSERT INTO user_sessions (token, userId, username, ip, ua, expireAt) VALUES (?,?,?,?,?,?)')
+          .run(token, 0, 'admin', req.ip || null, (req.headers['user-agent'] || '').slice(0, 255), expireAt)
+        db.prepare('INSERT INTO login_attempts (username, success, ip) VALUES (?,?,?)').run(account, 1, req.ip || null)
+        return res.json({ success: true, data: { token, userId: 0, username: 'admin', name: '管理员', role: 'admin', loginIp: req.ip || '' } })
       }
     }
 
-    db.prepare('INSERT INTO login_attempts (username, success) VALUES (?,?)').run(account, 0)
+    db.prepare('INSERT INTO login_attempts (username, success, ip) VALUES (?,?,?)').run(account, 0, req.ip || null)
     return res.status(401).json({ success: false, message: '账号或密码错误' })
   })
 
@@ -69,6 +94,41 @@ module.exports = function (ctx) {
   router.post('/api/auth/logout', userAuthMiddleware, (req, res) => {
     db.prepare('DELETE FROM user_sessions WHERE token = ?').run(req.user.token)
     res.json({ success: true })
+  })
+
+  // 用户（前台/H5/APP）修改自己的密码
+  router.post('/api/auth/change-password', userAuthMiddleware, (req, res) => {
+    try {
+      const oldPassword = String(req.body && req.body.oldPassword || '')
+      const newPassword = String(req.body && req.body.newPassword || '')
+      if (!oldPassword || !newPassword) return res.status(400).json({ success: false, message: '请填写当前密码和新密码' })
+      if (newPassword.length < 6) return res.status(400).json({ success: false, message: '新密码至少 6 位' })
+
+      if (req.user.username === 'admin') {
+        // 管理员账号：与后台管理员密码一致
+        let ok = false
+        if (config.ADMIN_PASSWORD_HASH) ok = verifyPassword(oldPassword, config.ADMIN_PASSWORD_HASH)
+        else if (config.ADMIN_PASSWORD) ok = (oldPassword === config.ADMIN_PASSWORD)
+        if (!ok) return res.status(403).json({ success: false, message: '当前密码错误' })
+
+        // 修改管理员密码
+        config.dbSet('ADMIN_PASSWORD_HASH', hashPassword(newPassword))
+        config.dbSet('ADMIN_PASSWORD', '')
+        // 使用户端 admin 会话失效，强制重新登录
+        try { db.prepare("DELETE FROM user_sessions WHERE username = ?").run(config.ADMIN_USERNAME) } catch (e) {}
+        return res.json({ success: true, message: '管理员密码已修改，请重新登录' })
+      }
+
+      // 普通用户
+      const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.userId)
+      if (!user) return res.status(404).json({ success: false, message: '用户不存在' })
+      if (!verifyPassword(oldPassword, user.password_hash)) return res.status(403).json({ success: false, message: '当前密码错误' })
+      const newHash = hashPassword(newPassword)
+      db.prepare('UPDATE users SET password_hash = ?, updatedAt = datetime("now","localtime") WHERE id = ?').run(newHash, user.id)
+      res.json({ success: true, message: '密码已修改' })
+    } catch (e) {
+      res.status(500).json({ success: false, message: '修改失败：' + e.message })
+    }
   })
 
   // 车辆颜色英文 -> 中文
@@ -97,8 +157,9 @@ module.exports = function (ctx) {
       if (!req.file && !req.body.imageBase64 && !req.body.imageUrl) {
         return res.status(400).json({ success: false, message: '缺少图片数据' })
       }
-      // 来源渠道：前端按运行容器区分（原生 APP 传 'app'，H5 网页传 'web'）；缺省兜底为 app
-      const channel = (req.body.channel === 'web') ? 'web' : (req.body.channel || 'app')
+      // 来源渠道：原生 APP 传 'app'，H5 网页传 'web'/'h5'；缺省兜底为 app
+      const rawChannel = (req.body.channel || 'app')
+      const channel = (rawChannel === 'web' || rawChannel === 'h5') ? 'h5' : 'app'
       let imageBase64 = null, imageUrl = null
       if (req.file) {
         const b64 = fs.readFileSync(req.file.path).toString('base64')
@@ -131,7 +192,6 @@ module.exports = function (ctx) {
           break
         } catch (err) {
           lastErr = err
-          ctx.logRecognition('', name, 0, '失败:' + err.message, channel, null, req.user ? req.user.userId : null, opName)
         }
       }
       if (!result) {
@@ -141,7 +201,8 @@ module.exports = function (ctx) {
       }
 
       const plateNo = result.plateNo
-      const vehicle = db.prepare('SELECT * FROM vehicles WHERE plateKey = ?').get(toPlateKey(plateNo))
+      const plateKey = toPlateKey(plateNo)
+      const vehicle = plateKey ? db.prepare('SELECT * FROM vehicles WHERE plateKey = ?').get(plateKey) : null
       let snapFile = null
       if (req.file && fs.existsSync(req.file.path)) {
         try {
@@ -154,7 +215,11 @@ module.exports = function (ctx) {
         }
       }
       const snapImageUrl = snapFile ? `/uploads/snapshots/${snapFile}` : null
-      ctx.logRecognition(plateNo, source, result.confidence, vehicle ? '命中内部车辆' : '未命中', channel, snapImageUrl, req.user ? req.user.userId : null, opName)
+      // 仅当成功识别出车牌才记录；无论库中是否命中车辆都入库
+      if (plateNo) {
+        const opUsername = (req.user && req.user.username) || (req.admin && req.admin.username) || null
+        ctx.logRecognition(plateNo, source, result.confidence, vehicle ? '成功' : '无车辆数据', channel, snapImageUrl, req.user ? req.user.userId : null, opName, opUsername)
+      }
       const stat = db.prepare('SELECT COUNT(*) AS cnt, MAX(createdAt) AS lastAt FROM recognition_logs WHERE plateNo = ?').get(plateNo || '') || { cnt: 0, lastAt: '' }
       res.json({
         success: true,

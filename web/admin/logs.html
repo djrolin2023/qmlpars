@@ -21,9 +21,10 @@
       </div>
 
       <div class="panel" style="padding:0;overflow:auto">
-        <table class="data">
+        <table class="data" id="logTbl">
+          <colgroup id="logColgroup"></colgroup>
           <thead>
-            <tr><th style="width:42px"><input type="checkbox" id="check-all"></th><th>车牌</th><th>渠道</th><th>结果</th><th>置信度</th><th>已识别图片</th><th>操作人</th><th>时间</th><th>操作</th></tr>
+            <tr><th data-col="check" style="width:42px"><input type="checkbox" id="check-all"></th><th data-col="plate">车牌</th><th data-col="channel">渠道</th><th data-col="result">结果</th><th data-col="conf">置信度</th><th data-col="img">已识别图片</th><th data-col="opby">操作人</th><th data-col="time">时间</th><th data-col="op">操作</th></tr>
           </thead>
           <tbody id="list"></tbody>
         </table>
@@ -36,6 +37,7 @@
   </div>
 
   <script src="js/common.js"></script>
+  <script src="js/colresize.js"></script>
   <script src="js/upgrade.js"></script>
   <script src="js/logs.js"></script>
   <script>

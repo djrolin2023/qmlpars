@@ -94,7 +94,6 @@ body{
 footer{ text-align:center; padding:20px 18px 36px; color:var(--sub); font-size:11px; line-height:2; }
 footer a{ color:var(--sub); text-decoration:none; }
 footer .police{ height:14px; vertical-align:middle; margin-right:4px; }
-footer .ipv6-icon{ vertical-align:-2px; margin-right:3px; color:var(--sub); }
 
 /* 顶部用户条（登录态，固定） */
 .user-bar{ position:sticky; top:0; z-index:20; display:flex; align-items:center; justify-content:flex-end; gap:10px; padding:8px 16px; font-size:12px; color:var(--txt); background:rgba(15,20,25,.6); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
@@ -125,7 +124,7 @@ footer .ipv6-icon{ vertical-align:-2px; margin-right:3px; color:var(--sub); }
 .login-card .pwd-toggle:hover{ color:var(--accent); }
 .login-card .pwd-toggle svg{ width:20px; height:20px; }
 .login-card .err{ text-align:left; min-height:18px; margin-top:-4px; margin-bottom:8px; }
-.login-card button[type=submit]{ width:100%; padding:13px; border:none; border-radius:12px; background:var(--accent); color:#04283a; font-size:16px; font-weight:700; cursor:pointer; }
+.login-card button[type=submit]{ width:100%; padding:13px; border:1px solid var(--accent); border-radius:12px; background:transparent; color:var(--accent); font-size:16px; font-weight:700; cursor:pointer; }
 .login-card button[type=submit]:disabled{ opacity:.6; }
 .login-card .auto-login{ display:flex; align-items:center; gap:6px; justify-content:flex-start; color:var(--sub); font-size:13px; margin:2px 0 14px; cursor:pointer; }
 .login-card .auto-login input{ width:16px; height:16px; margin:0; }

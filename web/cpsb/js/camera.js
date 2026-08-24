@@ -45,7 +45,7 @@ function startLightCheck(){
     if(b<45 && !torchOn){
       btn.classList.remove('hidden');
       btn.classList.add('hint');
-      document.getElementById('camStatus').textContent='光线不足，点击 💡 开启灯光';
+      document.getElementById('camStatus').innerHTML='光线不足，点击 '+svgIcon('light')+' 开启灯光';
     } else if(!torchOn){
       btn.classList.add('hidden');
       btn.classList.remove('hint');

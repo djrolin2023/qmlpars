@@ -74,6 +74,7 @@ body{
 .qbox input:focus{ outline:none; border-color:var(--neon); box-shadow:0 0 0 3px rgba(0,212,255,.15); }
 .qbox button{ padding:0 20px; border:none; border-radius:12px; background:var(--accent); color:#04283a; font-size:15px; font-weight:700; cursor:pointer; }
 .err{ color:var(--no); font-size:13px; margin-top:6px; min-height:0; }
+.login-ip-tip{ margin-top:8px; font-size:12.5px; color:#7dd3fc; background:rgba(56,189,248,.1); border:1px solid rgba(56,189,248,.25); border-radius:8px; padding:6px 10px; text-align:center; }
 
 /* 结果 */
 .result{ margin-top:10px; }
@@ -96,7 +97,6 @@ body{
 footer{ text-align:center; padding:20px 18px 36px; color:var(--sub); font-size:11px; line-height:2; }
 footer a{ color:var(--sub); text-decoration:none; }
 footer .police{ height:14px; vertical-align:middle; margin-right:4px; }
-footer .ipv6-icon{ vertical-align:-2px; margin-right:3px; color:var(--sub); }
 
 /* 顶部用户条（登录态，固定） */
 .user-bar{ position:sticky; top:0; z-index:20; display:flex; align-items:center; justify-content:flex-end; gap:10px; padding:8px 16px; font-size:12px; color:var(--txt); background:rgba(15,20,25,.6); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
@@ -127,7 +127,7 @@ footer .ipv6-icon{ vertical-align:-2px; margin-right:3px; color:var(--sub); }
 .login-card .pwd-toggle:hover{ color:var(--accent); }
 .login-card .pwd-toggle svg{ width:20px; height:20px; }
 .login-card .err{ text-align:left; min-height:18px; margin-top:-4px; margin-bottom:8px; }
-.login-card button[type=submit]{ width:100%; padding:13px; border:none; border-radius:12px; background:var(--accent); color:#04283a; font-size:16px; font-weight:700; cursor:pointer; }
+.login-card button[type=submit]{ width:100%; padding:13px; border:1px solid var(--accent); border-radius:12px; background:transparent; color:var(--accent); font-size:16px; font-weight:700; cursor:pointer; }
 .login-card button[type=submit]:disabled{ opacity:.6; }
 .login-card .auto-login{ display:flex; align-items:center; gap:6px; justify-content:flex-start; color:var(--sub); font-size:13px; margin:2px 0 14px; cursor:pointer; }
 .login-card .auto-login input{ width:16px; height:16px; margin:0; }
@@ -141,6 +141,30 @@ footer .ipv6-icon{ vertical-align:-2px; margin-right:3px; color:var(--sub); }
 }
 .top-user .user-logout{ background:transparent; color:var(--sub); }
 .top-user .user-login:active, .top-user .user-logout:active{ opacity:.7; }
+
+/* 顶部用户下拉 */
+.user-dropdown{ position:relative; }
+.user-dropdown-toggle{
+  display:flex; align-items:center; gap:6px; font-size:13px; padding:7px 12px; border-radius:9px;
+  border:1px solid var(--line); background:rgba(56,189,248,.08); color:var(--accent); cursor:pointer; white-space:nowrap;
+}
+.user-dropdown-toggle .caret{ font-size:10px; transition:transform .2s; }
+.user-dropdown.open .user-dropdown-toggle .caret{ transform:rotate(180deg); }
+.user-dropdown-menu{
+  position:absolute; right:0; top:calc(100% + 6px); min-width:120px;
+  background:rgba(20,28,45,.96); border:1px solid var(--line); border-radius:10px; box-shadow:0 10px 24px rgba(0,0,0,.35);
+  display:none; flex-direction:column; padding:6px; z-index:60;
+}
+.user-dropdown.open .user-dropdown-menu{ display:flex; }
+.user-dropdown-item{
+  padding:9px 12px; font-size:13px; color:var(--text); border-radius:7px; cursor:pointer; border:none; background:transparent; text-align:left;
+}
+.user-dropdown-item:hover{ background:rgba(56,189,248,.12); color:var(--accent); }
+
+/* 弹窗遮罩 */
+.modal-mask{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100; display:none; }
+.modal-mask.show{ display:flex; }
+.x:hover{ color:var(--accent); }
 
 /* 底部 Tab 菜单（与 APP 一致：车牌识别 / 车辆管理） */
 .bottom-tabs{ position:fixed; left:0; right:0; bottom:0; height:62px; z-index:60; display:flex; background:rgba(11,17,32,.96); border-top:1px solid var(--line); backdrop-filter:blur(8px); padding-bottom:env(safe-area-inset-bottom,0); }

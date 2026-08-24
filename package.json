@@ -1,6 +1,6 @@
 {
   "name": "qmlpars-vehicle-server",
-  "version": "1.0.0",
+  "version": "1.1.4",
   "description": "内部车辆识别小程序 - 自建后端服务 (群晖部署)",
   "license": "AGPL-3.0",
   "main": "index.js",
@@ -15,7 +15,7 @@
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "multer": "^1.4.5-lts.1",
-    "sharp": "^0.33.5",
-    "qr-image": "^3.2.0"
+    "qr-image": "^3.2.0",
+    "sharp": "^0.33.5"
   }
 }

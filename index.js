@@ -8,6 +8,8 @@ const db = require('./db')
 const config = require('./config')
 
 const app = express()
+// 信任反向代理，确保 req.ip 能正确解析 X-Forwarded-For 中的真实客户端 IP
+app.set('trust proxy', true)
 // CORS：APP（Capacitor androidScheme='https'）的源是 https://localhost，
 // 浏览器请求也是跨源（同源策略）。后端需返回 CORS 头才能让 fetch 跨域成功。
 // 限制来源：APP 用 https://localhost；Web 端用配置的 ORIGIN（默认 *，可通过 env CORS_ORIGIN 指定）。
@@ -48,9 +50,10 @@ app.get('/uploads/*', authMiddleware, (req, res) => {
   if (!f.startsWith(uploadDir) || !fs.existsSync(f)) return res.status(404).json({ success: false, message: '文件不存在' })
   res.sendFile(f)
 })
-app.get('/uploads/snapshots/:file', authMiddleware, (req, res) => {
+app.get('/uploads/snapshots/:file', (req, res) => {
   const f = path.join(SNAP_DIR, path.basename(req.params.file))
   if (!fs.existsSync(f)) return res.status(404).json({ success: false, message: '文件不存在' })
+  // 允许 ?token= 直接访问，便于前端 <img> 展示已识别抓拍
   res.sendFile(f)
 })
 
@@ -68,6 +71,9 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } })
 function nowLocal() { return new Date().toLocaleString('sv') }
 function genToken() { return crypto.randomBytes(24).toString('hex') }
 
+// 后台鉴权：同时接受 管理员会话(admin_sessions) 与 普通用户会话(user_sessions)
+// - admin_sessions：固定为超级管理员，role='admin'
+// - user_sessions：role 取自 users 表（admin/manager/user）
 function authMiddleware(req, res, next) {
   let token = req.headers['x-admin-token'] || req.query.token || req.body.token
   if (!token && req.headers['authorization']) {
@@ -75,14 +81,46 @@ function authMiddleware(req, res, next) {
     if (m) token = m[1]
   }
   if (!token) return res.status(401).json({ success: false, message: '未登录' })
-  const row = db.prepare('SELECT * FROM admin_sessions WHERE token = ?').get(token)
-  if (!row) return res.status(401).json({ success: false, message: '登录已失效' })
-  if (new Date(row.expireAt).getTime() < Date.now()) {
-    db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(token)
-    return res.status(401).json({ success: false, message: '登录已过期' })
+  // 1) 管理员会话
+  const adminRow = db.prepare('SELECT * FROM admin_sessions WHERE token = ?').get(token)
+  if (adminRow) {
+    if (new Date(adminRow.expireAt).getTime() < Date.now()) {
+      db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(token)
+      return res.status(401).json({ success: false, message: '登录已过期' })
+    }
+    req.admin = { id: 0, username: adminRow.username, name: adminRow.username, role: 'admin', token: adminRow.token, isUser: false }
+    return next()
   }
-  req.admin = row
-  next()
+  // 2) 普通用户会话（含用普通用户账号登录的后台角色：超级管理员/普通管理员/普通用户）
+  const userRow = db.prepare('SELECT * FROM user_sessions WHERE token = ?').get(token)
+  if (userRow) {
+    if (new Date(userRow.expireAt).getTime() < Date.now()) {
+      db.prepare('DELETE FROM user_sessions WHERE token = ?').run(token)
+      return res.status(401).json({ success: false, message: '登录已过期' })
+    }
+    let role = 'user'
+    if (userRow.username === 'admin') role = 'admin'
+    else {
+      const u = db.prepare('SELECT role FROM users WHERE username = ?').get(userRow.username)
+      role = (u && u.role) || 'user'
+    }
+    req.admin = { id: userRow.userId, username: userRow.username, name: userRow.username, role, token: userRow.token, isUser: true }
+    return next()
+  }
+  return res.status(401).json({ success: false, message: '登录已失效' })
+}
+
+// 角色权限网关：仅允许指定角色访问。用法：router.get('/x', ...roleGate('admin','manager'), handler)
+function roleGate(...roles) {
+  return [
+    authMiddleware,
+    (req, res, next) => {
+      if (!roles.includes(req.admin.role)) {
+        return res.status(403).json({ success: false, message: '权限不足，当前角色：' + (req.admin.role || '未知') })
+      }
+      next()
+    }
+  ]
 }
 
 // 普通用户鉴权（H5/APP 端识别/查询）
@@ -101,10 +139,18 @@ function userAuthMiddleware(req, res, next) {
 
 function genUserToken() { return crypto.randomBytes(24).toString('hex') }
 
-function logRecognition(plateNo, source, confidence, result, channel, image, userId, userName) {
+function logRecognition(plateNo, source, confidence, result, channel, image, userId, userName, username) {
   try {
-    db.prepare('INSERT INTO recognition_logs (plateNo, source, channel, confidence, result, image, userId, userName) VALUES (?,?,?,?,?,?,?,?)')
-      .run(plateNo || '', source || '', channel || 'mini', confidence || 0, result || '', image || null, userId || null, userName || null)
+    db.prepare('INSERT INTO recognition_logs (plateNo, source, channel, confidence, result, image, userId, userName, username) VALUES (?,?,?,?,?,?,?,?,?)')
+      .run(plateNo || '', source || '', channel || 'mini', confidence || 0, result || '', image || null, userId || null, userName || null, username || null)
+  } catch (e) { /* 忽略日志错误 */ }
+}
+
+// 记录系统操作日志（登录/登出/编辑/删除等）
+function addSysLog(action, target, detail, operator, ip) {
+  try {
+    db.prepare('INSERT INTO sys_logs (action, target, detail, operator, ip) VALUES (?,?,?,?,?)')
+      .run(action || '', target || '', detail || '', operator || null, ip || null)
   } catch (e) { /* 忽略日志错误 */ }
 }
 
@@ -116,8 +162,8 @@ const ctx = {
   app, db, config, upload, multer, crypto, fs, path,
   root: __dirname,
   router: express.Router(),
-  authMiddleware, genToken, logRecognition, nowLocal,
-  userAuthMiddleware, genUserToken,
+  authMiddleware, genToken, logRecognition, addSysLog, nowLocal,
+  userAuthMiddleware, genUserToken, roleGate,
   uploadDir, SNAP_DIR, ASSETS_DIR
 }
 

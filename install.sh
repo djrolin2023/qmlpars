@@ -637,7 +637,8 @@ else
     GIT_OK=0
     rm -rf "$HOME_DIR"
     mkdir -p "$HOME_DIR"
-    for GIT_URL in "https://gitee.com/dj_rolin/qmlpars.git" "https://github.com/djrolin2023/qmlpars.git"; do
+    # 依次尝试：gitee（国内快） -> github 代理加速（ghproxy） -> github 镜像（gitclone.com）
+    for GIT_URL in "https://gitee.com/dj_rolin/qmlpars.git" "https://ghproxy.com/https://github.com/djrolin2023/qmlpars.git" "https://gitclone.com/github.com/djrolin2023/qmlpars.git"; do
       echo "==> 尝试 git clone 源码： $GIT_URL"
       if command -v git >/dev/null 2>&1; then
         if git clone --depth 1 "$GIT_URL" "$HOME_DIR" 2>/dev/null; then
@@ -762,12 +763,20 @@ esac
 
 echo "==> 安装 npm 依赖（项目运行所需全部依赖，自动下载并部署）..."
 cd "$SRC_DIR"
-# 失败自动重试（最多 2 次），--no-audit/--no-fund 减少噪音；
-# 保留 dev 依赖开关：二维码/编译仅需生产依赖即可，这里用 --omit=dev
+# 使用国内 npm 镜像（npmmirror），加速下载并避免官方源超时
+NPM_REGISTRY="https://registry.npmmirror.com"
+npm config set registry "$NPM_REGISTRY" >/dev/null 2>&1 || true
+echo "   npm registry -> $NPM_REGISTRY"
+# better-sqlite3 / sharp 等原生模块预编译二进制走 npmmirror 二进制镜像，避免访问 github 超时
+export npm_config_registry="$NPM_REGISTRY"
+export npm_config_better_sqlite3_binary_host_mirror="https://registry.npmmirror.com/-/binary/"
+export npm_config_sharp_binary_host="https://registry.npmmirror.com/-/binary/sharp"
+export npm_config_sharp_libvips_binary_host="https://registry.npmmirror.com/-/binary/sharp-libvips"
+# 失败自动重试（最多 3 次），--no-audit/--no-fund 减少噪音；用 --omit=dev 仅装生产依赖
 NPM_TRIES=3
 for i in $(seq 1 $NPM_TRIES); do
   echo "   [npm] 第 $i/$NPM_TRIES 次尝试..."
-  if npm install --omit=dev --no-audit --no-fund; then
+  if npm install --omit=dev --no-audit --no-fund --registry="$NPM_REGISTRY"; then
     echo "   [npm] 安装成功"
     break
   else
@@ -778,14 +787,15 @@ for i in $(seq 1 $NPM_TRIES); do
 done
 
 # 校验关键依赖是否就位（缺一个就报错退出，避免部署后功能缺失）
+# 注：本项目用内置 crypto 做密码哈希，不依赖 bcryptjs
 echo "==> 校验关键运行依赖..."
-for dep in sharp qr-image better-sqlite3 bcryptjs express; do
+for dep in sharp qr-image better-sqlite3 express; do
   if [ ! -d "node_modules/$dep" ]; then
     echo "!! 依赖缺失：$dep 未安装成功，项目将无法正常运行"
     exit 1
   fi
 done
-echo "   关键依赖均已就位：sharp / qr-image / better-sqlite3 / bcryptjs / express"
+echo "   关键依赖均已就位：sharp / qr-image / better-sqlite3 / express"
 step_done "安装编译依赖与 npm 依赖"
 
 ###########################################################

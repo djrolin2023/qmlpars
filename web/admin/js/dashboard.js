@@ -205,6 +205,16 @@ function renderSysInfo(d, version) {
     elMemBar.firstElementChild.style.background = (mem.usage >= 85) ? 'linear-gradient(90deg,#ff7875,#ff4d4f)' : 'linear-gradient(90deg,#36CFC9,#1890FF)'
   }
 
+  const disk = d.disk
+  const elDisk = document.getElementById('sys-disk')
+  if (elDisk) elDisk.textContent = disk ? (fmtBytes(disk.used) + ' / ' + fmtBytes(disk.total) + ' (' + disk.usage + '%)') : '不支持'
+  const elDiskBar = document.getElementById('sys-disk-bar')
+  if (elDiskBar) {
+    elDiskBar.firstElementChild.style.width = (disk && disk.usage != null ? Math.min(100, disk.usage) : 0) + '%'
+    elDiskBar.style.background = 'rgba(120,200,255,.12)'
+    elDiskBar.firstElementChild.style.background = (disk && disk.usage >= 85) ? 'linear-gradient(90deg,#ff7875,#ff4d4f)' : 'linear-gradient(90deg,#36CFC9,#1890FF)'
+  }
+
   const elNet = document.getElementById('sys-net')
   if (elNet) elNet.textContent = net ? ('↓ ' + fmtRate(net.rxRate) + ' ↑ ' + fmtRate(net.txRate)) : '不支持'
   const elNetDetail = document.getElementById('sys-net-detail')

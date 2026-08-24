@@ -122,9 +122,10 @@ async function applyBrandLogo(container, variant){
 
 /* 备案信息（ICP 备案号 + 公安备案号），来自后台设置，未填写则不显示。
    公安备案链接：https://beian.mps.gov.cn/#/query/webSearch?code=<备案号>
-   其中备案号去除“粤公网安备”前缀与“号”后缀；图标在前、编号文字在右。 */
+   备案号格式为「<省简称>公网安备<编号>号」（如 粤公网安备…号 / 京公网安备…号），
+   提取其中的编号时，去掉开头的「X公网安备」前缀与结尾的「号」字；图标在前、编号文字在右。 */
 function normalizePoliceCode(no){
-  return String(no||'').replace(/^粤公网安备/, '').replace(/号$/, '').trim();
+  return String(no||'').replace(/^[\u4e00-\u9fa5]公网安备/, '').replace(/号$/, '').trim();
 }
 async function applyBeian(){
   // 容器
@@ -177,6 +178,14 @@ async function applyBeian(){
       policeLine.style.display='none';
     }
   }
+
+  // ICP 与公安备案号之间用 “| ” 分隔（仅当两者都存在时显示）
+  if (icpLine && policeLine && data.ICP_NO && data.POLICE_NO) {
+    const sep = document.createElement('span');
+    sep.className = 'beian-sep';
+    sep.textContent = ' | ';
+    policeLine.parentNode.insertBefore(sep, policeLine);
+  }
 }
 
 /* 网站图标 favicon 套用纯图标 LOGO（LOGO_ICON_URL），缺省回退 logo.png */
@@ -205,23 +214,78 @@ async function checkLogin(){
   return false;
 }
 
-/* 渲染用户区：顶部右上角。已登录显示用户名 + 退出 */
+/* 渲染用户区：顶部右上角。已登录显示用户名下拉（修改密码、退出登录） */
 function renderUserArea(){
   const token=getUserToken();
-  const areas=[document.getElementById('topUser'), document.getElementById('footerUser')].filter(Boolean);
-  areas.forEach(el=>{
-    el.innerHTML='';
-    if(token){
-      const u=document.createElement('span'); u.className='user-name'; u.textContent='当前用户：加载中…';
-      const out=document.createElement('button'); out.className='user-logout'; out.textContent='退出';
-      out.addEventListener('click', ()=> goLogout());
-      el.appendChild(u); el.appendChild(out);
-      fetch(API+'/api/auth/me',{headers:{'x-user-token':token}}).then(r=>r.json()).then(j=>{
-        if(j&&j.success&&j.data){ u.textContent='当前用户：'+(j.data.name?j.data.name+'（'+j.data.username+'）':j.data.username); }
-        else { u.textContent='已登录'; }
-      }).catch(()=>{ u.textContent='已登录'; });
-    }
+  const topUser=document.getElementById('topUser');
+  if(!topUser) return;
+  topUser.innerHTML='';
+  if(!token) return;
+  const wrap=document.createElement('div'); wrap.className='user-dropdown';
+  const toggle=document.createElement('button'); toggle.className='user-dropdown-toggle';
+  toggle.innerHTML='<span class="user-dropdown-name">当前用户：加载中…</span><span class="caret">▼</span>';
+  const menu=document.createElement('div'); menu.className='user-dropdown-menu';
+  menu.innerHTML='<button class="user-dropdown-item" data-action="changePwd">修改密码</button><button class="user-dropdown-item" data-action="logout">退出登录</button>';
+  wrap.appendChild(toggle); wrap.appendChild(menu); topUser.appendChild(wrap);
+
+  // 切换下拉
+  toggle.addEventListener('click', e=>{ e.stopPropagation(); wrap.classList.toggle('open'); });
+  document.addEventListener('click', ()=> wrap.classList.remove('open'));
+  menu.addEventListener('click', e=>{
+    const item=e.target.closest('[data-action]'); if(!item) return;
+    const action=item.getAttribute('data-action');
+    wrap.classList.remove('open');
+    if(action==='logout') goLogout();
+    if(action==='changePwd') openChangePwd();
   });
+
+  fetch(API+'/api/auth/me',{headers:{'x-user-token':token}}).then(r=>r.json()).then(j=>{
+    if(j&&j.success&&j.data){ toggle.querySelector('.user-dropdown-name').textContent='当前用户：'+(j.data.name?j.data.name+'（'+j.data.username+'）':j.data.username); }
+    else { toggle.querySelector('.user-dropdown-name').textContent='已登录'; }
+  }).catch(()=>{ toggle.querySelector('.user-dropdown-name').textContent='已登录'; });
+}
+
+/* 打开/关闭修改密码弹窗 */
+function openChangePwd(){ document.getElementById('pwdModal').classList.add('show'); }
+function closeChangePwd(){
+  const m=document.getElementById('pwdModal'); if(m) m.classList.remove('show');
+  ['pwdOld','pwdNew','pwdNew2','pwdErr'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+}
+
+/* 提交修改密码 */
+async function submitChangePwd(){
+  const oldP=document.getElementById('pwdOld').value.trim();
+  const newP=document.getElementById('pwdNew').value.trim();
+  const newP2=document.getElementById('pwdNew2').value.trim();
+  const err=document.getElementById('pwdErr');
+  if(!oldP||!newP){ err.textContent='请填写当前密码和新密码'; return; }
+  if(newP.length<6){ err.textContent='新密码至少 6 位'; return; }
+  if(newP!==newP2){ err.textContent='两次输入的新密码不一致'; return; }
+  err.textContent='';
+  const btn=document.getElementById('pwdOk'); btn.disabled=true; btn.textContent='修改中…';
+  try{
+    const r=await fetch(API+'/api/auth/change-password',{
+      method:'POST', headers:{'Content-Type':'application/json','x-user-token':getUserToken()},
+      body:JSON.stringify({oldPassword:oldP,newPassword:newP})
+    });
+    const j=await r.json();
+    if(!j||!j.success) throw new Error((j&&j.message)||'修改失败');
+    closeChangePwd();
+    alert('密码已修改，请重新登录');
+    goLogout();
+  }catch(e){ err.textContent=e.message||'修改失败'; }
+  finally{ btn.disabled=false; btn.textContent='确定修改'; }
+}
+
+/* 绑定修改密码弹窗事件（index.html 引入 common.js 后调用） */
+function bindChangePwdEvents(){
+  document.getElementById('pwdModalX').addEventListener('click', closeChangePwd);
+  document.getElementById('pwdCancel').addEventListener('click', closeChangePwd);
+  document.getElementById('pwdOk').addEventListener('click', submitChangePwd);
+  document.getElementById('pwdModal').addEventListener('click', e=>{ if(e.target.id==='pwdModal') closeChangePwd(); });
+  document.getElementById('pwdOld').addEventListener('keydown', e=>{ if(e.key==='Enter') submitChangePwd(); });
+  document.getElementById('pwdNew').addEventListener('keydown', e=>{ if(e.key==='Enter') submitChangePwd(); });
+  document.getElementById('pwdNew2').addEventListener('keydown', e=>{ if(e.key==='Enter') submitChangePwd(); });
 }
 
 async function doLogin(username, password, autoLogin){
@@ -237,6 +301,13 @@ async function doLogin(username, password, autoLogin){
       localStorage.setItem('guard_auto_login', autoLogin ? '1' : '');
       localStorage.setItem('guard_remember_user', username);
     } catch(_){}
+    // 提示本次登录来源 IP，增强安全感知
+    if(j.data.loginIp){
+      try {
+        const el = document.getElementById('loginIpTip');
+        if(el){ el.textContent = '本次登录来源 IP：' + j.data.loginIp; el.style.display='block'; }
+      } catch(_){}
+    }
     return {ok:true, redirect: getQuery('redirect') || 'index.html'};
   }
   return {ok:false, msg:j.message||'登录失败'};
@@ -361,7 +432,7 @@ function showResult(plate, data){
   info += row('扫描次数', (data.scanCount!=null?data.scanCount:'-') + (v&&v.valid===false?'（已过期）':''));
   const badge = ok ? '<div class="id-badge ok">识别成功 · 可放行</div>' : '<div class="id-badge no">未找到记录</div>';
   el.innerHTML='<div class="id-card">'
-    +'<div class="result-bar"><button class="id-close" onclick="closeResult()">✕</button></div>'
+    +'<div class="result-bar"><button class="id-close" onclick="closeResult()">'+svgIcon('close')+'</button></div>'
     + badge
     + photo
     +'<div class="id-info">'+info+'</div>'

@@ -82,7 +82,8 @@
       table.data img.thumb{ width:120px; height:90px; border-radius:10px; object-fit:cover; cursor:pointer; }
       table.data .no-photo{ width:120px; height:90px; border-radius:10px; font-size:12px; margin:0 auto;
         flex-direction:column; gap:4px; color:#5b6b80; }
-      table.data .no-photo::before{ content:"📷"; font-size:22px; }
+      table.data .no-photo::before{ content:""; display:block; width:24px; height:24px; margin:0 auto;
+        background:no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b6b80' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3Ccircle cx='12' cy='13' r='3.5'/%3E%3C/svg%3E"); }
       table.data td:nth-child(3)::before{ content:"车牌"; }
       table.data td:nth-child(3){ font-weight:700; font-size:18px; color:#fff; }
       table.data td:nth-child(4)::before{ content:"车主"; }
@@ -119,6 +120,7 @@
       <input id="search" class="search-input" placeholder="搜索车牌 / 车主 / 电话">
       <select id="dep-filter"><option value="">全部部门</option></select>
       <button class="btn primary" id="add-btn">+ 新增车辆</button>
+      <button class="btn" id="batch-input-btn">批量输入</button>
       <button class="btn" id="refresh-btn">刷新</button>
       <button class="btn danger" id="batch-del-btn" style="display:none">批量删除</button>
       <span id="sel-count" style="color:var(--muted);font-size:13px;margin-left:4px"></span>
@@ -138,9 +140,11 @@
   </div>
 
   <div class="modal-mask" id="modal">
-    <div class="modal">
+    <div class="modal" id="modal-box" style="width:min(900px,96vw)">
       <div class="modal-head"><span id="modal-title">新增车辆</span><span class="x" id="modal-close">×</span></div>
       <div class="modal-body">
+        <!-- 单条录入 -->
+        <div class="batch-single" id="batch-single">
         <div class="form-row photo-row">
           <div class="photo-col">
             <label>车辆照片（点击 / 拖拽 / 粘贴上传，自动识别车牌）</label>
@@ -187,7 +191,7 @@
             <span class="date-rng-item"><span class="date-rng-cap">开始时间</span><input type="text" id="f-valid-start" readonly onclick="openDatePicker()" placeholder="选择开始日期"></span>
             <span class="date-rng-sep">~</span>
             <span class="date-rng-item"><span class="date-rng-cap">结束时间</span><input type="text" id="f-valid-end" readonly onclick="openDatePicker()" placeholder="选择结束日期"></span>
-            <button type="button" class="date-clear" id="valid-until-clear" onclick="clearValidUntil()" title="清除日期" style="display:none">✕</button>
+            <button type="button" class="date-clear" id="valid-until-clear" onclick="clearValidUntil()" title="清除日期" style="display:none"><span data-icon="close"></span></button>
           </div>
           <div class="date-picker" id="date-picker">
             <div class="dp-head">
@@ -212,6 +216,25 @@
           <label>备注</label>
           <textarea id="f-remark" rows="3" placeholder="备注信息（选填）"></textarea>
         </div>
+        </div>
+
+        <!-- 批量录入 -->
+        <div class="batch-multi" id="batch-multi" style="display:none">
+          <div class="batch-multi-head">
+            <span>车牌号</span>
+            <span>车主</span>
+            <span>部门</span>
+            <span>手机号</span>
+            <span>有效期</span>
+            <span>备注</span>
+            <span class="batch-actions-col"></span>
+          </div>
+          <div class="batch-rows" id="batch-rows"></div>
+          <div class="batch-add-row">
+            <button type="button" class="btn" id="batch-add-btn">+ 添加一行</button>
+            <span class="hint" id="batch-hint"></span>
+          </div>
+        </div>
       </div>
       <div class="modal-foot">
         <button class="btn" id="modal-cancel">取消</button>
@@ -222,92 +245,63 @@
 
   <div class="lightbox" id="lightbox"><img id="lightbox-img" alt="大图"></div>
 
-  <!-- 内嵌管理员登录浮层：未登录 admin 时不跳后台，直接在此登录 -->
-  <div class="login-overlay" id="login-overlay" style="display:none">
-    <div class="login-card">
-      <div class="login-logo"><img src="/static/images/logo.png" alt="logo" onerror="this.style.display='none'"></div>
-      <div class="login-title">管理员验证</div>
-      <div class="login-sub">车辆管理需要管理员权限，请输入管理密码</div>
-      <form id="login-form" autocomplete="off">
-        <input type="password" id="login-pass" class="login-input" placeholder="管理密码" autocomplete="off">
-        <button type="submit" class="btn primary login-btn" id="login-submit">登 录</button>
-        <div class="login-err" id="login-err"></div>
-      </form>
-      <div class="login-back" onclick="location.href='/cpsb/'">返回车牌识别</div>
-    </div>
-  </div>
-
   <!-- 底部 Tab（与 APP 一致：车牌识别 / 车辆管理） -->
   <nav class="bottom-tabs">
     <button class="bottom-tab" data-tab="cpsb" onclick="location.href='/cpsb/'">
-      <span class="bt-icon">🔍</span><span class="bt-label">车牌识别</span>
+      <span class="bt-icon" data-icon="ocr"></span><span class="bt-label">车牌识别</span>
     </button>
     <button class="bottom-tab active" data-tab="vehicles">
-      <span class="bt-icon">🚗</span><span class="bt-label">车辆管理</span>
+      <span class="bt-icon" data-icon="vehicle"></span><span class="bt-label">车辆管理</span>
     </button>
   </nav>
 
-  <script src="/admin/js/common.js"></script>
+    <script src="/admin/js/icons.js"></script>
+    <script src="/admin/js/common.js"></script>
   <script src="/admin/js/upgrade.js"></script>
   <script src="/admin/js/vehicles.js"></script>
   <script>
-    // 自定义 admin 校验：直接探测 /api/admin/me，避免 common.js 的 api() 在 401 时触发 doLogout 跳转
-    async function checkAdminAuth() {
-      const t = getToken();
-      if (!t) return false;
+    function redirectToLogin() {
+      try { localStorage.removeItem('qmlpars_admin_token'); localStorage.removeItem('qmlpars_user_token'); } catch (e) {}
+      location.replace('/cpsb/login.html?redirect=' + encodeURIComponent(location.pathname + location.search));
+    }
+
+    // 覆盖 common.js 的 doLogout：H5/APP 车辆管理页应回到用户登录页，而不是后台管理登录页
+    window.doLogout = redirectToLogin;
+
+    // 校验：优先用普通用户令牌(user_sessions)，其次管理员令牌(admin_sessions)
+    // 由于后台 authMiddleware 同时接受两种令牌，普通管理员/普通用户也能进入本页
+    async function probeToken(t) {
+      if (!t) return null;
       try {
         const r = await fetch('/api/admin/me', { headers: { 'x-admin-token': t } });
-        if (!r.ok) return false;
+        if (!r.ok) return null;
         const data = await r.json().catch(() => null);
-        return !!(data && data.success);
-      } catch (e) { return false; }
+        if (data && data.success) return data.data;
+        return null;
+      } catch (e) { return null; }
     }
 
     (async () => {
-      if (await checkAdminAuth()) { initVehicles(); return; }
-      // 未登录 admin：显示内嵌登录框，不跳后台
-      showAdminLogin();
+      // 1) 管理员令牌
+      let me = await probeToken(getToken());
+      // 2) 普通用户令牌（H5/APP 登录得到，存于 qmlpars_user_token）
+      if (!me) {
+        const ut = localStorage.getItem('qmlpars_user_token');
+        const d = await probeToken(ut);
+        if (d) { setToken(ut); me = d; } // 迁移到 api() 使用的令牌槽位
+      }
+      if (me) {
+        const who = document.getElementById('current-user');
+        if (who) who.textContent = (me.name || me.user || '') + (me.role ? '（' + roleName(me.role) + '）' : '');
+        initVehicles();
+        return;
+      }
+      // 未登录：跳用户登录页
+      redirectToLogin();
     })();
 
-    function showAdminLogin() {
-      const ov = document.getElementById('login-overlay');
-      const wrap = document.querySelector('.h5-wrap');
-      const tabs = document.querySelector('.bottom-tabs');
-      if (wrap) wrap.style.display = 'none';
-      if (tabs) tabs.style.display = 'none';
-      if (ov) ov.style.display = 'flex';
-      const pass = document.getElementById('login-pass');
-      if (pass) pass.focus();
-
-      const form = document.getElementById('login-form');
-      if (form) form.onsubmit = async (e) => {
-        e.preventDefault();
-        const pwd = (document.getElementById('login-pass').value || '').trim();
-        const errEl = document.getElementById('login-err');
-        const btn = document.getElementById('login-submit');
-        if (!pwd) { if (errEl) errEl.textContent = '请输入管理密码'; return; }
-        btn.disabled = true; btn.textContent = '登录中…';
-        if (errEl) errEl.textContent = '';
-        try {
-          const r = await fetch('/api/admin/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: pwd })
-          });
-          const data = await r.json().catch(() => null);
-          if (!data || !data.success || !data.data || !data.data.token) {
-            throw new Error((data && data.message) || '登录失败');
-          }
-          setToken(data.data.token); // 存入 qmlpars_admin_token，供 api() 使用
-          if (ov) ov.style.display = 'none';
-          if (wrap) wrap.style.display = '';
-          if (tabs) tabs.style.display = '';
-          initVehicles();
-        } catch (e) {
-          if (errEl) errEl.textContent = e.message || '登录失败';
-          btn.disabled = false; btn.textContent = '登 录';
-        }
-      };
+    function roleName(r) {
+      return ({ admin: '超级管理员', manager: '普通管理员', user: '普通用户' })[r] || r || '';
     }
   </script>
 </body>

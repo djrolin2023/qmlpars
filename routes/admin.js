@@ -4,7 +4,7 @@ module.exports = function (ctx) {
   const fs = require('fs')
   const path = require('path')
   const os = require('os')
-  const { router, db, config, upload, authMiddleware } = ctx
+  const { router, db, config, upload, authMiddleware, roleGate } = ctx
   const { normalizePlate, toPlateKey } = require('../plate')
   const { hashPassword, verifyPassword } = require('../auth')
   const { flattenIfTransparent } = require('../image')
@@ -13,6 +13,28 @@ module.exports = function (ctx) {
     const d = new Date()
     const p = n => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+  }
+
+  // 从 User-Agent 粗略解析设备/平台类型，用于在线设备列表展示
+  function parseDevice(ua) {
+    if (!ua) return '未知设备'
+    const s = ua
+    if (/iPhone|iPad|iPod/.test(s)) return /iPad/.test(s) ? 'iPad' : 'iPhone'
+    if (/Android/.test(s)) {
+      const m = s.match(/Android[^;)+]+/)
+      return 'Android' + (m ? ' (' + m[0] + ')' : '')
+    }
+    if (/Windows NT 10/.test(s)) return 'Windows 10/11'
+    if (/Windows NT/.test(s)) return 'Windows'
+    if (/Mac OS X/.test(s)) return 'macOS'
+    if (/Linux/.test(s)) return 'Linux'
+    if (/MicroMessenger/.test(s)) return '微信内置浏览器'
+    if (/QQ\//.test(s)) return 'QQ 浏览器'
+    if (/Edg\//.test(s)) return 'Edge'
+    if (/Chrome\//.test(s)) return 'Chrome'
+    if (/Firefox\//.test(s)) return 'Firefox'
+    if (/Safari\//.test(s)) return 'Safari'
+    return '其他浏览器'
   }
 
   // ===== 系统信息采样状态（用于计算 CPU 使用率 / 网络速率）=====
@@ -92,17 +114,49 @@ module.exports = function (ctx) {
         config.dbSet('ADMIN_PASSWORD', '')
       }
     }
-    db.prepare('INSERT INTO login_attempts (username, success) VALUES (?,?)').run(username, ok ? 1 : 0)
-    if (!ok) return res.status(401).json({ success: false, message: '管理密码错误' })
+    db.prepare('INSERT INTO login_attempts (username, success, ip) VALUES (?,?,?)').run(username, ok ? 1 : 0, req.ip || null)
+    if (!ok) {
+      ctx.addSysLog('登录失败', username, '管理密码错误', username, req.ip)
+      return res.status(401).json({ success: false, message: '管理密码错误' })
+    }
 
+    // 单点登录：admin 仅允许一个有效会话，登录即作废旧登录
+    db.prepare('DELETE FROM admin_sessions WHERE username = ?').run(username)
     const token = ctx.genToken()
     const expireAt = new Date(Date.now() + config.TOKEN_EXPIRE_HOURS * 3600000).toLocaleString('sv')
     db.prepare('INSERT INTO admin_sessions (token, username, expireAt) VALUES (?,?,?)').run(token, username, expireAt)
+    ctx.addSysLog('登录成功', username, null, username, req.ip)
     res.json({ success: true, data: { token } })
   })
 
   router.get('/api/admin/me', authMiddleware, (req, res) => {
-    res.json({ success: true, data: { user: req.admin.username || 'admin' } })
+    res.json({ success: true, data: { user: req.admin.username || 'admin', role: req.admin.role || 'admin', name: req.admin.name || req.admin.username } })
+  })
+
+  // 3.1 系统操作日志
+  router.get('/api/admin/sys-logs', authMiddleware, (req, res) => {
+    const action = req.query.action
+    const page = Math.max(1, Number(req.query.page) || 1)
+    const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20))
+    const wheres = []
+    const params = []
+    if (action) { wheres.push('action = ?'); params.push(action) }
+    const whereSql = wheres.length ? ' WHERE ' + wheres.join(' AND ') : ''
+    const total = db.prepare('SELECT COUNT(*) AS c FROM sys_logs' + whereSql).get(...params).c
+    const offset = (page - 1) * pageSize
+    const rows = db.prepare(`SELECT id, action, target, detail, operator, ip, CAST(createdAt AS TEXT) AS createdAt FROM sys_logs${whereSql} ORDER BY id DESC LIMIT ? OFFSET ?`).all(...params, pageSize, offset)
+    res.json({ success: true, data: rows, total, page, pageSize })
+  })
+
+  // 清空全部系统日志
+  router.delete('/api/admin/sys-logs', authMiddleware, (req, res) => {
+    try {
+      db.prepare('DELETE FROM sys_logs').run()
+      ctx.addSysLog('清空日志', null, '已清空全部系统日志', req.admin.username, req.ip)
+      res.json({ success: true, message: '已清空全部日志' })
+    } catch (e) {
+      res.status(500).json({ success: false, message: '清空失败：' + e.message })
+    }
   })
 
   // 3.5 识别日志（支持筛选、分页）
@@ -122,7 +176,7 @@ module.exports = function (ctx) {
     const countRow = db.prepare(`SELECT COUNT(*) AS total FROM recognition_logs ${whereSql}`).get(...params)
     const total = (countRow && countRow.total) || 0
     const offset = (page - 1) * pageSize
-    const rows = db.prepare(`SELECT id, plateNo, source, channel, confidence, result, image, userId, userName, CAST(createdAt AS TEXT) AS createdAt FROM recognition_logs ${whereSql} ORDER BY id DESC LIMIT ? OFFSET ?`).all(...params, pageSize, offset)
+    const rows = db.prepare(`SELECT id, plateNo, source, channel, confidence, result, image, userId, userName, username, CAST(createdAt AS TEXT) AS createdAt FROM recognition_logs ${whereSql} ORDER BY id DESC LIMIT ? OFFSET ?`).all(...params, pageSize, offset)
     res.json({ success: true, data: rows, total, page, pageSize })
   })
 
@@ -135,6 +189,24 @@ module.exports = function (ctx) {
       const freeMem = os.freemem()
       const usedMem = totalMem - freeMem
       const uptimeSec = os.uptime()
+
+      // 磁盘容量（基于应用所在挂载点）
+      let disk = null
+      try {
+        const st = fs.statfsSync(__dirname)
+        const blockSize = st.bsize || st.frsize || 0
+        if (blockSize && st.blocks) {
+          const totalBytes = st.blocks * blockSize
+          const freeBytes = st.bavail * blockSize
+          const usedBytes = totalBytes - freeBytes
+          disk = {
+            total: totalBytes,
+            free: freeBytes,
+            used: usedBytes,
+            usage: Number((usedBytes / totalBytes * 100).toFixed(1))
+          }
+        }
+      } catch (e) { disk = null }
       const days = Math.floor(uptimeSec / 86400)
       const hours = Math.floor((uptimeSec % 86400) / 3600)
       const mins = Math.floor((uptimeSec % 3600) / 60)
@@ -185,7 +257,8 @@ module.exports = function (ctx) {
             txPkts: net.stats.txPkts,
             rxRate: net.rate ? Number(net.rate.rxRate.toFixed(0)) : null,
             txRate: net.rate ? Number(net.rate.txRate.toFixed(0)) : null
-          } : null
+          } : null,
+          disk: disk
         }
       })
     } catch (e) {
@@ -221,7 +294,7 @@ module.exports = function (ctx) {
         GROUP BY days.d ORDER BY days.d
       `).all()
       const trend = trendRows.map(r => ({ date: r.day.slice(5), count: r.c || 0 }))
-      const recent = db.prepare('SELECT * FROM recognition_logs ORDER BY id DESC LIMIT 10').all()
+      const recent = db.prepare('SELECT id, plateNo, source, channel, confidence, result, image, userId, userName, username, CAST(createdAt AS TEXT) AS createdAt FROM recognition_logs ORDER BY id DESC LIMIT 10').all()
         .map(r => ({ plateNo: r.plateNo || '—', result: r.result, channel: r.channel, confidence: r.confidence, createdAt: r.createdAt }))
       res.json({
         success: true,
@@ -256,7 +329,7 @@ module.exports = function (ctx) {
     db.prepare('DELETE FROM recognition_logs WHERE id = ?').run(id)
     res.json({ success: true, message: '已删除' })
   })
-  router.delete('/api/admin/logs', authMiddleware, (req, res) => {
+  router.delete('/api/admin/logs', ...roleGate('admin', 'manager'), (req, res) => {
     const all = db.prepare('SELECT id FROM recognition_logs').all().map(r => r.id)
     deleteLogImages(all)
     db.prepare('DELETE FROM recognition_logs').run()
@@ -377,6 +450,10 @@ module.exports = function (ctx) {
     const photo = req.file ? `${config.baseUrl(req)}/uploads/${req.file.filename}` : (b.photo || null)
     if (req.file) await flattenIfTransparent(req.file.path)
     const editId = b.id ? parseInt(b.id) : null
+    // 编辑车辆仅限 超级管理员 / 普通管理员；普通用户只能新增，不能编辑
+    if (editId && req.admin.role !== 'admin' && req.admin.role !== 'manager') {
+      return res.status(403).json({ success: false, message: '权限不足：编辑车辆需管理员权限' })
+    }
     const existing = db.prepare('SELECT * FROM vehicles WHERE plateKey = ?').get(plateKey)
     const department = String(b.department || '').split(/[,，]/).map(s => s.trim()).filter(Boolean).join(',')
     const validUntil = String(b.validUntil || '').trim() || null
@@ -397,11 +474,45 @@ module.exports = function (ctx) {
         VALUES (?,?,?,?,?,?,?,?,?,?)`)
         .run(plateNo, plateKey, b.owner || '', b.phone || '', department, b.remark || '', photo, validUntil, nowLocal(), nowLocal())
     }
+    ctx.addSysLog(editId ? '编辑车辆' : '新增车辆', plateNo, editId ? null : ('车主：' + (b.owner || '')), (req.admin && req.admin.username) || (req.user && req.user.username) || '未知', req.ip)
     res.json({ success: true, message: '保存成功' })
+  })
+  // 6.0 批量新增车辆（多行表单 / 批量输入，后端仅接收已解析的数组）
+  router.post('/api/admin/vehicles/batch-create', ...roleGate('admin', 'manager', 'user'), (req, res) => {
+    const body = req.body || {}
+    let items = body.items
+    if (!Array.isArray(items)) return res.status(400).json({ success: false, message: '数据格式错误' })
+    items = items.slice(0, 1000)
+    if (!items.length) return res.status(400).json({ success: false, message: '未解析到任何车辆数据' })
+    const added = [], skipped = [], errors = []
+    const seenKeys = new Set()
+    for (const it of items) {
+      const plateNo = normalizePlate(it.plateNo || it.车牌号 || it.车牌 || '')
+      if (!plateNo) { errors.push('车牌号为空，已跳过'); continue }
+      const plateKey = toPlateKey(plateNo)
+      if (seenKeys.has(plateKey) || db.prepare('SELECT id FROM vehicles WHERE plateKey = ?').get(plateKey)) {
+        skipped.push(plateNo); continue
+      }
+      const department = String(it.department || it.部门 || '').split(/[,，]/).map(s => s.trim()).filter(Boolean).join(',')
+      const validUntil = String(it.validUntil || it.有效期 || '').trim() || null
+      db.prepare(`INSERT INTO vehicles (plateNo, plateKey, owner, phone, department, remark, photo, validUntil, createdAt, updatedAt)
+        VALUES (?,?,?,?,?,?,?,?,?,?)`)
+        .run(plateNo, plateKey, String(it.owner || it.车主 || '').trim(), String(it.phone || it.手机号 || '').trim(),
+          department, String(it.remark || it.备注 || '').trim(), null, validUntil, nowLocal(), nowLocal())
+      seenKeys.add(plateKey)
+      added.push(plateNo)
+    }
+    const op = (req.admin && req.admin.username) || (req.user && req.user.username) || '未知'
+    ctx.addSysLog('批量新增车辆', null, `新增 ${added.length} 条` + (skipped.length ? `，跳过重复 ${skipped.length} 条` : '') + (errors.length ? `，忽略无效 ${errors.length} 条` : ''), op, req.ip)
+    res.json({
+      success: true,
+      message: `新增 ${added.length} 条` + (skipped.length ? `，跳过重复 ${skipped.length} 条` : '') + (errors.length ? `，忽略无效 ${errors.length} 条` : ''),
+      added: added.length, skipped: skipped.length, errors: errors.length
+    })
   })
 
   // 6. 删除车辆
-  router.delete('/api/admin/vehicles/:id', authMiddleware, (req, res) => {
+  router.delete('/api/admin/vehicles/:id', ...roleGate('admin', 'manager'), (req, res) => {
     const v = db.prepare('SELECT * FROM vehicles WHERE id = ?').get(req.params.id)
     if (!v) return res.status(404).json({ success: false, message: '车辆不存在' })
     if (v.photo && v.photo.includes('/uploads/')) {
@@ -409,11 +520,12 @@ module.exports = function (ctx) {
       if (fs.existsSync(f)) fs.unlinkSync(f)
     }
     db.prepare('DELETE FROM vehicles WHERE id = ?').run(req.params.id)
+    ctx.addSysLog('删除车辆', v.plateNo, null, req.admin.username, req.ip)
     res.json({ success: true, message: '删除成功' })
   })
 
   // 6.1 批量删除车辆
-  router.post('/api/admin/vehicles/batch-delete', authMiddleware, (req, res) => {
+  router.post('/api/admin/vehicles/batch-delete', ...roleGate('admin', 'manager'), (req, res) => {
     const body = req.body || {}
     const ids = Array.isArray(body.ids) ? body.ids.map(Number).filter(n => n > 0) : []
     if (!ids.length) return res.status(400).json({ success: false, message: '未选择任何车辆' })
@@ -426,12 +538,15 @@ module.exports = function (ctx) {
       }
     }
     db.prepare(`DELETE FROM vehicles WHERE id IN (${placeholders})`).run(...ids)
+    ctx.addSysLog('批量删除车辆', null, `删除 ${rows.length} 辆：${rows.map(r => r.plateNo).join('、')}`, req.admin.username, req.ip)
     res.json({ success: true, message: `已删除 ${rows.length} 辆车` })
   })
 
   // 7. 退出登录
   router.post('/api/admin/logout', authMiddleware, (req, res) => {
+    const op = req.admin.username || 'admin'
     db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(req.admin.token)
+    ctx.addSysLog('退出登录', op, null, op, req.ip)
     res.json({ success: true })
   })
 
@@ -449,20 +564,58 @@ module.exports = function (ctx) {
     config.dbSet('ADMIN_PASSWORD', '')
     // 使管理员旧会话立即失效，强制重新登录
     try { db.prepare("DELETE FROM user_sessions WHERE username = ?").run(config.ADMIN_USERNAME) } catch (e) {}
+    ctx.addSysLog('修改密码', config.ADMIN_USERNAME, null, config.ADMIN_USERNAME, req.ip)
     res.json({ success: true, message: '密码已修改，请重新登录' })
   })
 
   // 8.1 普通用户管理（管理员创建 / 查看 / 删除 / 重置密码）
-  router.get('/api/admin/users', authMiddleware, (req, res) => {
+  router.get('/api/admin/users', ...roleGate('admin', 'manager'), (req, res) => {
     const rows = db.prepare("SELECT id, username, name, phone, role, remark, strftime('%Y-%m-%d %H:%M:%S', CAST(createdAt AS TEXT)) AS createdAt FROM users ORDER BY id DESC").all()
-    res.json({ success: true, data: rows })
+    // 超级管理员（admin）不在 users 表，作为只读虚拟行并入列表，禁止编辑/删除
+    const adminVirtual = { id: 0, username: 'admin', name: '超级管理员', phone: '', role: 'admin', remark: '内置超级管理员，不可编辑/删除', createdAt: '', isAdmin: true }
+    res.json({ success: true, data: [adminVirtual, ...rows] })
   })
-  router.post('/api/admin/users', authMiddleware, (req, res) => {
+  // 在线设备：列出所有有效用户会话（含来源 IP、设备、登录时间），用于用户管理页展示
+  router.get('/api/admin/user-sessions', ...roleGate('admin', 'manager'), (req, res) => {
+    const now = new Date().toLocaleString('sv')
+    const rows = db.prepare(
+      `SELECT s.token, s.userId, s.username, s.ip, s.ua,
+              strftime('%Y-%m-%d %H:%M:%S', CAST(s.createdAt AS TEXT)) AS loginAt,
+              s.expireAt
+       FROM user_sessions s
+       WHERE datetime(s.expireAt) >= datetime(?)
+       ORDER BY s.userId ASC, datetime(s.createdAt) ASC`
+    ).all(now)
+    const list = rows.map(r => ({
+      token: r.token,
+      userId: r.userId,
+      username: r.username,
+      ip: r.ip || '',
+      ua: r.ua || '',
+      device: parseDevice(r.ua || ''),
+      loginAt: r.loginAt || '',
+      expireAt: r.expireAt || ''
+    }))
+    res.json({ success: true, data: { maxDevices: config.MAX_USER_DEVICES || 3, sessions: list } })
+  })
+  // 强制下线某设备会话
+  router.delete('/api/admin/user-sessions/:token', ...roleGate('admin', 'manager'), (req, res) => {
+    const token = req.params.token
+    const row = db.prepare('SELECT username FROM user_sessions WHERE token = ?').get(token)
+    if (!row) return res.json({ success: true, message: '该会话已不存在' })
+    db.prepare('DELETE FROM user_sessions WHERE token = ?').run(token)
+    ctx.addSysLog('强制下线', row.username, '踢出设备会话', req.admin.username, req.ip)
+    res.json({ success: true, message: '已强制下线' })
+  })
+  router.post('/api/admin/users', ...roleGate('admin', 'manager'), (req, res) => {
     const username = String((req.body && req.body.username) || '').trim()
     const password = String((req.body && req.body.password) || '')
     const name = String((req.body && req.body.name) || '').trim()
     const phone = String((req.body && req.body.phone) || '').trim()
     const remark = String((req.body && req.body.remark) || '').trim()
+    // 角色：仅允许 admin/manager 创建用户时指定，普通用户不可越权；缺省为 user
+    let role = String((req.body && req.body.role) || 'user').trim()
+    if (role !== 'admin' && role !== 'manager' && role !== 'user') role = 'user'
     if (!username) return res.status(400).json({ success: false, message: '账号不能为空' })
     if (!/^[a-zA-Z0-9_\u4e00-\u9fa5]{2,20}$/.test(username)) return res.status(400).json({ success: false, message: '账号限 2-20 位字母/数字/中文/下划线' })
     if (password.length < 6) return res.status(400).json({ success: false, message: '初始密码至少 6 位' })
@@ -470,18 +623,50 @@ module.exports = function (ctx) {
     if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(username)) return res.status(409).json({ success: false, message: '该账号已存在' })
     if (phone && db.prepare('SELECT 1 FROM users WHERE phone = ?').get(phone)) return res.status(409).json({ success: false, message: '该手机号已绑定其他账号' })
     const info = db.prepare('INSERT INTO users (username, password_hash, role, name, phone, remark, createdAt, updatedAt) VALUES (?,?,?,?,?,?,?,?)')
-      .run(username, hashPassword(password), 'user', name || null, phone || null, remark, nowLocal(), nowLocal())
+      .run(username, hashPassword(password), role, name || null, phone || null, remark, nowLocal(), nowLocal())
+    ctx.addSysLog('创建用户', username, '角色：' + role + (name ? '，姓名：' + name : ''), req.admin.username, req.ip)
     res.json({ success: true, message: '用户已创建', id: info.lastInsertRowid })
   })
-  router.delete('/api/admin/users/:id', authMiddleware, (req, res) => {
+  // 编辑用户（admin 虚拟行 id=0 不可编辑）
+  router.put('/api/admin/users/:id', ...roleGate('admin', 'manager'), (req, res) => {
+    const id = Number(req.params.id)
+    if (!id) return res.status(400).json({ success: false, message: '内置管理员不可编辑' })
+    const u = db.prepare('SELECT * FROM users WHERE id = ?').get(id)
+    if (!u) return res.status(404).json({ success: false, message: '用户不存在' })
+    const name = String((req.body && req.body.name) || '').trim()
+    const phone = String((req.body && req.body.phone) || '').trim()
+    const remark = String((req.body && req.body.remark) || '').trim()
+    const password = String((req.body && req.body.password) || '')
+    let role = String((req.body && req.body.role) || u.role).trim()
+    if (role !== 'admin' && role !== 'manager' && role !== 'user') role = u.role
+    if (phone && !/^1[3-9]\d{9}$/.test(phone)) return res.status(400).json({ success: false, message: '手机号格式不正确' })
+    if (password && password.length < 6) return res.status(400).json({ success: false, message: '新密码至少 6 位' })
+    db.prepare('UPDATE users SET name = ?, phone = ?, remark = ?, role = ?, updatedAt = ? WHERE id = ?')
+      .run(name || null, phone || null, remark, role, nowLocal(), id)
+    if (password) {
+      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), id)
+      db.prepare('DELETE FROM user_sessions WHERE userId = ?').run(id) // 改密后强制重新登录
+    }
+    ctx.addSysLog('编辑用户', u.username, '角色：' + role + (password ? '，已重置密码' : ''), req.admin.username, req.ip)
+    res.json({ success: true, message: '用户已更新' + (password ? '，该用户需重新登录' : '') })
+  })
+  router.get('/api/admin/users/:id', ...roleGate('admin', 'manager'), (req, res) => {
+    const id = Number(req.params.id)
+    if (!id) return res.json({ success: true, data: { id: 0, username: 'admin', name: '超级管理员', phone: '', role: 'admin', remark: '内置超级管理员，不可编辑/删除' } })
+    const u = db.prepare('SELECT id, username, name, phone, role, remark FROM users WHERE id = ?').get(id)
+    if (!u) return res.status(404).json({ success: false, message: '用户不存在' })
+    res.json({ success: true, data: u })
+  })
+  router.delete('/api/admin/users/:id', ...roleGate('admin', 'manager'), (req, res) => {
     const id = Number(req.params.id)
     const u = db.prepare('SELECT * FROM users WHERE id = ?').get(id)
     if (!u) return res.status(404).json({ success: false, message: '用户不存在' })
     db.prepare('DELETE FROM user_sessions WHERE userId = ?').run(id)
     db.prepare('DELETE FROM users WHERE id = ?').run(id)
+    ctx.addSysLog('删除用户', u.username, null, req.admin.username, req.ip)
     res.json({ success: true, message: '已删除用户：' + (u.name || u.username) })
   })
-  router.post('/api/admin/users/reset-password', authMiddleware, (req, res) => {
+  router.post('/api/admin/users/reset-password', ...roleGate('admin', 'manager'), (req, res) => {
     const id = Number((req.body && req.body.id))
     const password = String((req.body && req.body.password) || '')
     if (!password || password.length < 6) return res.status(400).json({ success: false, message: '新密码至少 6 位' })
@@ -489,6 +674,7 @@ module.exports = function (ctx) {
     if (!u) return res.status(404).json({ success: false, message: '用户不存在' })
     db.prepare('UPDATE users SET password_hash = ?, updatedAt = ? WHERE id = ?').run(hashPassword(password), nowLocal(), id)
     db.prepare('DELETE FROM user_sessions WHERE userId = ?').run(id)
+    ctx.addSysLog('重置密码', u.username, null, req.admin.username, req.ip)
     res.json({ success: true, message: '密码已重置，该用户需重新登录' })
   })
 
@@ -514,18 +700,19 @@ module.exports = function (ctx) {
     if (v.length <= 6) return '••••••'
     return v.slice(0, 4) + '••••••' + v.slice(-4)
   }
-  router.get('/api/admin/settings', authMiddleware, (req, res) => {
+  router.get('/api/admin/settings', ...roleGate('admin', 'manager'), (req, res) => {
     const data = SETTING_FIELDS.map(f => ({
       key: f.key,
       label: f.label,
       secret: !!f.secret,
       image: !!f.image,
       hideInForm: !!f.hideInForm,
-      value: f.secret ? maskSecret(config[f.key]) : (config[f.key] || '')
+      // 优先读数据库 settings 表（已保存的值）；无记录时回退到 config 中的 getter/.env
+      value: f.secret ? maskSecret(config.dbGet(f.key, config[f.key] || '')) : (config.dbGet(f.key, config[f.key] || '') || '')
     }))
     res.json({ success: true, data })
   })
-  router.post('/api/admin/settings', authMiddleware, (req, res) => {
+  router.post('/api/admin/settings', ...roleGate('admin', 'manager'), (req, res) => {
     const body = req.body || {}
     for (const f of SETTING_FIELDS) {
       if (f.key in body) {
@@ -534,11 +721,12 @@ module.exports = function (ctx) {
         config.dbSet(f.key, val)
       }
     }
+    ctx.addSysLog('保存系统设置', null, '已更新 ' + Object.keys(body).filter(k => k in body).join('、'), req.admin.username, req.ip)
     res.json({ success: true, message: '已保存，配置即时生效' })
   })
 
   // 9. 站点图片资源上传
-  router.post('/api/admin/upload', authMiddleware, upload.single('image'), async (req, res) => {
+  router.post('/api/admin/upload', ...roleGate('admin', 'manager'), upload.single('image'), async (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, message: '请选择图片' })
     // 透明 PNG 自动合成主色渐变底（LOGO / 图标等），保证 APP 图标/开屏等展示统一
     await flattenIfTransparent(req.file.path)

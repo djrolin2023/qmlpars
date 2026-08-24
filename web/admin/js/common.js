@@ -113,20 +113,30 @@ function renderPager(containerId, state) {
   if (sizeSel) sizeSel.onchange = () => { state.pageSize = parseInt(sizeSel.value, 10); state.page = 1; state.reload(); };
 }
 
-// 侧边栏 SVG 图标（按 href 注入）
-const NAV_ICONS = {
-  'dashboard.html': '<svg class="nav-ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
-  'vehicles.html': '<svg class="nav-ic" viewBox="0 0 24 24"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11"/><path d="M3 11h18v5a1 1 0 0 1-1 1h-1v2h-3v-2H8v2H5v-2H4a1 1 0 0 1-1-1v-5z"/><circle cx="7.5" cy="16" r="1"/><circle cx="16.5" cy="16" r="1"/></svg>',
-  'logs.html': '<svg class="nav-ic" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
-  'ocr.html': '<svg class="nav-ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>',
-  'settings.html': '<svg class="nav-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
-  'about.html': '<svg class="nav-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/></svg>'
+// 侧边栏图标（内联 SVG，由 data-icon 占位 + applyIcons 填充）
+const NAV_ICON_NAMES = {
+  'dashboard.html': 'dashboard',
+  'vehicles.html': 'vehicle',
+  'users.html': 'user',
+  'logs.html': 'log',
+  'backup.html': 'backup',
+  'buildapp.html': 'buildapp',
+  'syslog.html': 'syslog',
+  'ocr.html': 'ocr',
+  'settings.html': 'setting',
+  'about.html': 'about'
 };
 
 function injectNavIcons() {
   document.querySelectorAll('.sidebar nav a').forEach(a => {
-    const href = a.getAttribute('href');
-    if (NAV_ICONS[href]) a.insertAdjacentHTML('afterbegin', NAV_ICONS[href]);
+    const page = a.getAttribute('data-page') || a.getAttribute('href');
+    const name = NAV_ICON_NAMES[page];
+    if (name && !a.querySelector('.svg-ic')) {
+      const span = document.createElement('span');
+      span.className = 'menu-ic';
+      span.innerHTML = svgIcon(name);
+      a.insertAdjacentElement('afterbegin', span);
+    }
   });
 }
 
@@ -229,6 +239,7 @@ function startClock() {
 }
 
 function adminInit() {
+  if (typeof applyIcons === 'function') applyIcons(document);
   injectNavIcons();
   buildCrumb();
   highlightNav();

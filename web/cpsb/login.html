@@ -57,12 +57,12 @@
   .forgot{ color:#5b9bff; font-size:13px; text-decoration:none; }
   .submit{
     width:100%; padding:14px; border:none; border-radius:12px; cursor:pointer;
-    background:linear-gradient(135deg,#1890ff,#36cfc9); color:#04283a;
-    font-size:16px; font-weight:700; letter-spacing:1px; transition:opacity .2s, transform .1s;
+    background:#1890ff; color:#fff;
+    font-size:16px; font-weight:700; letter-spacing:1px; transition:opacity .2s, transform .1s, background .2s;
   }
   .submit:hover{ opacity:.92; }
   .submit:active{ transform:translateY(1px); }
-  .submit:disabled{ opacity:.6; cursor:default; }
+  .submit:disabled{ opacity:1; cursor:not-allowed; background:#33414f; color:#7a8794; }
   .err{ min-height:18px; margin:10px 2px 0; color:#F76560; font-size:13px; text-align:left; }
   .foot{ text-align:center; margin-top:22px; color:#5b6675; font-size:12px; line-height:1.7; }
   .foot a{ color:#5b9bff; text-decoration:none; }
@@ -96,12 +96,14 @@
         <label class="auto-login"><input id="autoLogin" type="checkbox"> 自动登录</label>
       </div>
       <button type="submit" class="submit">登 录</button>
+      <div class="login-ip-tip" id="loginIpTip" style="display:none"></div>
       <div class="err" id="loginErr"></div>
     </form>
 
     <div class="foot">
-      © 2026 乾明工作室 版权所有<br>
-      管理后台入口：<a href="/admin/">点击进入</a>
+      © 2026 乾明工作室 版权所有 · 技术支持：<a href="#">乾明</a><br>
+      <span id="icpLine"></span>
+      <span id="policeLine"></span>
     </div>
   </div>
 
@@ -111,6 +113,7 @@
     applySiteName();
     applyBrandLogo(document.getElementById('brandLogo'), 'icon');
     applyFavicon();
+    applyBeian();
   </script>
 </body>
 </html>
