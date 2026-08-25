@@ -115,7 +115,7 @@
     /* 新增/编辑模态框样式优化 */
     /* 让 modal-mask 可滚动、modal-box 自适应内容，避免 modal-body 内部滚动条造成"中间空白"的视觉错觉 */
     #modal.modal-mask.show{ align-items:flex-start; justify-content:center; overflow:auto; padding:24px 12px; }
-    #modal-box{ width:min(560px,96vw); display:flex; flex-direction:column; border-radius:16px; overflow:hidden; }
+    #modal-box{ width:min(560px,96vw); max-width:560px; max-height:none; overflow:visible; display:flex; flex-direction:column; border-radius:16px; }
     #modal .modal-head{ flex:0 0 auto; background:linear-gradient(135deg,#0e2233,#143047); color:#fff; padding:16px 20px; font-size:18px; font-weight:700; letter-spacing:.5px; }
     #modal .modal-head .x{ color:rgba(255,255,255,.7); }
     #modal .modal-body{ padding:14px 18px 6px; }
