@@ -2,275 +2,246 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>车辆管理 - 乾明车牌识别系统</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#1d2733">
+  <title>车辆管理</title>
   <link rel="stylesheet" href="/cpsb/css/base.css">
-  <link rel="stylesheet" href="/admin/css/base.css">
+  <link rel="stylesheet" href="/cpsb/vehicles.css">
   <style>
-    /* ===== H5 车辆管理：复用后台 admin 深色主题，仅加 h5 专属布局/移动端卡片/登录浮层/底部Tab ===== */
-    /* admin 的 ::root 写成 ::root 导致变量失效，但其大量硬编码深色值已生效，直接复用即可 */
-    /* 智慧科技感：深色底 + 淡蓝网格 + 角落光晕（与后台一致） */
-    html, body{
-      background-color:#0B1118 !important;
-      background-image:
-        radial-gradient(700px 480px at 10% -8%, rgba(0,180,255,.18), transparent 60%),
-        radial-gradient(620px 480px at 100% 0%, rgba(54,207,201,.13), transparent 55%),
-        radial-gradient(560px 560px at 85% 112%, rgba(0,120,255,.13), transparent 60%),
-        linear-gradient(rgba(120,200,255,.05) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(120,200,255,.05) 1px, transparent 1px);
-      background-size: auto, auto, auto, 30px 30px, 30px 30px;
-      background-attachment: fixed;
-      color:#fff !important; color-scheme:dark !important;
-    }
-    input, select, textarea{ color-scheme:dark !important; }
-
-    .h5-wrap{ max-width:960px; margin:0 auto; padding:14px 12px 90px; }
-    .h5-head{ display:flex; align-items:center; gap:10px; padding:4px 2px 12px; }
-    .h5-head .logo{ height:30px; width:auto; }
-    .h5-head .title{ font-size:18px; font-weight:700; color:#fff; }
-
-    /* 表格容器：贴边，去掉 admin panel 的 18px padding 让表格更紧凑 */
-    .panel{ padding:0 !important; margin-bottom:0 !important; overflow:hidden;
-      background:rgba(29,39,51,.45) !important; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
-      border:1px solid rgba(120,200,255,.16) !important; box-shadow:0 8px 28px rgba(0,130,200,.16); }
-    .data td, .data th{ color:#fff; }
-
-    .login-btn:hover{ background:linear-gradient(135deg,#40a9ff,#5eead4); }
-    .login-err{ color:#F76560; font-size:13px; min-height:18px; margin-top:8px; text-align:center; }
-    .login-back{ margin-top:14px; font-size:13px; color:#1890ff; cursor:pointer; text-align:center; }
-    .login-back:hover{ text-decoration:underline; }
-
-    /* 底部 Tab（深色，与后台风格一致） */
-    .bottom-tabs{ position:fixed; left:0; right:0; bottom:0; height:60px; background:rgba(29,39,51,.6); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-      border-top:1px solid rgba(120,200,255,.18); display:flex; z-index:90; padding-bottom:env(safe-area-inset-bottom,0); }
-    .bottom-tab{ flex:1; background:none; border:none; display:flex; flex-direction:column;
-      align-items:center; justify-content:center; gap:2px; color:#86909C; font-size:12px; cursor:pointer; }
-    .bottom-tab.active{ color:#1890ff; position:relative; }
-    .bottom-tab.active::before{ content:''; position:absolute; top:0; left:25%; right:25%; height:3px;
-      border-radius:0 0 3px 3px; background:linear-gradient(90deg,#1890FF,#36CFC9); }
-    .bottom-tab .bt-icon{ font-size:22px; line-height:1; }
-
-    /* ===== 移动端（≤768px）：表格转卡片列表（深色卡片，保留左标签 + 右值结构） ===== */
-    @media (max-width: 768px) {
-      .h5-wrap{ padding:max(16px, env(safe-area-inset-top)) 12px 80px; }
-      table.data, table.data tbody, table.data tr, table.data td{ display:block; width:100%; }
-      table.data thead{ display:none; }
-      table.data tr{ background:rgba(29,39,51,.5); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:1px solid rgba(120,200,255,.16); border-radius:14px;
-        margin-bottom:12px; padding:14px; box-shadow:0 8px 24px rgba(0,130,200,.18); }
-      /* 移动端：保留"左标签 + 右值"左右结构（与后台表格列对齐方式一致） */
-      table.data td{ border:none; padding:8px 0; white-space:normal; display:flex;
-        align-items:flex-start; gap:10px; font-size:14px; color:#fff; }
-      table.data td:not(:first-child):not(:nth-child(2)):not(:nth-child(9)){
-        border-bottom:1px solid rgba(120,200,255,.18); }
-      table.data td::before{ content:attr(data-label); flex:0 0 auto; min-width:0; color:#86909C; font-size:12px; padding-top:2px; }
-      table.data td:first-child{ display:none; } /* 卡片模式隐藏复选框列 */
-      /* 照片行：顶部居中、紧凑尺寸 */
-      table.data td:nth-child(2){ display:block; text-align:center; padding-bottom:4px; }
-      table.data td:nth-child(2)::before{ display:none; }
-      table.data img.thumb{ width:120px; height:90px; border-radius:10px; object-fit:cover; cursor:pointer; }
-      table.data .no-photo{ width:120px; height:90px; border-radius:10px; font-size:12px; margin:0 auto;
-        flex-direction:column; gap:4px; color:#5b6b80; }
-      table.data .no-photo::before{ content:""; display:block; width:24px; height:24px; margin:0 auto;
-        background:no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b6b80' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3Ccircle cx='12' cy='13' r='3.5'/%3E%3C/svg%3E"); }
-      table.data td:nth-child(3)::before{ content:"车牌"; }
-      table.data td:nth-child(3){ font-weight:700; font-size:18px; color:#fff; }
-      table.data td:nth-child(4)::before{ content:"车主"; }
-      table.data td:nth-child(5)::before{ content:"电话"; }
-      table.data td:nth-child(6)::before{ content:"部门"; }
-      table.data td:nth-child(7)::before{ content:"有效期"; }
-      /* 有效期字段含"主值 + 副说明"两个 div，卡片模式（td display:flex）下会左右并排，强制上下 */
-      table.data td:nth-child(7) > div{ display:block; }
-      table.data td:nth-child(7) > div + div{ margin-top:2px; font-size:11px; color:#86909C; }
-      table.data td:nth-child(8)::before{ content:"备注"; }
-      /* 操作行：分隔 + 按钮优化 */
-      table.data td:nth-child(9){ display:flex; gap:10px; padding-top:12px; margin-top:4px;
-        border-top:1px solid rgba(120,200,255,.25); }
-      table.data td:nth-child(9)::before{ content:"操作"; }
-      table.data td:nth-child(9) .btn{ flex:1; height:38px; font-size:14px; border-radius:9px; padding:0;
-        display:inline-flex; align-items:center; justify-content:center; color:#04283a; font-weight:600; border:none; }
-      /* 操作按钮：编辑=蓝青渐变，删除=红渐变（移动端卡片内） */
-      table.data td:nth-child(9) .btn.primary{ background:linear-gradient(135deg,#1890FF,#36CFC9); }
-      table.data td:nth-child(9) .btn.primary:hover{ background:linear-gradient(135deg,#40a9ff,#5eead4); }
-      table.data td:nth-child(9) .btn.danger{ background:linear-gradient(135deg,#F76560,#ff9c96); color:#fff; }
-      table.data td:nth-child(9) .btn.danger:hover{ background:linear-gradient(135deg,#ff8a85,#ffb3ae); }
-      .photo-row{ flex-direction:column; }
-    }
+    html,body{ margin:0; color:var(--text,#e8edf2); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+    .veh-page{ padding:12px 12px 16px; }
+    #siteFooter{ text-align:center; font-size:12px; color:var(--muted,#9fb0c0); padding:18px 10px 22px; line-height:1.7; }
+    #siteFooter a{ color:#9fc0ff; text-decoration:none; }
+    #siteFooter .police{ height:13px; vertical-align:-2px; margin-right:4px; }
+    .footer-logo{ margin:0 auto 10px; display:flex; justify-content:center; }
+    .footer-logo .brand-logo-img{ max-height:40px; max-width:160px; }
   </style>
 </head>
 <body>
-  <div class="h5-wrap">
-    <div class="h5-head">
-      <img class="logo" src="/static/images/logo.png" alt="logo" onerror="this.style.display='none'">
-      <span class="title">车辆管理</span>
+  <div class="veh-page">
+    <div class="h5-wrap">
+      <div class="toolbar">
+        <div class="toolbar-row toolbar-search-row">
+          <input id="search" class="search-input" placeholder="搜索车牌 / 车主 / 电话">
+          <select id="dep-filter"><option value="">全部部门</option></select>
+          <button class="btn primary" id="query-btn">查询</button>
+        </div>
+        <div class="toolbar-row toolbar-action-row">
+          <button class="btn" id="refresh-btn">刷新</button>
+          <button class="btn primary add" id="add-btn">+ 新增车辆</button>
+          <button class="btn danger" id="batch-del-btn" style="display:none">批量删除</button>
+        </div>
+        <span id="sel-count" style="color:var(--muted,#9fb0c0);font-size:13px;margin-left:4px"></span>
+      </div>
+
+      <div class="panel" id="vehPanel" style="display:block;padding:0;overflow:auto">
+        <div class="plate-list" id="list"></div>
+        <div id="empty" class="empty" style="display:none">暂无车辆</div>
+      </div>
+
+      <div class="pager" id="pager"></div>
     </div>
 
-    <div class="toolbar">
-      <input id="search" class="search-input" placeholder="搜索车牌 / 车主 / 电话">
-      <select id="dep-filter"><option value="">全部部门</option></select>
-      <button class="btn primary" id="add-btn">+ 新增车辆</button>
-      <button class="btn" id="batch-input-btn" onclick="openBatchAdd()">批量输入</button>
-      <button class="btn" id="refresh-btn">刷新</button>
-      <button class="btn danger" id="batch-del-btn" style="display:none">批量删除</button>
-      <span id="sel-count" style="color:var(--muted);font-size:13px;margin-left:4px"></span>
-    </div>
-
-    <div class="panel" style="display:block;padding:0;overflow:auto">
-      <table class="data">
-        <thead>
-          <tr><th style="width:42px"><input type="checkbox" id="check-all"></th><th>照片</th><th>车牌</th><th>车主</th><th>电话</th><th>部门</th><th>有效期</th><th>备注</th><th>操作</th></tr>
-        </thead>
-        <tbody id="list"></tbody>
-      </table>
-      <div id="empty" class="empty" style="display:none">暂无车辆</div>
-    </div>
-
-    <div class="pager" id="pager"></div>
-  </div>
-
-  <div class="modal-mask" id="modal">
-    <div class="modal">
-      <div class="modal-head"><span id="modal-title">新增车辆</span><span class="x" id="modal-close">×</span></div>
-      <div class="modal-body">
-        <div class="form-row photo-row">
-          <div class="photo-col">
-            <label>车辆照片（点击 / 拖拽 / 粘贴上传，自动识别车牌）</label>
-            <div class="photo-box" id="v-photo-box">
-              <input type="file" id="v-photo-file" accept="image/*" hidden>
-              <div class="photo-placeholder" id="v-photo-empty">
-                <div class="photo-plus">+</div>
-                <div class="photo-tip">点击或拖拽图片上传<br>支持 Ctrl+V 直接粘贴</div>
-              </div>
-              <div class="photo-loading" id="v-photo-loading" style="display:none">上传中…</div>
-              <div class="photo-done" id="v-photo-done" style="display:none">
-                <img id="v-photo-img" alt="车辆照片">
-                <button class="photo-remove" id="v-photo-remove" type="button" title="移除照片">×</button>
+    <!-- 详情模态框 -->
+    <div class="modal-mask" id="detailModal">
+      <div class="modal" style="width:min(420px,96vw)">
+        <div class="modal-head detail-head">
+          <div class="modal-plate-wrap"><span class="plate-no" id="dPlate">粤B12345</span></div>
+          <div class="modal-sub" id="dSub">归属地</div>
+          <div class="x" id="detail-close">×</div>
+        </div>
+        <div class="modal-body">
+          <div class="d-row d-row-owner">
+            <div class="d-label">车主</div>
+            <div class="d-value" id="dOwner">-</div>
+            <div class="d-thumb" id="dThumb" title="点击查看大图">
+              <img id="dThumbImg" alt="车辆缩略图" style="display:none">
+              <div class="d-thumb-empty" id="dThumbEmpty" aria-label="无车辆图片" title="暂无车辆图片">
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                  <path fill="currentColor" d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h.5a1.5 1.5 0 0 1 1.5 1.5V17a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4.5A1.5 1.5 0 0 1 4.5 11H5zm2.1 0h9.8l-1.1-3.2a.5.5.5 0 0 0-.47-.35H8.67a.5.5.5 0 0 0-.47.35L7.1 11zM7.5 14a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4zm9 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z"/>
+                </svg>
               </div>
             </div>
           </div>
-          <div class="plate-col">
-            <label><span class="req">*</span>车牌号（上传照片后可自动识别）</label>
-            <input id="f-plate" placeholder="如 粤B12345" maxlength="10" autocomplete="off">
-            <div class="plate-area-hint" id="plate-area"></div>
-          </div>
+          <div class="d-row"><div class="d-label">电话</div><div class="d-value" id="dPhone">-</div></div>
+          <div class="d-row"><div class="d-label">部门</div><div class="d-value" id="dDept">-</div></div>
+          <div class="d-row"><div class="d-label">有效期</div><div class="d-value" id="dValid">-</div></div>
+          <div class="d-row"><div class="d-label">备注</div><div class="d-value" id="dRemark">-</div></div>
         </div>
-        <div class="form-row row3">
-          <div>
-            <label><span class="req">*</span>车主</label>
-            <input id="f-owner" placeholder="车主姓名">
-          </div>
-          <div>
-            <label>手机号</label>
-            <input id="f-phone" placeholder="联系电话">
-          </div>
-        </div>
-        <div class="form-row">
-          <label><span class="req">*</span>部门（输入后回车添加，可添加多个，点击 × 删除）</label>
-          <div class="tag-input-wrap" id="dep-tags-wrap">
-            <div class="tag-input-box" id="dep-tags"></div>
-            <input id="f-department" placeholder="输入部门后回车，或点击下方常用部门" autocomplete="off">
-          </div>
-          <div class="tag-suggest" id="dep-suggest"></div>
-        </div>
-        <div class="form-row">
-          <label>有效期（开始时间默认今天，结束时间留空为长期）</label>
-          <div class="date-range" id="valid-until-field">
-            <span class="date-rng-item"><span class="date-rng-cap">开始时间</span><input type="text" id="f-valid-start" readonly onclick="openDatePicker()" placeholder="选择开始日期"></span>
-            <span class="date-rng-sep">~</span>
-            <span class="date-rng-item"><span class="date-rng-cap">结束时间</span><input type="text" id="f-valid-end" readonly onclick="openDatePicker()" placeholder="选择结束日期"></span>
-            <button type="button" class="date-clear" id="valid-until-clear" onclick="clearValidUntil()" title="清除日期" style="display:none"><span data-icon="close"></span></button>
-          </div>
-          <div class="date-picker" id="date-picker">
-            <div class="dp-head">
-              <button type="button" class="dp-nav" onclick="dpShift(-1)">‹</button>
-              <span class="dp-title" id="dp-title"></span>
-              <button type="button" class="dp-nav" onclick="dpShift(1)">›</button>
-            </div>
-            <div class="dp-week">
-              <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
-            </div>
-            <div class="dp-grid" id="dp-grid"></div>
-            <div class="dp-tip" id="dp-tip"></div>
-            <div class="dp-foot">
-              <button type="button" class="btn sm" onclick="dpToday()">今天</button>
-              <button type="button" class="btn sm" onclick="closeDatePicker()">完成</button>
-            </div>
-          </div>
-          <div class="valid-duration" id="valid-duration"></div>
-          <div class="hint">不填写结束时间表示长期有效；填写结束时间后，将自动显示有效期时长</div>
-        </div>
-        <div class="form-row">
-          <label>备注</label>
-          <textarea id="f-remark" rows="3" placeholder="备注信息（选填）"></textarea>
+        <div class="d-foot">
+          <button class="btn ghost danger-text" id="detail-del">删除</button>
+          <button class="btn ghost" id="detail-edit">编辑</button>
         </div>
       </div>
-      <div class="modal-foot">
-        <button class="btn" id="modal-cancel">取消</button>
-        <button class="btn primary" id="modal-save">保存</button>
+    </div>
+
+    <div class="modal-mask" id="modal">
+      <div class="modal" id="modal-box">
+        <div class="modal-head"><span id="modal-title">新增车辆</span><span class="x" id="modal-close">×</span></div>
+        <div class="modal-body">
+          <div class="batch-single" id="batch-single">
+          <div class="form-row photo-row">
+            <div class="photo-col">
+              <label>车辆照片（点击 / 拖拽 / 粘贴上传，自动识别车牌）</label>
+              <div class="photo-box" id="v-photo-box">
+                <input type="file" id="v-photo-file" accept="image/*" hidden>
+                <div class="photo-placeholder" id="v-photo-empty">
+                  <div class="photo-plus">+</div>
+                  <div class="photo-tip">点击或拖拽图片上传<br>支持 Ctrl+V 直接粘贴</div>
+                </div>
+                <div class="photo-loading" id="v-photo-loading" style="display:none">上传中…</div>
+                <div class="photo-done" id="v-photo-done" style="display:none">
+                  <img id="v-photo-img" alt="车辆照片">
+                  <button class="photo-remove" id="v-photo-remove" type="button" title="移除照片">×</button>
+                </div>
+              </div>
+            </div>
+            <div class="plate-col">
+              <label><span class="req">*</span>车牌号（上传照片后可自动识别）</label>
+              <input id="f-plate" placeholder="如 粤B12345" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" lang="en" inputmode="text">
+              <div class="plate-area-row">
+                <span class="plate-area-hint" id="plate-area"></span>
+                <span class="plate-dup-hint" id="plate-dup" style="display:none"></span>
+              </div>
+            </div>
+          </div>
+          <div class="form-row owner-row">
+            <div>
+              <label><span class="req">*</span>车主</label>
+              <input id="f-owner" placeholder="车主姓名">
+            </div>
+            <div>
+              <label>手机号</label>
+              <input id="f-phone" placeholder="联系电话">
+            </div>
+          </div>
+          <div class="form-row">
+            <label><span class="req">*</span>部门（输入后回车添加，可添加多个，点击 × 删除）</label>
+            <div class="tag-input-wrap" id="dep-tags-wrap">
+              <div class="tag-input-box" id="dep-tags"></div>
+              <input id="f-department" placeholder="输入部门后回车，或点击下方常用部门" autocomplete="off">
+            </div>
+            <div class="tag-suggest" id="dep-suggest"></div>
+          </div>
+          <div class="form-row">
+            <label>有效期（开始时间默认今天，结束时间留空为长期）</label>
+            <div class="date-range" id="valid-until-field">
+              <span class="date-rng-item"><span class="date-rng-cap">开始时间</span><input type="text" id="f-valid-start" readonly onclick="openDatePicker()" placeholder="选择开始日期"></span>
+              <span class="date-rng-sep">~</span>
+              <span class="date-rng-item"><span class="date-rng-cap">结束时间</span><input type="text" id="f-valid-end" readonly onclick="openDatePicker()" placeholder="选择结束日期"></span>
+              <button type="button" class="date-clear" id="valid-until-clear" onclick="clearValidUntil()" title="清除日期" style="display:none"><span data-icon="close"></span></button>
+            </div>
+            <div class="date-picker" id="date-picker">
+              <div class="dp-head">
+                <button type="button" class="dp-nav" onclick="dpShift(-1)">‹</button>
+                <span class="dp-title" id="dp-title"></span>
+                <button type="button" class="dp-nav" onclick="dpShift(1)">›</button>
+              </div>
+              <div class="dp-week">
+                <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+              </div>
+              <div class="dp-grid" id="dp-grid"></div>
+              <div class="dp-tip" id="dp-tip"></div>
+              <div class="dp-foot">
+                <button type="button" class="btn sm" onclick="dpToday()">今天</button>
+                <button type="button" class="btn sm" onclick="closeDatePicker()">完成</button>
+              </div>
+            </div>
+            <div class="valid-duration" id="valid-duration"></div>
+            <div class="hint">不填写结束时间表示长期有效；填写结束时间后，将自动显示有效期时长</div>
+          </div>
+          <div class="form-row">
+            <label>备注</label>
+            <textarea id="f-remark" rows="3" placeholder="备注信息（选填）"></textarea>
+          </div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" id="modal-cancel">取消</button>
+          <button class="btn primary" id="modal-save">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="lightbox" id="lightbox"><img id="lightbox-img" alt="大图"></div>
+  </div>
+
+  <!-- 页脚（与车牌页一致：LOGO + 版权 + 使用说明/隐私 + 备案） -->
+  <footer id="siteFooter">
+    <span id="copyrightLine"></span><br>
+    <a href="javascript:void(0)" id="openUsage">使用说明</a> &nbsp;|&nbsp;
+    <a href="javascript:void(0)" id="openPrivacy">隐私权限</a><br>
+    <span id="beianLine"></span>
+  </footer>
+
+  <!-- 使用说明 / 隐私权限 模态框 -->
+  <div class="modal-mask" id="usageModal" style="position:fixed;inset:0;align-items:center;justify-content:center;background:rgba(6,11,20,.92);backdrop-filter:blur(6px);padding:20px">
+    <div class="modal" style="width:min(680px,94vw);max-height:86vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px">
+      <div class="modal-head" style="font-size:17px;font-weight:700;color:#fff;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+        <span>使用说明</span><span class="x" id="usageModalX" style="cursor:pointer;font-size:22px;line-height:1;color:var(--sub)">×</span>
+      </div>
+      <div class="modal-body" style="color:var(--sub);font-size:14px;line-height:1.8">
+        <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+          <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">一、车辆管理</h3>
+          <p style="margin:0">通过“新增车辆”可以添加、编辑、删除车辆信息，支持单条录入与批量录入。可填写车牌号、车主、部门、手机号、有效期与备注。</p>
+        </div>
+        <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+          <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">二、账号说明</h3>
+          <p style="margin:0">点击顶部“当前用户”可展开下拉菜单，进行“修改密码”或“退出登录”。如忘记密码，请联系管理员重置。</p>
+        </div>
+        <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px">
+          <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">三、注意事项</h3>
+          <p style="margin:0">车辆与账号数据存储于您部署本系统的服务器本地数据库中。您可以随时查看、修改或删除录入的车辆数据。</p>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="lightbox" id="lightbox"><img id="lightbox-img" alt="大图"></div>
+  <div class="modal-mask" id="privacyModal" style="position:fixed;inset:0;align-items:center;justify-content:center;background:rgba(6,11,20,.92);backdrop-filter:blur(6px);padding:20px">
+    <div class="modal" style="width:min(680px,94vw);max-height:86vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px">
+      <div class="modal-head" style="font-size:17px;font-weight:700;color:#fff;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+        <span>隐私权限</span><span class="x" id="privacyModalX" style="cursor:pointer;font-size:22px;line-height:1;color:var(--sub)">×</span>
+      </div>
+      <div class="modal-body" style="color:var(--sub);font-size:14px;line-height:1.8">
+        <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+          <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">一、信息收集与使用</h3>
+          <p style="margin:0">本系统仅收集您主动录入的车牌、车主、联系方式等车辆管理信息，用于识别、登记与查询。</p>
+        </div>
+        <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+          <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">二、数据存储</h3>
+          <p style="margin:0">车辆与账号数据存储于您部署本系统的服务器本地数据库中，不会主动向第三方传输。数据安全由部署方负责管理。</p>
+        </div>
+        <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px">
+          <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">三、您的权利</h3>
+          <p style="margin:0">您可以随时查看、修改或删除您录入的车辆数据；停止使用后可联系管理员清除账号及相关信息。</p>
+        </div>
+      </div>
+    </div>
+  </div>
 
-  <!-- 内嵌管理员登录浮层：未登录 admin 时不跳后台，直接在此登录 -->
-  <!-- 底部 Tab（与 APP 一致：车牌识别 / 车辆管理） -->
-  <nav class="bottom-tabs">
-    <button class="bottom-tab" data-tab="cpsb" onclick="location.href='/cpsb/'">
-      <span class="bt-icon" data-icon="ocr"></span><span class="bt-label">车牌识别</span>
-    </button>
-    <button class="bottom-tab active" data-tab="vehicles">
-      <span class="bt-icon" data-icon="vehicle"></span><span class="bt-label">车辆管理</span>
-    </button>
-  </nav>
-
-  <script src="/admin/js/icons.js"></script>
-  <script src="/admin/js/common.js"></script>
-  <script src="/admin/js/upgrade.js"></script>
-  <script src="/admin/js/vehicles.js"></script>
+  <script src="/cpsb/js/common.js"></script>
+  <script src="/cpsb/js/admin-bridge.js"></script>
+  <script src="/cpsb/js/h5-vehicles.js"></script>
   <script>
-    function redirectToLogin() {
-      try { localStorage.removeItem('qmlpars_admin_token'); localStorage.removeItem('qmlpars_user_token'); } catch (e) {}
-      location.replace('/cpsb/login.html?redirect=' + encodeURIComponent(location.pathname + location.search));
-    }
+  (function(){
+    if(!getUserToken()){ location.replace('/admin/login.html?redirect=' + encodeURIComponent(location.pathname)); return; }
+    if(!getToken()) setToken(getUserToken()); // APP 端：admin 槽位为空时同步 user token，保证车辆照片 token 正常
+    applySiteName && applySiteName();
+    applyBeian && applyBeian();
+    initDetailModal && initDetailModal();
+    initVehicles && initVehicles();
 
-    // 覆盖 common.js 的 doLogout：H5/APP 车辆管理页应回到用户登录页
-    window.doLogout = redirectToLogin;
-
-    // 校验：优先用普通用户令牌(user_sessions)，其次管理员令牌(admin_sessions)
-    // 由于后台 authMiddleware 同时接受两种令牌，普通管理员/普通用户也能进入本页
-    async function probeToken(t) {
-      if (!t) return null;
-      try {
-        const r = await fetch('/api/admin/me', { headers: { 'x-admin-token': t } });
-        if (!r.ok) return null;
-        const data = await r.json().catch(() => null);
-        if (data && data.success) return data.data;
-        return null;
-      } catch (e) { return null; }
-    }
-
-    (async () => {
-      // 1) 管理员令牌
-      let me = await probeToken(getToken());
-      // 2) 普通用户令牌（H5/APP 登录得到，存于 qmlpars_user_token）
-      if (!me) {
-        const ut = localStorage.getItem('qmlpars_user_token');
-        const d = await probeToken(ut);
-        if (d) { setToken(ut); me = d; } // 迁移到 api() 使用的令牌槽位
-      }
-      if (me) {
-        const who = document.getElementById('current-user');
-        if (who) who.textContent = (me.name || me.user || '') + (me.role ? '（' + roleName(me.role) + '）' : '');
-        initVehicles();
-        return;
-      }
-      // 未登录：跳用户登录页
-      redirectToLogin();
-    })();
-
-    function roleName(r) {
-      return ({ admin: '超级管理员', manager: '普通管理员', user: '普通用户' })[r] || r || '';
-    }
+    function openDoc(id){ var m=document.getElementById(id); if(m) m.classList.add('show'); }
+    function closeDoc(id){ var m=document.getElementById(id); if(m) m.classList.remove('show'); }
+    ['usageModal','privacyModal'].forEach(function(id){
+      var m=document.getElementById(id); if(!m) return;
+      var x=m.querySelector('.x'); if(x) x.addEventListener('click', function(){ closeDoc(id); });
+      m.addEventListener('click', function(e){ if(e.target===m) closeDoc(id); });
+    });
+    var ou=document.getElementById('openUsage'), op=document.getElementById('openPrivacy');
+    if(ou) ou.addEventListener('click', function(){ openDoc('usageModal'); });
+    if(op) op.addEventListener('click', function(){ openDoc('privacyModal'); });
+  })();
   </script>
 </body>
 </html>

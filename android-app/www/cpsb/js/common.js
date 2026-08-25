@@ -33,7 +33,7 @@ async function userFetch(url, opts){
 let _siteNameCache=null;
 async function getSiteName(){
   if(_siteNameCache!==null) return _siteNameCache;
-  let name='物业车辆识别系统';
+  let name='乾明工作室';
   try{
     const r=await fetch(API+'/api/settings/public');
     const j=await r.json();
@@ -187,23 +187,78 @@ async function checkLogin(){
   return false;
 }
 
-/* 渲染用户区：顶部右上角。已登录显示用户名 + 退出 */
+/* 渲染用户区：顶部右上角。已登录显示用户名下拉（修改密码、退出登录） */
 function renderUserArea(){
   const token=getUserToken();
-  const areas=[document.getElementById('topUser'), document.getElementById('footerUser')].filter(Boolean);
-  areas.forEach(el=>{
-    el.innerHTML='';
-    if(token){
-      const u=document.createElement('span'); u.className='user-name'; u.textContent='当前用户：加载中…';
-      const out=document.createElement('button'); out.className='user-logout'; out.textContent='退出';
-      out.addEventListener('click', ()=> goLogout());
-      el.appendChild(u); el.appendChild(out);
-      fetch(API+'/api/auth/me',{headers:{'x-user-token':token}}).then(r=>r.json()).then(j=>{
-        if(j&&j.success&&j.data){ u.textContent='当前用户：'+(j.data.name?j.data.name+'（'+j.data.username+'）':j.data.username); }
-        else { u.textContent='已登录'; }
-      }).catch(()=>{ u.textContent='已登录'; });
-    }
+  const topUser=document.getElementById('topUser');
+  if(!topUser) return;
+  topUser.innerHTML='';
+  if(!token) return;
+  const wrap=document.createElement('div'); wrap.className='user-dropdown';
+  const toggle=document.createElement('button'); toggle.className='user-dropdown-toggle';
+  toggle.innerHTML='<span class="user-dropdown-name">加载中…</span><span class="caret">▼</span>';
+  const menu=document.createElement('div'); menu.className='user-dropdown-menu';
+  menu.innerHTML='<button class="user-dropdown-item" data-action="changePwd">修改密码</button><button class="user-dropdown-item" data-action="logout">退出登录</button>';
+  wrap.appendChild(toggle); wrap.appendChild(menu); topUser.appendChild(wrap);
+
+  // 切换下拉
+  toggle.addEventListener('click', e=>{ e.stopPropagation(); wrap.classList.toggle('open'); });
+  document.addEventListener('click', ()=> wrap.classList.remove('open'));
+  menu.addEventListener('click', e=>{
+    const item=e.target.closest('[data-action]'); if(!item) return;
+    const action=item.getAttribute('data-action');
+    wrap.classList.remove('open');
+    if(action==='logout') goLogout();
+    if(action==='changePwd') openChangePwd();
   });
+
+  fetch(API+'/api/auth/me',{headers:{'x-user-token':token}}).then(r=>r.json()).then(j=>{
+    if(j&&j.success&&j.data){ toggle.querySelector('.user-dropdown-name').textContent=(j.data.name?j.data.name+'（'+j.data.username+'）':j.data.username); }
+    else { toggle.querySelector('.user-dropdown-name').textContent='已登录'; }
+  }).catch(()=>{ toggle.querySelector('.user-dropdown-name').textContent='已登录'; });
+}
+
+/* 打开/关闭修改密码弹窗 */
+function openChangePwd(){ document.getElementById('pwdModal').classList.add('show'); }
+function closeChangePwd(){
+  const m=document.getElementById('pwdModal'); if(m) m.classList.remove('show');
+  ['pwdOld','pwdNew','pwdNew2','pwdErr'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+}
+
+/* 提交修改密码 */
+async function submitChangePwd(){
+  const oldP=document.getElementById('pwdOld').value.trim();
+  const newP=document.getElementById('pwdNew').value.trim();
+  const newP2=document.getElementById('pwdNew2').value.trim();
+  const err=document.getElementById('pwdErr');
+  if(!oldP||!newP){ err.textContent='请填写当前密码和新密码'; return; }
+  if(newP.length<6){ err.textContent='新密码至少 6 位'; return; }
+  if(newP!==newP2){ err.textContent='两次输入的新密码不一致'; return; }
+  err.textContent='';
+  const btn=document.getElementById('pwdOk'); btn.disabled=true; btn.textContent='修改中…';
+  try{
+    const r=await fetch(API+'/api/auth/change-password',{
+      method:'POST', headers:{'Content-Type':'application/json','x-user-token':getUserToken()},
+      body:JSON.stringify({oldPassword:oldP,newPassword:newP})
+    });
+    const j=await r.json();
+    if(!j||!j.success) throw new Error((j&&j.message)||'修改失败');
+    closeChangePwd();
+    alert('密码已修改，请重新登录');
+    goLogout();
+  }catch(e){ err.textContent=e.message||'修改失败'; }
+  finally{ btn.disabled=false; btn.textContent='确定修改'; }
+}
+
+/* 绑定修改密码弹窗事件（index.html 引入 common.js 后调用） */
+function bindChangePwdEvents(){
+  document.getElementById('pwdModalX').addEventListener('click', closeChangePwd);
+  document.getElementById('pwdCancel').addEventListener('click', closeChangePwd);
+  document.getElementById('pwdOk').addEventListener('click', submitChangePwd);
+  document.getElementById('pwdModal').addEventListener('click', e=>{ if(e.target.id==='pwdModal') closeChangePwd(); });
+  document.getElementById('pwdOld').addEventListener('keydown', e=>{ if(e.key==='Enter') submitChangePwd(); });
+  document.getElementById('pwdNew').addEventListener('keydown', e=>{ if(e.key==='Enter') submitChangePwd(); });
+  document.getElementById('pwdNew2').addEventListener('keydown', e=>{ if(e.key==='Enter') submitChangePwd(); });
 }
 
 async function doLogin(username, password, autoLogin){
@@ -245,6 +300,16 @@ function bindCpsbLogin(){
   try {
     const ru=localStorage.getItem('guard_remember_user');
     const auto=localStorage.getItem('guard_auto_login')==='1';
+    // 勾选了自动登录且 token 仍有效时直接跳过登录页
+    if(auto){
+      checkLogin().then(ok=>{
+        if(ok){
+          const params=getQuery();
+          const redirect=params.get('redirect')||'index.html';
+          location.replace(redirect);
+        }
+      });
+    }
     const uEl=document.getElementById('loginUser');
     const aEl=document.getElementById('autoLogin');
     if(uEl && ru) uEl.value=ru;
@@ -319,6 +384,8 @@ function switchTab(name){
     const cs=document.getElementById('camStatus');
     if(cs && cs.textContent.indexOf('未识别')>=0) cs.textContent='';
   }
+  // 切换标签时自动清除上一次扫描/查询结果
+  if(typeof closeResult==='function') closeResult();
 }
 
 /* ============ 结果渲染 ============ */
@@ -331,32 +398,205 @@ function showNotFound(html){
   if(el) el.innerHTML='<div class="id-card"><div class="id-badge no">未找到</div><div class="id-info" style="text-align:center;color:var(--sub)">'+html+'</div></div>';
 }
 function row(k,v){ return '<div class="row"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>'; }
+function imgUrlWithToken(url){
+  if(!url) return url;
+  if(/[?&]token=/.test(url)) return url;
+  const t=getUserToken();
+  if(!t) return url;
+  return url + (url.indexOf('?')>=0 ? '&' : '?') + 'token=' + encodeURIComponent(t);
+}
+
+/* ============ 归属地（车牌 → 省·市，复用 /admin/js/plate-areas.json） ============ */
+let _plateAreas = {};
+async function loadPlateAreas(){
+  try{
+    const r = await fetch('/admin/js/plate-areas.json', { cache:'no-cache' });
+    if(r.ok) _plateAreas = await r.json();
+  }catch(e){ /* 离线/无数据时不阻塞 */ }
+}
+function plateArea(plate){
+  const p = String(plate || '').toUpperCase().replace(/\s+/g,'').replace(/·/g,'');
+  const prov = p.charAt(0);
+  const info = _plateAreas[prov];
+  if(!info) return '归属地：' + prov;
+  const letter = p.charAt(1);
+  const city = info.cities && info.cities[letter] ? info.cities[letter] : '';
+  return '归属地：' + info.province + (city && city !== info.province ? ' · ' + city : '');
+}
+function plateType(plate){
+  const p = String(plate || '').toUpperCase().replace(/\s+/g,'').replace(/·/g,'');
+  if(/使|领|警/.test(p) || /WJ$/.test(p) || /O$/.test(p)) return 'white';
+  if(/挂$/.test(p) || /学$/.test(p) || /港$/.test(p) || /澳$/.test(p)) return 'yellow';
+  const body = p.slice(1);
+  // 新能源绿牌：城市字母后紧跟 D 或 F（小型车 6 位后缀 / 大型车 5 位后缀均涵盖），中间渲染 ev-plate-mark.png 图标
+  if(/^[A-Z][DF]/.test(body)) return 'green';
+  // 其他 6/7 位普通车牌 → 蓝牌（小型车）
+  return 'blue';
+}
+function plateHtml(plate){
+  const p = String(plate || '').trim().toUpperCase().replace(/·/g,'');
+  const prov = p.charAt(0), letter = p.charAt(1), rest = p.slice(2);
+  const sep = plateType(plate) === 'green'
+    ? '<span class="ev-mark"><img src="/static/images/ev-plate-mark.png" alt="新能源"></span>'
+    : '<span class="prov"></span>';
+  return '<span class="plate-no ' + plateType(plate) + '">' + prov + letter + sep + rest + '</span>';
+}
+function formatValidCell(validUntil){
+  if(!validUntil) return '<div class="valid-long">长期</div><div class="valid-left muted">长期有效</div>';
+  let target, label = '有效期至';
+  // 兼容 "2026-08-25" 或 "2026-08-25 23:59"
+  const m = String(validUntil).match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}))?/);
+  if(m){ target = new Date(m[1] + 'T' + (m[2] || '23:59') + ':00'); }
+  else { target = new Date(validUntil); }
+  if(isNaN(target.getTime())) return '<div class="valid-long">'+esc(validUntil)+'</div>';
+  const now = new Date();
+  const diffMs = target.getTime() - now.getTime();
+  const days = Math.ceil(diffMs / 86400000);
+  const dateStr = (m ? m[1] : validUntil);
+  if(days < 0){
+    return '<div class="valid-long">'+esc(dateStr)+'</div>' +
+      '<div class="valid-left expired">已过期 '+Math.abs(days)+' 天</div>';
+  } else if(days === 0){
+    return '<div class="valid-long">'+esc(dateStr)+'</div>' +
+      '<div class="valid-left warn">今天到期</div>';
+  } else {
+    const cls = days <= 7 ? 'warn' : 'ok';
+    return '<div class="valid-long">'+esc(dateStr)+'</div>' +
+      '<div class="valid-left '+cls+'">还有 '+days+' 天到期</div>';
+  }
+}
+function zoomPhoto(url){
+  let m = document.getElementById('zoomModal');
+  if(!m){
+    m = document.createElement('div');
+    m.id = 'zoomModal';
+    m.className = 'modal-mask';
+    m.innerHTML = '<div class="modal" style="background:transparent;box-shadow:none;border:none;max-width:92vw">' +
+      '<img id="zoomImg" style="max-width:92vw;max-height:82vh;border-radius:12px;display:block" alt="车辆大图"></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click', () => m.classList.remove('show'));
+  }
+  document.getElementById('zoomImg').src = url;
+  m.classList.add('show');
+}
+/* 渲染车辆详情模态框（车辆管理页与扫描结果共用，确保显示一致） */
+function renderDetail(v, modalId){
+  modalId = modalId || 'detailModal';
+  const modal = document.getElementById(modalId);
+  if(!modal) return;
+  const areaPure = plateArea(v.plateNo || '').replace(/^归属地：/, '');
+  const el = modal.querySelector('#dPlate');
+  if(el){
+    const pp = String(v.plateNo || '').toUpperCase().replace(/·/g, '');
+    const sep = plateType(v.plateNo || '') === 'green'
+      ? '<span class="ev-mark"><img src="/static/images/ev-plate-mark.png" alt="新能源"></span>'
+      : '<span class="prov"></span>';
+    el.className = 'plate-no ' + plateType(v.plateNo || '');
+    el.innerHTML = pp.charAt(0) + pp.charAt(1) + sep + pp.slice(2);
+  }
+  const sub = modal.querySelector('#dSub'); if(sub) sub.textContent = areaPure;
+  const set = (id, val) => { const n = modal.querySelector('#' + id); if(n) n.textContent = (val || '-'); };
+  set('dOwner', v.owner);
+  set('dPhone', v.phone);
+  set('dDept', (v.department || '').split(/[,，]/).map(s => s.trim()).filter(Boolean).join(' / '));
+  set('dRemark', v.remark);
+  const valid = modal.querySelector('#dValid'); if(valid) valid.innerHTML = formatValidCell(v.validUntil);
+  // 缩略图
+  const thumbImg = modal.querySelector('#dThumbImg');
+  const thumbEmpty = modal.querySelector('#dThumbEmpty');
+  const thumb = modal.querySelector('#dThumb');
+  const photoUrl = (v.photoUrl) ? imgUrlWithToken(v.photoUrl) : '';
+  if(v.photo && photoUrl && thumbImg){
+    thumbImg.src = photoUrl; thumbImg.style.display = '';
+    if(thumbEmpty) thumbEmpty.style.display = 'none';
+    if(thumb){ thumb.onclick = () => zoomPhoto(photoUrl); thumb.style.cursor = 'pointer'; }
+  } else if(thumbImg){
+    thumbImg.removeAttribute('src'); thumbImg.style.display = 'none';
+    if(thumbEmpty) thumbEmpty.style.display = '';
+    if(thumb){ thumb.onclick = null; thumb.style.cursor = 'default'; }
+  }
+  // 命中时恢复"未找到提示隐藏 + 删除/编辑显示"（避免上轮未命中残留）
+  const nfR = modal.querySelector('#dNotFound'); if(nfR) nfR.style.display='none';
+  const delR = modal.querySelector('#detail-del'); if(delR) delR.style.display='';
+  const editR = modal.querySelector('#detail-edit'); if(editR) editR.style.display='';
+  // 删除/编辑按钮
+  const del = modal.querySelector('#detail-del');
+  const edit = modal.querySelector('#detail-edit');
+  if(del) del.onclick = () => { closeDetail(modalId); if(typeof delVehicle==='function') delVehicle(v.id); };
+  if(edit) edit.onclick = () => { closeDetail(modalId); if(typeof editVehicle==='function') editVehicle(v.id); };
+  modal.classList.add('show');
+}
+function closeDetail(modalId){
+  modalId = modalId || 'detailModal';
+  const modal = document.getElementById(modalId);
+  if(modal) modal.classList.remove('show');
+}
+function initDetailModal(modalId){
+  modalId = modalId || 'detailModal';
+  const modal = document.getElementById(modalId);
+  if(!modal) return;
+  const x = modal.querySelector('#detail-close'); if(x) x.onclick = () => closeDetail(modalId);
+  modal.addEventListener('click', e => { if(e.target === e.currentTarget) closeDetail(modalId); });
+}
+/* 扫描 / 搜索结果：页面内下拉卡片（视觉与车辆管理页详情框一致，DOM 结构同 .modal 但不弹窗） */
 function showResult(plate, data){
   data=data||{};
-  const el=document.getElementById('result');
+  const v0 = data.vehicle || null;
+  const ok = !!v0 && data.isInternal!==false;
+  const el = document.getElementById('result');
   if(!el) return;
-  const v = data.vehicle || null;            // 命中车辆详情
-  const ok = !!v && data.isInternal!==false; // 是否命中内部车辆
-  const photo = v && v.photoUrl
-    ? '<img class="id-photo" src="'+esc(v.photoUrl)+'" alt="车辆照片" onerror="this.style.display=\'none\'">'
-    : '<div class="id-photo-placeholder">暂无车辆照片</div>';
-  let info='';
-  info += row('车牌', plate||data.plateNo||'-');
-  info += row('姓名', v && v.owner ? v.owner : '-');
-  if(v && v.phone) info += row('手机号', v.phone);
-  if(v && v.department) info += row('部门/单位', v.department);
-  if(v && v.validUntil) info += row('有效期至', v.validUntil);
-  if(v && v.remark) info += row('备注', v.remark);
-  info += row('扫描次数', (data.scanCount!=null?data.scanCount:'-') + (v&&v.valid===false?'（已过期）':''));
-  const badge = ok ? '<div class="id-badge ok">识别成功 · 可放行</div>' : '<div class="id-badge no">未找到记录</div>';
-  el.innerHTML='<div class="id-card">'
-    +'<div class="result-bar"><button class="id-close" onclick="closeResult()">'+svgIcon('close')+'</button></div>'
-    + badge
-    + photo
-    +'<div class="id-info">'+info+'</div>'
-    +'</div>';
-  // 语音：成功放行 / 失败
-  playSound(ok ? 'success' : 'failure');
+  const pp = String((v0 && v0.plateNo) || plate || data.plateNo || '').toUpperCase().replace(/·/g, '');
+  const areaPure = plateArea(pp).replace(/^归属地：/, '');
+  // 车牌 DOM（用 plateHtml 输出完整 <span class="plate-no">）
+  const plateDom = plateHtml(pp);
+  if(v0 && ok){
+    const v = Object.assign({}, v0);
+    v.plateNo = v.plateNo || pp;
+    v.photoUrl = v.photoUrl || (v.photo && v.id ? ('/api/vehicles/' + v.id + '/photo') : '');
+    const photoUrl = v.photoUrl ? imgUrlWithToken(v.photoUrl) : '';
+    const hasPhoto = !!(v.photo && String(v.photo).trim());
+    const thumbInner = (hasPhoto && photoUrl)
+      ? '<img src="'+esc(photoUrl)+'" alt="车辆缩略图" onclick="zoomPhoto(\''+esc(photoUrl)+'\')" onerror="this.style.display=\'none\'">'
+      : '<div class="d-thumb-empty" title="暂无车辆图片">' +
+          '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h.5a1.5 1.5 0 0 1 1.5 1.5V17a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4.5A1.5 1.5 0 0 1 4.5 11H5zm2.1 0h9.8l-1.1-3.2a.5.5 0 0 0-.47-.35H8.67a.5.5 0 0 0-.47.35L7.1 11zM7.5 14a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4zm9 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z"/></svg>' +
+        '</div>';
+    const dept = (v.department||'').split(/[,，]/).map(s=>s.trim()).filter(Boolean).join(' / ');
+    const passTxt = ok ? '✓ 可放行' : '✕ 不可放行';
+    const passCls = ok ? 'ok' : 'no';
+    el.innerHTML =
+      '<div class="id-card">' +
+        '<div class="result-head">' +
+          '<button class="id-close" onclick="closeResult()">×</button>' +
+          '<div class="result-plate"><div class="modal-plate-wrap">'+plateDom+'</div></div>' +
+          '<div class="result-dept">'+esc(dept || areaPure)+'</div>' +
+          '<div class="result-pass '+passCls+'">'+passTxt+'</div>' +
+        '</div>' +
+        '<div class="modal-body">' +
+          '<div class="d-row d-row-owner">' +
+            '<div class="d-label">车主</div>' +
+            '<div class="d-value">'+esc(v.owner||'-')+'</div>' +
+            '<div class="d-thumb" id="dThumb">'+thumbInner+'</div>' +
+          '</div>' +
+          '<div class="d-row"><div class="d-label">电话</div><div class="d-value">'+(v.phone?esc(v.phone):'-')+'</div></div>' +
+          '<div class="d-row"><div class="d-label">归属地</div><div class="d-value">'+esc(areaPure||'-')+'</div></div>' +
+          '<div class="d-row"><div class="d-label">有效期</div><div class="d-value">'+formatValidCell(v.validUntil)+'</div></div>' +
+          '<div class="d-row"><div class="d-label">备注</div><div class="d-value">'+(v.remark?esc(v.remark):'-')+'</div></div>' +
+        '</div>' +
+      '</div>';
+    playSound('success');
+  } else {
+    el.innerHTML =
+      '<div class="id-card">' +
+        '<div class="result-head">' +
+          '<button class="id-close" onclick="closeResult()">×</button>' +
+          '<div class="result-plate"><div class="modal-plate-wrap">'+plateDom+'</div></div>' +
+          '<div class="result-dept">'+esc(areaPure)+'</div>' +
+        '</div>' +
+        '<div class="result-notfound">'+(data.notFoundText || '未找到车辆记录')+'</div>' +
+      '</div>';
+    playSound('failure');
+  }
+  setTimeout(()=>{ const c=el.querySelector('.id-card'); if(c) c.scrollIntoView({behavior:'smooth', block:'nearest'}); }, 50);
 }
 
 /* ============ 分享 ============ */
@@ -365,6 +605,28 @@ function toast(msg){
   if(!t){ t=document.createElement('div'); t.id='toast'; t.style.cssText='position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:60;background:rgba(29,39,51,.92);color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.35);transition:opacity .3s;'; document.body.appendChild(t); }
   t.textContent=msg; t.style.opacity='1';
   clearTimeout(t._timer); t._timer=setTimeout(()=>{ t.style.opacity='0'; }, 1800);
+}
+// 通用模态确认框（替代原生 confirm），返回 Promise<boolean>
+function confirmModal(title, message, confirmText, danger) {
+  return new Promise(resolve => {
+    const id = 'confirm-modal-' + Date.now();
+    const mask = document.createElement('div');
+    mask.className = 'modal-mask show';
+    mask.id = id;
+    mask.innerHTML =
+      '<div class="modal confirm-modal">' +
+        '<div class="modal-head"><span>' + escapeHtml(title || '确认操作') + '</span></div>' +
+        '<div class="modal-body"><p class="confirm-msg">' + escapeHtml(message || '') + '</p></div>' +
+        '<div class="modal-foot">' +
+          '<button class="btn" data-act="cancel">取消</button>' +
+          '<button class="btn ' + (danger ? 'danger' : 'primary') + '" data-act="ok">' + escapeHtml(confirmText || '确定') + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(mask);
+    const close = (val) => { mask.remove(); resolve(val); };
+    mask.querySelector('[data-act="cancel"]').onclick = () => close(false);
+    mask.querySelector('[data-act="ok"]').onclick = () => close(true);
+  });
 }
 async function copyLink(){
   const url=location.href;
