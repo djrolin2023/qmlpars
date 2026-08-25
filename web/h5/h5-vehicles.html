@@ -178,10 +178,12 @@
     @media (max-width: 560px) {
       .toolbar-search-row select#dep-filter{ max-width:38%; }
       .toolbar-action-row #add-btn{ max-width:none; }
-      /* 窄屏：按钮加大点击区，垂直堆叠（取消在上） */
+      /* 窄屏：保存/取消同一行，左取消右保存，平分宽度 */
       #modal-box{ width:96vw; }
-      #modal .modal-foot{ flex-direction:column-reverse; padding-bottom:max(12px,calc(12px + env(safe-area-inset-bottom))); }
-      #modal .modal-foot .btn{ width:100%; padding:13px; font-size:15px; }
+      #modal .modal-foot{ flex-direction:row; padding-bottom:max(12px,calc(12px + env(safe-area-inset-bottom))); }
+      #modal .modal-foot .btn{ flex:1 1 0; width:auto; padding:13px; font-size:15px; }
+      #modal .modal-foot .btn:first-child{ order:1; }
+      #modal .modal-foot .btn:last-child{ order:2; }
     }
   </style>
 </head>
