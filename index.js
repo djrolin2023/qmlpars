@@ -195,13 +195,16 @@ fs.mkdirSync(adminDir, { recursive: true })
 fs.mkdirSync(cpsbDir, { recursive: true })
 fs.mkdirSync(staticDir, { recursive: true })
 
-// 前端缓存破坏：微信等 webview 常强缓存 HTML（即便返回 no-store），导致修复后仍卡旧脚本/旧子页面。
-// 对所有 .html 结尾的请求，若 URL 无 ?v= 参数则 302 跳转到带 CACHE_BUST 的 URL，webview 当作新资源重新拉取。
-// 每次修复前端（卡顿/样式）后把 CACHE_BUST 改新值即可全量刷新，无需动 version.json。
+// 前端缓存破坏：微信等 webview 常强缓存入口 HTML（即便返回 no-store），导致修复后仍卡旧脚本。
+// 仅对“目录入口”（/cpsb、/admin，即 path 为 '' 或 '/'）做 302 跳转到带 CACHE_BUST 的 URL。
+// 注意：不要对 iframe 内的子页面（*.html）做 302——微信 webview 在 iframe 302 时会错误地使用磁盘旧缓存，
+//       反而导致旧 h5-vehicles.html（含 location.replace('/admin/login.html')）被执行、跳后台。
+//       子页面统一由父页 iframe 的 src 直接带 ?v= 参数请求（见 web/h5/index.html），服务器直接返回 200 新版。
+// 每次修复前端后把 CACHE_BUST 改新值即可全量刷新入口，无需动 version.json。
 const CACHE_BUST = '20260826f'
 function vBust(){
   return function(req, res, next){
-    if(req.path.endsWith('.html') && !req.query.v){
+    if((req.path === '' || req.path === '/') && !req.query.v){
       return res.redirect((req.originalUrl.split('?')[0]) + '?v=' + CACHE_BUST)
     }
     next()
