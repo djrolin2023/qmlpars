@@ -1,57 +1,190 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>车牌识别管理系统</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-      background: linear-gradient(135deg, #0b1a2b, #0e2a3f); color: #e6f0ff; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .wrap { text-align: center; padding: 24px; }
-    .logo { font-size: 26px; font-weight: 700; letter-spacing: 1px; margin-bottom: 6px; }
-    .sub { color: #8fb6d6; margin-bottom: 28px; font-size: 14px; }
-    .cards { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 14px; max-width: 560px; margin: 0 auto; }
-    .card { background: rgba(255,255,255,.06); border: 1px solid rgba(120,200,255,.2); border-radius: 12px; padding: 22px 14px;
-      text-decoration: none; color: #e6f0ff; transition: .2s; }
-    .card:hover { background: rgba(120,200,255,.16); transform: translateY(-2px); }
-    .card .t { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
-    .card .d { font-size: 12px; color: #8fb6d6; }
-    .foot { margin-top: 26px; font-size: 12px; color: #6c8aa6; }
-    @media (max-width: 520px) { .cards { grid-template-columns: 1fr; } }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>乾明车牌识别</title>
+<style>
+  :root{
+    --bg:#0a1220; --card:rgba(20,36,60,.55); --border:rgba(120,200,255,.22);
+    --text:#e2e8f0; --muted:#94a3b8; --primary:#1890ff; --accent:#36cfc9;
+  }
+  *{box-sizing:border-box;} html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    color:var(--text); background:var(--bg);
+    background-image:
+      linear-gradient(rgba(80,160,255,.06) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(80,160,255,.06) 1px,transparent 1px),
+      radial-gradient(circle at 12% 20%,rgba(24,144,255,.18),transparent 40%),
+      radial-gradient(circle at 88% 85%,rgba(54,207,201,.18),transparent 45%);
+    background-size:32px 32px,32px 32px,100% 100%,100% 100%;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; padding:32px 16px;
+  }
+  .hero-top{text-align:center; margin-bottom:34px;}
+  .hero-top .logo{
+    width:84px;height:84px;border-radius:20px;margin:0 auto 14px;
+    background:linear-gradient(135deg,#5b21b6,#db2777);
+    display:flex;align-items:center;justify-content:center;font-size:40px;
+    box-shadow:0 8px 28px rgba(91,33,182,.4);border:2px solid rgba(255,255,255,.85);
+  }
+  .hero-top h1{font-size:26px;margin:0 0 6px;font-weight:700;letter-spacing:1px;}
+  .hero-top p{margin:0;color:var(--muted);font-size:14px;}
+
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;width:100%;max-width:880px;}
+  @media(max-width:680px){ .cards{grid-template-columns:1fr;max-width:360px;} }
+  .card{
+    background:var(--card);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    border:1px solid var(--border);border-radius:18px;padding:26px 20px;text-align:center;
+    cursor:pointer;transition:transform .18s,box-shadow .18s,border-color .18s;
+    box-shadow:0 8px 30px rgba(0,0,0,.25);
+  }
+  .card:hover{transform:translateY(-4px);border-color:rgba(24,144,255,.5);box-shadow:0 12px 36px rgba(24,144,255,.25);}
+  .card .ic{font-size:42px;margin-bottom:12px;}
+  .card .ti{font-size:17px;font-weight:700;margin-bottom:6px;}
+  .card .de{font-size:13px;color:var(--muted);line-height:1.5;}
+
+  /* 通用模态框 */
+  .mask{position:fixed;inset:0;background:rgba(4,10,20,.72);backdrop-filter:blur(4px);
+    display:none;align-items:center;justify-content:center;z-index:9999;padding:20px;}
+  .mask.show{display:flex;}
+  .modal{background:var(--card);border:1px solid var(--border);border-radius:18px;
+    max-width:520px;width:100%;max-height:86vh;overflow:auto;padding:26px 26px 22px;
+    box-shadow:0 16px 48px rgba(0,0,0,.45);}
+  .modal h3{margin:0 0 16px;font-size:18px;display:flex;align-items:center;gap:8px;}
+  .modal h3::before{content:'';width:4px;height:16px;border-radius:2px;
+    background:linear-gradient(180deg,var(--primary),var(--accent));}
+  .modal .close{float:right;background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;}
+  .modal p,.modal li{color:#cbd5e1;font-size:14px;line-height:1.7;}
+  .modal ol{padding-left:20px;margin:8px 0;}
+  .modal .steps{display:flex;flex-direction:column;gap:10px;margin-top:6px;}
+  .modal .step{display:flex;gap:12px;align-items:flex-start;}
+  .modal .step .num{flex-shrink:0;width:26px;height:26px;border-radius:50%;
+    background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;}
+  .modal .entry{display:flex;gap:12px;align-items:center;padding:12px 14px;margin-top:10px;
+    background:rgba(120,200,255,.06);border:1px solid rgba(120,200,255,.14);border-radius:12px;}
+  .modal .entry .eic{font-size:26px;}
+  .modal .entry .eti{font-weight:600;}
+  .modal .entry .ede{font-size:12.5px;color:var(--muted);}
+  .modal .btn{display:inline-block;margin-top:18px;padding:10px 20px;border-radius:10px;
+    background:linear-gradient(135deg,var(--primary),#40a9ff);color:#fff;text-decoration:none;
+    font-size:14px;font-weight:600;cursor:pointer;border:none;
+    box-shadow:0 4px 14px rgba(24,144,255,.35);}
+
+  .phone-tip{display:flex;gap:14px;align-items:flex-start;margin-top:6px;}
+  .phone-tip .pic{font-size:34px;}
+  .phone-tip .pt-text b{color:var(--accent);}
+
+  footer{margin-top:40px;color:var(--muted);font-size:12px;text-align:center;}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="logo">车牌识别管理系统</div>
-    <div class="sub">正在根据设备自动跳转…</div>
-    <div class="cards" id="cards" style="display:none">
-      <a class="card" href="/admin/"><div class="t">PC 管理后台</div><div class="d">电脑端 · 车辆/记录/设置</div></a>
-      <a class="card" href="/cpsb/"><div class="t">H5 移动端</div><div class="d">微信/手机浏览器</div></a>
-      <a class="card" href="/app/"><div class="t">APP 端</div><div class="d">原生应用内嵌</div></a>
-    </div>
-    <div class="foot" id="foot">若未自动跳转，请手动选择上方入口</div>
+  <div class="hero-top">
+    <div class="logo">🚗</div>
+    <h1>乾明车牌识别</h1>
+    <p>对准车牌，毫秒级识别 · 门卫物业车辆管理利器</p>
   </div>
-  <script>
-    (function () {
-      var UA = navigator.userAgent || '';
-      var q = location.search || '';
-      // 1) 显式参数或 APP 专属 UA 关键字 → APP 端
-      var isApp = /[?&](from=app|app=1)\b/.test(q) || /QMLPARS_APP/i.test(UA);
-      // 2) 微信 / 移动端 → H5
-      var isMobile = /MicroMessenger|Mobile|Android|iPhone|iPad|iPod|Windows Phone/i.test(UA);
-      var target;
-      if (isApp) target = '/app/';
-      else if (isMobile) target = '/cpsb/';
-      else target = '/admin/';
-      // 手动模式：?manual=1 不自动跳，展示卡片
-      if (/[?&]manual=1\b/.test(q)) {
-        document.getElementById('cards').style.display = 'grid';
-        document.querySelector('.sub').textContent = '请选择入口';
-        return;
-      }
-      location.replace(target);
-    })();
-  </script>
+
+  <div class="cards">
+    <div class="card" onclick="openGuide()">
+      <div class="ic">🧭</div>
+      <div class="ti">引导入口</div>
+      <div class="de">了解系统功能与<br>各端使用方式</div>
+    </div>
+    <div class="card" onclick="enterPlate()">
+      <div class="ic">📷</div>
+      <div class="ti">车牌识别</div>
+      <div class="de">摄像头识别 /<br>手动查询车牌</div>
+    </div>
+    <div class="card" onclick="location.href='/app/'">
+      <div class="ic">📱</div>
+      <div class="ti">APP 客户端</div>
+      <div class="de">下载安卓 APP<br>随身管理车辆</div>
+    </div>
+  </div>
+
+  <footer>© 乾明车牌识别系统 · 基于 AGPL-3.0 开源</footer>
+
+  <!-- 引导弹窗 -->
+  <div class="mask" id="guideMask">
+    <div class="modal">
+      <button class="close" onclick="closeModal('guideMask')">×</button>
+      <h3>欢迎使用乾明车牌识别</h3>
+      <p>本系统提供三种使用方式，按需选择：</p>
+      <div class="entry">
+        <div class="eic">📷</div>
+        <div><div class="eti">车牌识别（H5）</div><div class="ede">手机/微信浏览器打开，摄像头对准车牌自动识别，或手动输入车牌查询。</div></div>
+      </div>
+      <div class="entry">
+        <div class="eic">📱</div>
+        <div><div class="eti">APP 客户端</div><div class="ede">安卓安装包，功能与 H5 一致，更适合长期随身使用，支持离线缓存。</div></div>
+      </div>
+      <div class="entry">
+        <div class="eic">🖥️</div>
+        <div><div class="eti">管理后台</div><div class="ede">PC 浏览器访问，用于车辆登记、识别日志查看、系统设置等管理工作。</div></div>
+      </div>
+      <h3 style="margin-top:22px;">快速上手</h3>
+      <div class="steps">
+        <div class="step"><span class="num">1</span><div>在「APP 客户端」下载并安装安卓 APP，或用手机浏览器打开「车牌识别」。</div></div>
+        <div class="step"><span class="num">2</span><div>将摄像头对准车牌，系统自动识别并返回车主、电话、部门等登记信息。</div></div>
+        <div class="step"><span class="num">3</span><div>无摄像头时可手动输入车牌号查询；所有识别记录自动同步到管理后台。</div></div>
+        <div class="step"><span class="num">4</span><div>管理员通过 PC 端「管理后台」维护车辆信息、批量导入与查看日志。</div></div>
+      </div>
+      <button class="btn" onclick="closeModal('guideMask')">我知道了</button>
+    </div>
+  </div>
+
+  <!-- 车牌识别 PC 提示弹窗 -->
+  <div class="mask" id="plateMask">
+    <div class="modal">
+      <button class="close" onclick="closeModal('plateMask')">×</button>
+      <h3>请从手机端访问</h3>
+      <div class="phone-tip">
+        <div class="pic">📱</div>
+        <div class="pt-text">
+          <p><b>车牌识别需在微信端 / 手机浏览器中使用</b></p>
+          <p>该功能依赖手机摄像头与触摸屏操作，PC 端无法使用。</p>
+          <p>请使用手机扫描下方二维码，或在手机浏览器中打开本系统地址。</p>
+        </div>
+      </div>
+      <div id="plateQr" style="margin-top:16px;text-align:center;">
+        <img id="plateQrImg" alt="二维码" style="width:160px;height:160px;border-radius:8px;background:#fff;padding:6px;display:none;">
+        <div id="plateQrHint" style="color:var(--muted);font-size:12px;">二维码加载中…</div>
+      </div>
+      <button class="btn" onclick="closeModal('plateMask')">关闭</button>
+    </div>
+  </div>
+
+<script>
+  function isMobileUA(){
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|MicroMessenger|Mobile/i.test(navigator.userAgent);
+  }
+  function openModal(id){ document.getElementById(id).classList.add('show'); }
+  function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+  // 点击遮罩空白处关闭
+  document.querySelectorAll('.mask').forEach(function(m){
+    m.addEventListener('click', function(e){ if(e.target === m) m.classList.remove('show'); });
+  });
+
+  function enterPlate(){
+    if(isMobileUA()){
+      location.href = '/cpsb/';
+    } else {
+      openPlateQr();
+      openModal('plateMask');
+    }
+  }
+
+  function openPlateQr(){
+    var url = location.origin + '/cpsb/';
+    var img = document.getElementById('plateQrImg');
+    var hint = document.getElementById('plateQrHint');
+    img.onload = function(){ img.style.display='block'; hint.style.display='none'; };
+    img.onerror = function(){ hint.textContent='二维码生成失败，请直接访问：' + url; };
+    img.src = '/api/buildapp/qrcode?size=200&url=' + encodeURIComponent(url);
+  }
+</script>
 </body>
 </html>
