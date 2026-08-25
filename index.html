@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>乾明车牌识别</title>
+<link rel="icon" href="/static/images/logo.png">
 <style>
   :root{
     --bg:#0a1220; --card:rgba(20,36,60,.55); --border:rgba(120,200,255,.22);
@@ -24,11 +25,12 @@
   }
   .hero-top{text-align:center; margin-bottom:34px;}
   .hero-top .logo{
-    width:84px;height:84px;border-radius:20px;margin:0 auto 14px;
+    width:88px;height:88px;border-radius:20px;margin:0 auto 14px;overflow:hidden;
     background:linear-gradient(135deg,#5b21b6,#db2777);
-    display:flex;align-items:center;justify-content:center;font-size:40px;
     box-shadow:0 8px 28px rgba(91,33,182,.4);border:2px solid rgba(255,255,255,.85);
+    display:flex;align-items:center;justify-content:center;
   }
+  .hero-top .logo img{width:100%;height:100%;object-fit:contain;}
   .hero-top h1{font-size:26px;margin:0 0 6px;font-weight:700;letter-spacing:1px;}
   .hero-top p{margin:0;color:var(--muted);font-size:14px;}
 
@@ -41,7 +43,8 @@
     box-shadow:0 8px 30px rgba(0,0,0,.25);
   }
   .card:hover{transform:translateY(-4px);border-color:rgba(24,144,255,.5);box-shadow:0 12px 36px rgba(24,144,255,.25);}
-  .card .ic{font-size:42px;margin-bottom:12px;}
+  .card .ic{margin-bottom:12px;}
+  .card .ic svg{width:44px;height:44px;color:var(--accent);}
   .card .ti{font-size:17px;font-weight:700;margin-bottom:6px;}
   .card .de{font-size:13px;color:var(--muted);line-height:1.5;}
 
@@ -51,11 +54,14 @@
   .mask.show{display:flex;}
   .modal{background:var(--card);border:1px solid var(--border);border-radius:18px;
     max-width:520px;width:100%;max-height:86vh;overflow:auto;padding:26px 26px 22px;
-    box-shadow:0 16px 48px rgba(0,0,0,.45);}
+    box-shadow:0 16px 48px rgba(0,0,0,.45);position:relative;}
   .modal h3{margin:0 0 16px;font-size:18px;display:flex;align-items:center;gap:8px;}
   .modal h3::before{content:'';width:4px;height:16px;border-radius:2px;
     background:linear-gradient(180deg,var(--primary),var(--accent));}
-  .modal .close{float:right;background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;}
+  .modal .close{position:absolute;top:18px;right:18px;background:none;border:none;
+    color:var(--muted);cursor:pointer;line-height:1;padding:4px;border-radius:8px;}
+  .modal .close:hover{color:var(--text);background:rgba(255,255,255,.06);}
+  .modal .close svg{width:20px;height:20px;display:block;}
   .modal p,.modal li{color:#cbd5e1;font-size:14px;line-height:1.7;}
   .modal ol{padding-left:20px;margin:8px 0;}
   .modal .steps{display:flex;flex-direction:column;gap:10px;margin-top:6px;}
@@ -65,7 +71,7 @@
     display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;}
   .modal .entry{display:flex;gap:12px;align-items:center;padding:12px 14px;margin-top:10px;
     background:rgba(120,200,255,.06);border:1px solid rgba(120,200,255,.14);border-radius:12px;}
-  .modal .entry .eic{font-size:26px;}
+  .modal .entry .eic svg{width:26px;height:26px;color:var(--accent);}
   .modal .entry .eti{font-weight:600;}
   .modal .entry .ede{font-size:12.5px;color:var(--muted);}
   .modal .btn{display:inline-block;margin-top:18px;padding:10px 20px;border-radius:10px;
@@ -74,55 +80,61 @@
     box-shadow:0 4px 14px rgba(24,144,255,.35);}
 
   .phone-tip{display:flex;gap:14px;align-items:flex-start;margin-top:6px;}
-  .phone-tip .pic{font-size:34px;}
+  .phone-tip .pic svg{width:40px;height:40px;color:var(--accent);}
   .phone-tip .pt-text b{color:var(--accent);}
 
-  footer{margin-top:40px;color:var(--muted);font-size:12px;text-align:center;}
+  .foot{margin-top:40px;color:var(--muted);font-size:12px;text-align:center;line-height:1.7;}
+  .foot a{color:var(--muted);text-decoration:none;}
+  .foot a:hover{color:var(--accent);}
+  .foot .police-link img.police{width:13px;height:13px;vertical-align:-2px;margin-right:2px;}
 </style>
 </head>
 <body>
   <div class="hero-top">
-    <div class="logo">🚗</div>
+    <div class="logo"><img src="/static/images/logo.png" alt="LOGO"></div>
     <h1>乾明车牌识别</h1>
     <p>对准车牌，毫秒级识别 · 门卫物业车辆管理利器</p>
   </div>
 
   <div class="cards">
-    <div class="card" onclick="openGuide()">
-      <div class="ic">🧭</div>
+    <div class="card" onclick="openModal('guideMask')">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="15.5,8.5 10.5,10.5 8.5,15.5 13.5,13.5" fill="rgba(24,144,255,.2)"/></svg></div>
       <div class="ti">引导入口</div>
       <div class="de">了解系统功能与<br>各端使用方式</div>
     </div>
     <div class="card" onclick="enterPlate()">
-      <div class="ic">📷</div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
       <div class="ti">车牌识别</div>
       <div class="de">摄像头识别 /<br>手动查询车牌</div>
     </div>
     <div class="card" onclick="location.href='/app/'">
-      <div class="ic">📱</div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg></div>
       <div class="ti">APP 客户端</div>
       <div class="de">下载安卓 APP<br>随身管理车辆</div>
     </div>
   </div>
 
-  <footer>© 乾明车牌识别系统 · 基于 AGPL-3.0 开源</footer>
+  <div class="foot">
+    <span id="copyrightLine"></span><br>
+    <span id="beianLine"></span>
+  </div>
 
   <!-- 引导弹窗 -->
   <div class="mask" id="guideMask">
     <div class="modal">
-      <button class="close" onclick="closeModal('guideMask')">×</button>
+      <button class="close" onclick="closeModal('guideMask')" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
       <h3>欢迎使用乾明车牌识别</h3>
       <p>本系统提供三种使用方式，按需选择：</p>
       <div class="entry">
-        <div class="eic">📷</div>
+        <div class="eic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
         <div><div class="eti">车牌识别（H5）</div><div class="ede">手机/微信浏览器打开，摄像头对准车牌自动识别，或手动输入车牌查询。</div></div>
       </div>
       <div class="entry">
-        <div class="eic">📱</div>
+        <div class="eic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg></div>
         <div><div class="eti">APP 客户端</div><div class="ede">安卓安装包，功能与 H5 一致，更适合长期随身使用，支持离线缓存。</div></div>
       </div>
       <div class="entry">
-        <div class="eic">🖥️</div>
+        <div class="eic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="16" x2="12" y2="20"/></svg></div>
         <div><div class="eti">管理后台</div><div class="ede">PC 浏览器访问，用于车辆登记、识别日志查看、系统设置等管理工作。</div></div>
       </div>
       <h3 style="margin-top:22px;">快速上手</h3>
@@ -139,10 +151,10 @@
   <!-- 车牌识别 PC 提示弹窗 -->
   <div class="mask" id="plateMask">
     <div class="modal">
-      <button class="close" onclick="closeModal('plateMask')">×</button>
+      <button class="close" onclick="closeModal('plateMask')" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
       <h3>请从手机端访问</h3>
       <div class="phone-tip">
-        <div class="pic">📱</div>
+        <div class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="6"/><line x1="11" y1="18" x2="13" y2="18"/></svg></div>
         <div class="pt-text">
           <p><b>车牌识别需在微信端 / 手机浏览器中使用</b></p>
           <p>该功能依赖手机摄像头与触摸屏操作，PC 端无法使用。</p>
@@ -157,12 +169,13 @@
     </div>
   </div>
 
-<script>
+  <script src="/cpsb/js/common.js"></script>
+  <script>
   function isMobileUA(){
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|MicroMessenger|Mobile/i.test(navigator.userAgent);
   }
-  function openModal(id){ document.getElementById(id).classList.add('show'); }
-  function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+  function openModal(id){ var m=document.getElementById(id); if(m) m.classList.add('show'); }
+  function closeModal(id){ var m=document.getElementById(id); if(m) m.classList.remove('show'); }
   // 点击遮罩空白处关闭
   document.querySelectorAll('.mask').forEach(function(m){
     m.addEventListener('click', function(e){ if(e.target === m) m.classList.remove('show'); });
@@ -185,6 +198,11 @@
     img.onerror = function(){ hint.textContent='二维码生成失败，请直接访问：' + url; };
     img.src = '/api/buildapp/qrcode?size=200&url=' + encodeURIComponent(url);
   }
-</script>
+
+  // 页脚统一登录页风格（备案信息来自后台设置）
+  if(window.applyBeian) applyBeian();
+  if(window.applySiteName) applySiteName();
+  if(window.applyFavicon) applyFavicon();
+  </script>
 </body>
 </html>
