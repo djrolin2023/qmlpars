@@ -205,6 +205,16 @@ body{ padding-bottom:76px; }
 .plate-no .ev-mark{ display:inline-flex; align-items:center; margin:0 1px; }
 .plate-no .ev-mark img{ width:14px; height:18px; object-fit:contain; }
 .modal-body{ padding:6px 18px 14px; }
+/* 通用模态确认框所需样式 */
+.modal-head{ padding:16px 18px 4px; font-weight:600; font-size:16px; color:#fff; }
+.modal-foot{ padding:12px 18px 16px; display:flex; justify-content:flex-end; gap:10px; }
+.confirm-msg{ margin:8px 0 0; color:#cbd5e1; font-size:14px; line-height:1.5; }
+.btn{ padding:8px 16px; border:1px solid rgba(255,255,255,.18); background:transparent; border-radius:8px; font-size:14px; color:#e2e8f0; cursor:pointer; transition:background .15s,border-color .15s; }
+.btn:hover{ background:rgba(255,255,255,.08); }
+.btn.primary{ color:#38bdf8; border-color:rgba(56,189,248,.5); font-weight:600; }
+.btn.primary:hover{ background:rgba(56,189,248,.12); border-color:#38bdf8; }
+.btn.danger{ color:#F76560; border-color:rgba(247,101,96,.5); }
+.btn.danger:hover{ background:rgba(247,101,96,.12); border-color:#F76560; }
 .d-row{ display:flex; align-items:flex-start; padding:11px 0; border-bottom:1px solid rgba(255,255,255,.06); }
 .d-row:last-child{ border-bottom:none; }
 .d-label{ flex:0 0 70px; color:#86909C; font-size:13px; }

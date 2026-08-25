@@ -1,42 +1,28 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <script src="./app-config.js"></script>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>{SITE}车牌识别系统</title>
-<link rel="icon" href="/static/images/logo.png">
-<meta property="og:title" content="{SITE}车牌识别系统">
-<meta property="og:description" content="对准车牌自动扫描，或切换输入查询">
-<meta property="og:image" content="/static/images/logo.png">
-<meta property="og:url" content="/cpsb/">
-<meta name="thumbnail" content="/static/images/logo.png">
-<link rel="stylesheet" href="css/base.css">
-<style>
-  /* 鉴权前隐藏主体，避免未登录闪现识别界面 */
-  body.guard-loading{ visibility:hidden; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#1d2733">
+  <title>车牌识别</title>
+  <link rel="icon" href="/static/images/logo.png">
+  <link rel="stylesheet" href="/cpsb/css/base.css">
+  <style>
+    /* 嵌入主框架时隐藏滚动条抖动；独立打开也正常 */
+    body{ color:var(--text,#e8edf2); }
+    .org-stack{ display:block; text-align:center; padding:18px 16px 8px; }
+    .sub-hint{ font-size:13px; color:var(--muted,#9fb0c0); letter-spacing:.3px; }
+    #siteFooter{ text-align:center; font-size:12px; color:var(--muted,#9fb0c0); padding:18px 10px 22px; line-height:1.7; }
+    #siteFooter a{ color:#9fc0ff; text-decoration:none; }
+    #siteFooter .police{ height:13px; vertical-align:-2px; margin-right:4px; }
+    .footer-logo{ margin:0 auto 10px; display:flex; justify-content:center; }
+    .footer-logo .brand-logo-img{ max-height:40px; max-width:160px; }
+  </style>
 </head>
-<body class="guard-loading">
+<body>
 
-<!-- 悬浮分享按钮 -->
-<button class="fab-share" onclick="copyLink()" aria-label="分享">
-  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="18" cy="5" r="3"></circle>
-    <circle cx="6" cy="12" r="3"></circle>
-    <circle cx="18" cy="19" r="3"></circle>
-    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-  </svg>
-</button>
-
-<!-- 顶部用户区（固定在页头，不随页面下拉消失） -->
-<div class="top-user" id="topUser"></div>
-
-<!-- 学校标识（随页面下拉滚动） -->
+<!-- 中间区：提示语（LOGO/标题已按需求移除） -->
 <div class="org-stack">
-  <div class="brand-logo" id="orgLogo"></div>
-  <div class="sub-org" id="orgName" data-site-suffix=" · 车辆识别">车辆识别</div>
   <div class="sub-hint">对准车牌自动扫描，或切换输入查询</div>
 </div>
 
@@ -84,14 +70,13 @@
 <!-- 结果 -->
 <div class="result" id="result"></div>
 
-<!-- 底部 -->
+<!-- 页脚（LOGO + 版权 + 使用说明/隐私 + 备案，与原版 index.html 一致） -->
 <footer id="siteFooter">
-  <div class="footer-logo" id="footerLogo"></div>
-  <span id="copyrightLine"></span><br>
-  <a href="javascript:void(0)" id="openUsage">使用说明</a> &nbsp;|&nbsp;
-  <a href="javascript:void(0)" id="openPrivacy">隐私权限</a><br>
-  <span id="beianLine"></span>
-</footer>
+    <span id="copyrightLine"></span><br>
+    <a href="javascript:void(0)" id="openUsage">使用说明</a> &nbsp;|&nbsp;
+    <a href="javascript:void(0)" id="openPrivacy">隐私权限</a><br>
+    <span id="beianLine"></span>
+  </footer>
 
 <!-- 使用说明 / 隐私权限 模态框 -->
 <div class="modal-mask" id="usageModal" style="position:fixed;inset:0;align-items:center;justify-content:center;background:rgba(6,11,20,.92);backdrop-filter:blur(6px);padding:20px">
@@ -146,31 +131,29 @@
   </div>
 </div>
 
-<!-- 底部 Tab（与 APP 一致：车牌识别 / 车辆管理） -->
-<nav class="bottom-tabs">
-  <button class="bottom-tab active" data-tab="cpsb" onclick="location.href='/cpsb/'">
-    <span class="bt-icon" data-icon="ocr"></span><span class="bt-label">车牌识别</span>
-  </button>
-  <button class="bottom-tab" data-tab="vehicles" onclick="location.href='/cpsb/h5-vehicles.html'">
-    <span class="bt-icon" data-icon="vehicle"></span><span class="bt-label">车辆管理</span>
-  </button>
-</nav>
-
 <script src="/admin/js/icons.js"></script>
-<script src="js/common.js"></script>
-<script src="js/query.js"></script>
-<script src="js/camera.js"></script>
+<script src="/cpsb/js/common.js"></script>
+<script src="/cpsb/js/query.js"></script>
+<script src="/cpsb/js/camera.js"></script>
 <script>
-/* 门禁：已登录（token 且后端有效）才初始化识别功能，否则跳登录页 */
+/* 门禁：已登录才初始化识别功能；否则跳登录页 */
 (async ()=>{
   if(await checkLogin()){
-    document.body.classList.remove('guard-loading');
-    renderUserArea();
-    applySiteName();
     applyFavicon();
-    applyBrandLogo(document.getElementById('orgLogo'), 'icon');
-    applyBrandLogo(document.getElementById('footerLogo'), 'icon');
     applyBeian();
+
+    /* 摄像头控制：嵌入主框架时由父窗口 postMessage 控制；独立打开时自行启动 */
+    window.addEventListener('message', function(e){
+      if(!e.data || e.data.type !== 'cam') return;
+      if(e.data.action === 'start'){ startCam(); }
+      else if(e.data.action === 'stop'){ stopCam(); }
+    });
+    // 告知父窗口本页已就绪，父再下发 start（解决 iframe 加载时序）
+    if(window.self !== window.top){
+      try{ parent.postMessage({ type:'cam-ready' }, location.origin); }catch(e){}
+    } else {
+      startCam();   // 独立打开：自启
+    }
   } else {
     goLogin();
   }

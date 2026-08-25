@@ -186,5 +186,5 @@ function closeResult(){
   if(scanState==='manual') startScanning();
 }
 
-window.addEventListener('DOMContentLoaded',startCam);
+// 启动/停止由 H5 主框架 switchView 控制（切到车牌识别时 startCam，切走时 stopCam），不在加载时自动开启
 window.addEventListener('beforeunload',stopCam);

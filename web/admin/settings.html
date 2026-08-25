@@ -97,6 +97,51 @@
     .modal-mask .modal-body { padding:20px; }
     .modal-mask .modal-foot { padding:14px 20px; border-top:1px solid rgba(120,200,255,.18); display:flex; justify-content:flex-end; gap:10px; }
 
+    /* ===== OCR 配置：标签 + 工具栏 ===== */
+    .ocr-wrap { margin-top: 6px; }
+    .ocr-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+    .ocr-tabs { display:flex; gap:6px; flex-wrap:wrap; }
+    .ocr-tab { display:inline-flex; align-items:center; gap:7px; padding:9px 15px; border-radius:10px; border:1px solid rgba(120,200,255,.2);
+      background:rgba(29,39,51,.4); color:#cbd5e1; cursor:pointer; font-size:13.5px; transition:all .15s; }
+    .ocr-tab:hover { color:#fff; border-color:rgba(120,200,255,.45); }
+    .ocr-tab.active { background:rgba(24,144,255,.16); color:#7cc4ff; border-color:rgba(24,144,255,.5); font-weight:600; }
+    .ocr-main-sel { display:flex; align-items:center; gap:8px; font-size:13px; color:#94a3b8; }
+    .ocr-main-sel select { background:rgba(29,39,51,.7); color:#e2e8f0; border:1px solid rgba(120,200,255,.25); border-radius:8px; padding:7px 10px; font-size:13.5px; }
+    .ocr-card { background:rgba(29,39,51,.45); border:1px solid rgba(120,200,255,.18); border-radius:14px; padding:18px 20px; }
+    .ocr-card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+    .ocr-card-title-wrap { display:flex; align-items:center; gap:10px; }
+    .ocr-card-title { font-size:15px; font-weight:600; color:#e2e8f0; }
+    .ocr-tut-btn { background:rgba(24,144,255,.12); border:1px solid rgba(24,144,255,.3); color:#7cc4ff; border-radius:8px; padding:6px 11px; font-size:12.5px; cursor:pointer; }
+    .ocr-tut-btn:hover { background:rgba(24,144,255,.22); }
+    .ocr-card-body { display:grid; grid-template-columns:1fr 1fr; gap:14px 22px; }
+    .ocr-field { display:flex; flex-direction:column; gap:6px; }
+    .ocr-field label { font-size:13px; color:#aab4c4; }
+    .ocr-field input, .ocr-field textarea { background:rgba(11,17,24,.7); border:1px solid rgba(120,200,255,.22); border-radius:9px; padding:9px 11px; color:#e2e8f0; font-size:13.5px; width:100%; outline:none; }
+    .ocr-field input:focus, .ocr-field textarea:focus { border-color:rgba(24,144,255,.55); }
+    .ocr-input-wrap { display:flex; gap:6px; align-items:center; }
+    .ocr-input-wrap input { flex:1; }
+    .ocr-eye, .ocr-clear { flex:none; width:34px; height:34px; border-radius:8px; border:1px solid rgba(120,200,255,.22); background:rgba(29,39,51,.6); color:#cbd5e1; cursor:pointer; font-size:14px; display:inline-flex; align-items:center; justify-content:center; }
+    .ocr-eye:hover, .ocr-clear:hover { border-color:rgba(120,200,255,.45); color:#fff; }
+    .ocr-eye svg { width:18px; height:18px; }
+    .ocr-eye .eye-off { display:none; }
+    .ocr-eye.showing .eye-open { display:none; }
+    .ocr-eye.showing .eye-off { display:inline; }
+    .ocr-test-result { margin-top:6px; padding:11px 14px; border-radius:10px; font-size:13.5px; line-height:1.5; border:1px solid transparent; }
+    .ocr-test-result.testing { background:rgba(120,200,255,.1); border-color:rgba(120,200,255,.3); color:#bcdcff; }
+    .ocr-test-result.ok { background:rgba(52,211,153,.14); border-color:rgba(52,211,153,.45); color:#7ff0c4; }
+    .ocr-test-result.fail { background:rgba(248,113,113,.14); border-color:rgba(248,113,113,.45); color:#ffb3b3; }
+    .ocr-test-result strong { font-weight:700; }
+    .ocr-hint, .hint { font-size:12px; color:#8a97a8; display:flex; align-items:center; gap:6px; }
+    .ocr-dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex:none; }
+    .ocr-dot.on { background:#34d399; box-shadow:0 0 6px rgba(52,211,153,.6); }
+    .ocr-dot.off { background:#475569; }
+    .ocr-card-foot { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+    .btn.ghost { background:transparent; border:1px solid rgba(120,200,255,.3); color:#9fc6e8; }
+    .btn.ghost:hover { background:rgba(120,200,255,.08); color:#fff; }
+    @media (max-width: 768px) {
+      .ocr-card-body { grid-template-columns:1fr; }
+      .ocr-toolbar { flex-direction:column; align-items:flex-start; }
+    }
     @media (max-width: 768px) {
       .layout { flex-direction:column; }
       .nav { width:100%; display:flex; gap:8px; overflow-x:auto; position:static; }
@@ -147,13 +192,22 @@
         <!-- OCR 配置：每个通道一张卡片，独立保存 -->
         <section class="panel" data-panel="ocr">
           <h3>OCR 配置 <span class="badge">车牌识别</span></h3>
-          <div class="panel-sub">用于识别车牌的 OCR 服务密钥（仅本机存储，不对外传输）。每个通道可单独保存。</div>
-          <div class="ocr-cards" id="ocr-cards"></div>
+          <div class="panel-sub">用于识别车牌的 OCR 服务密钥（仅本机存储，不对外传输）。选择下方标签切换通道，可单独保存或测试连接。</div>
+          <div class="ocr-wrap">
+            <div class="ocr-toolbar">
+              <div class="ocr-tabs" id="ocr-tabs"></div>
+              <div class="ocr-main-sel">
+                <label>主识别通道</label>
+                <select id="ocr-main"></select>
+              </div>
+            </div>
+            <div class="ocr-body" id="ocr-cards"></div>
+          </div>
         </section>
 
       </div>
     </div>
-    <div class="page-footer" id="site-footer-text"></div>
+    <div class="page-footer one-line" id="site-footer-text"></div>
   </div>
 
   <div class="toast" id="toast"></div>

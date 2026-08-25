@@ -88,7 +88,7 @@ async function loadLogs() {
 }
 
 async function deleteLog(id) {
-  if (!confirm('确定删除该记录？')) return;
+  if (!(await confirmModal('删除记录', '确定删除该记录？', '删除', true))) return;
   try {
     await api('/api/admin/logs/' + id, { method: 'DELETE' });
     selectedIds.delete(id);
@@ -113,7 +113,7 @@ async function clearAll() {
 
 async function batchDelete() {
   if (!selectedIds.size) { toast('请先勾选要删除的记录', 'error'); return; }
-  if (!confirm(`确定删除选中的 ${selectedIds.size} 条记录？`)) return;
+  if (!(await confirmModal('批量删除', `确定删除选中的 ${selectedIds.size} 条记录？`, '删除', true))) return;
   try {
     const data = await api('/api/admin/logs/batch-delete', {
       method: 'POST',

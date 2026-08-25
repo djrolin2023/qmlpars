@@ -1,217 +1,147 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>{SITE}</title>
-<link rel="icon" href="/static/images/logo.png">
-<meta property="og:title" content="{SITE}">
-<meta property="og:description" content="对准车牌自动扫描，或切换输入查询">
-<meta property="og:image" content="/static/images/logo.png">
-<meta property="og:url" content="/cpsb/">
-<meta name="thumbnail" content="/static/images/logo.png">
-<link rel="stylesheet" href="css/base.css">
-<style>
-  /* 鉴权前隐藏主体，避免未登录闪现识别界面 */
-  body.guard-loading{ visibility:hidden; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#1d2733">
+  <title>车牌识别系统</title>
+  <link rel="stylesheet" href="/cpsb/css/base.css">
+  <style>
+    html,body{ margin:0; height:100%; background:var(--bg,#0f1620); color:var(--text,#e8edf2); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+    body:not(.authed) .app-shell{ display:none; }
+    .h5-header{ position:sticky; top:0; z-index:50; display:flex; align-items:center; gap:10px; padding:max(10px,env(safe-area-inset-top)) 14px 10px; background:rgba(29,39,51,.72); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border-bottom:1px solid rgba(255,255,255,.06); }
+    .h5-header .brand-logo.header-logo{ flex:0 0 auto; display:flex; align-items:center; }
+    .h5-header .brand-logo.header-logo .brand-logo-img{ max-height:36px; max-width:36px; }
+    .org-headline{ display:flex; flex-direction:column; line-height:1.15; }
+    .org-title{ font-weight:700; font-size:14px; color:#fff; }
+    .org-sub{ font-size:11px; color:var(--muted,#9fb0c0); margin-left:0; }
+    .h5-header .spacer{ flex:1; }
+    .channel-tag{ font-size:12px; color:var(--muted,#9fb0c0); background:rgba(255,255,255,.06); padding:3px 8px; border-radius:999px; }
+    .channel-tag .dot{ display:inline-block; width:7px; height:7px; border-radius:50%; background:#3ec46d; margin-right:5px; vertical-align:middle; }
+    .channel-tag.off .dot{ background:#e0533d; }
+    .top-user-area{ display:flex; align-items:center; }
+    .top-user-area .user-dropdown-toggle{ background:rgba(255,255,255,.06); border:none; color:var(--text,#e8edf2); padding:6px 10px; border-radius:999px; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px; }
+
+    .app-shell{ display:flex; flex-direction:column; height:100vh; }
+    .app-main{ flex:1; position:relative; overflow:hidden; }
+    .frame{ position:absolute; inset:0; width:100%; height:100%; border:none; background:var(--bg,#0f1620); }
+    .frame[hidden]{ display:none; }
+
+    /* 底部固定 Tab（单页切换：iframe 加载两个子页） */
+    .h5-tabbar{ position:fixed; left:0; right:0; bottom:0; z-index:60; height:calc(64px + env(safe-area-inset-bottom)); padding:6px 8px calc(6px + env(safe-area-inset-bottom)); display:flex; gap:6px; background:rgba(20,28,38,.78); backdrop-filter:blur(18px) saturate(180%); -webkit-backdrop-filter:blur(18px) saturate(180%); border-top:1px solid rgba(255,255,255,.06); box-shadow:0 -8px 24px rgba(0,0,0,.25); }
+    .h5-tabbar .tab{ flex:1; background:transparent; border:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:rgba(159,176,192,.85); font-size:12px; font-weight:500; letter-spacing:.3px; cursor:pointer; border-radius:14px; padding:6px 4px; transition:background .2s ease, color .2s ease, transform .12s ease; -webkit-tap-highlight-color:transparent; }
+    .h5-tabbar .tab:active{ transform:scale(.96); }
+    .h5-tabbar .tab .bt-icon{ font-size:22px; line-height:1; display:inline-flex; }
+    .h5-tabbar .tab .bt-icon svg{ width:22px; height:22px; display:block; }
+    .h5-tabbar .tab.active{ color:#fff; background:linear-gradient(180deg, rgba(58,122,254,.22), rgba(58,122,254,.10)); box-shadow:inset 0 0 0 1px rgba(58,122,254,.35), 0 2px 10px rgba(58,122,254,.18); }
+    .h5-tabbar .tab.active .bt-icon{ color:#5b8dff; }
+  </style>
 </head>
-<body class="guard-loading">
+<body>
+  <div id="auth-loading" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg,#0f1620);z-index:999;color:var(--muted,#9fb0c0);font-size:14px">正在校验登录…</div>
 
-<!-- 悬浮分享按钮 -->
-<button class="fab-share" onclick="copyLink()" aria-label="分享">
-  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="18" cy="5" r="3"></circle>
-    <circle cx="6" cy="12" r="3"></circle>
-    <circle cx="18" cy="19" r="3"></circle>
-    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-  </svg>
-</button>
+  <div class="app-shell">
+    <!-- 固定页头 -->
+    <header class="h5-header">
+      <div id="orgLogo" class="brand-logo header-logo"></div>
+      <div class="org-headline"><span class="org-title" id="orgName" data-site>乾明工作室</span><span class="org-sub">车牌识别系统</span></div>
+      <div class="spacer"></div>
+      <span id="topUser" class="top-user-area"></span>
+    </header>
 
-<!-- 顶部用户区（固定在页头，不随页面下拉消失） -->
-<div class="top-user" id="topUser"></div>
+    <main class="app-main">
+      <iframe id="frame-plate" class="frame" src="/cpsb/h5-plate.html"></iframe>
+      <iframe id="frame-vehicles" class="frame" src="/cpsb/h5-vehicles.html" hidden></iframe>
+    </main>
 
-<!-- 学校标识（随页面下拉滚动），排版对齐 logo2.png：左 LOGO + 右主副标题 + 底部英文 -->
-<div class="org-stack">
-  <div class="brand-logo" id="orgLogo"></div>
-  <div class="org-meta">
-    <div class="org-headline"><span class="org-title" id="orgName" data-site>乾明工作室</span><span class="org-sub">车牌识别系统</span></div>
-    <div class="org-en">Qianming License Plate Recognition System</div>
-  </div>
-</div>
-
-<!-- 标签 -->
-<div class="tabs">
-  <div class="tab active" id="tab-cam" onclick="switchTab('cam')">摄像头扫描</div>
-  <div class="tab" id="tab-q" onclick="switchTab('q')">输入查询</div>
-</div>
-
-<!-- 摄像头扫描面板 -->
-<div class="panel active" id="panel-cam">
-  <div class="cam-card">
-    <div class="cam-wrap">
-      <video id="video" autoplay playsinline muted></video>
-      <div class="cam-corner tl"></div><div class="cam-corner tr"></div>
-      <div class="cam-corner bl"></div><div class="cam-corner br"></div>
-      <div class="cam-reticle"></div>
-      <div class="scan-line"></div>
-      <button class="cam-torch hidden" id="torchBtn" onclick="toggleTorch()" aria-label="灯光">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2h6c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"></path>
-        </svg>
+    <!-- 底部固定 Tab -->
+    <nav class="h5-tabbar">
+      <button class="tab active" data-view="plate" onclick="switchView('plate')">
+        <span class="bt-icon" data-icon="ocr"></span><span>车牌识别</span>
       </button>
-      <div class="cam-status" id="camStatus">扫描中… 对准车牌保持 1~2 秒</div>
-      <div class="cam-mask hidden" id="camMask">
-        <button class="cam-resume" id="resumeBtn" onclick="resumeScan()">继续扫描</button>
+      <button class="tab" data-view="vehicles" onclick="switchView('vehicles')">
+        <span class="bt-icon" data-icon="vehicle"></span><span>车辆管理</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- 修改密码弹窗（id 与 h5/js/common.js 的 bindChangePwdEvents 对齐） -->
+  <div class="modal-mask" id="pwdModal">
+    <div class="modal">
+      <div class="modal-head"><span>修改密码</span><span class="x" id="pwdModalX">×</span></div>
+      <div class="modal-body">
+        <div class="form-row"><label>当前密码</label><input type="password" id="pwdOld" style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit"></div>
+        <div class="form-row" style="margin-top:10px"><label>新密码（至少 6 位）</label><input type="password" id="pwdNew" style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit"></div>
+        <div class="form-row" style="margin-top:10px"><label>确认新密码</label><input type="password" id="pwdNew2" style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit"></div>
+        <div id="pwdErr" style="color:#ff9a8a;font-size:13px;min-height:16px;margin-top:8px"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="pwdCancel">取消</button>
+        <button class="btn primary" id="pwdOk">确定修改</button>
       </div>
     </div>
   </div>
-  <div class="btn-row">
-    <button onclick="switchCam()">翻转镜头</button>
-    <button class="primary" id="stopBtn" onclick="toggleScan()">停止扫描</button>
-  </div>
-</div>
 
-<!-- 输入查询面板 -->
-<div class="panel" id="panel-q">
-  <div class="qbox">
-    <input id="qPlate" placeholder="输入车牌号，如：粤B12345" maxlength="10" autocomplete="off" autocapitalize="characters" inputmode="text" enterkeyhint="search" onblur="this.value=this.value.toUpperCase().replace(/[\s·\-.　]/g,'')" onkeydown="if(event.key==='Enter')queryPlate()">
-    <button onclick="queryPlate()">查询</button>
-  </div>
-  <div class="err" id="qErr"></div>
-</div>
+  <script src="/admin/js/icons.js"></script>
+  <script src="/cpsb/js/common.js"></script>
+  <script>
+  (function(){
+    if(!checkLogin()){
+      location.replace('login.html?redirect=' + encodeURIComponent('/cpsb/'));
+      return;
+    }
+    document.body.classList.add('authed');
+    const al = document.getElementById('auth-loading'); if(al) al.remove();
 
-<!-- 结果 -->
-<div class="result" id="result"></div>
+    applySiteName && applySiteName();
+    renderUserArea && renderUserArea();
+    applyBrandLogo && applyBrandLogo(document.getElementById('orgLogo'), 'icon');
+    bindChangePwdEvents && bindChangePwdEvents();
 
-<!-- 修改密码弹窗 -->
-<div class="modal-mask" id="pwdModal" style="display:none;align-items:center;justify-content:center">
-  <div class="modal" style="width:min(360px,92vw);max-width:360px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px">
-    <div class="modal-head" style="font-size:16px;font-weight:700;color:#fff;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
-      <span>修改密码</span>
-      <span class="x" id="pwdModalX" style="cursor:pointer;font-size:22px;color:var(--sub)">×</span>
-    </div>
-    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
-      <input type="password" id="pwdOld" class="login-input" placeholder="当前密码" autocomplete="current-password">
-      <input type="password" id="pwdNew" class="login-input" placeholder="新密码（至少6位）" autocomplete="new-password">
-      <input type="password" id="pwdNew2" class="login-input" placeholder="确认新密码" autocomplete="new-password">
-      <div class="err" id="pwdErr" style="min-height:18px;font-size:13px;color:#F76560"></div>
-    </div>
-    <div class="modal-foot" style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
-      <button class="btn" id="pwdCancel" style="padding:10px 18px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--sub)">取消</button>
-      <button class="btn primary" id="pwdOk" style="padding:10px 18px;border-radius:10px;border:none;background:var(--accent);color:#04283a;font-weight:600">确定修改</button>
-    </div>
-  </div>
-</div>
+    pingChannel();
+  })();
 
-<!-- 底部 -->
-<footer id="siteFooter">
-  © 2026 乾明工作室 版权所有<br>
-  <a href="javascript:void(0)" id="openUsage">使用说明</a> &nbsp;|&nbsp;
-  <a href="javascript:void(0)" id="openPrivacy">隐私权限</a> &nbsp;|&nbsp;
-  技术支持：<a href="#">乾明</a><br>
-  <span id="icpLine"></span>
-  <span id="policeLine"></span>
-</footer>
-
-<!-- 使用说明 / 隐私权限 模态框 -->
-<div class="modal-mask" id="usageModal" style="display:none;align-items:center;justify-content:center">
-  <div class="modal" style="width:min(680px,94vw);max-height:86vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px">
-    <div class="modal-head" style="font-size:17px;font-weight:700;color:#fff;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
-      <span>使用说明</span><span class="x" id="usageModalX" style="cursor:pointer;font-size:22px;line-height:1;color:var(--sub)">×</span>
-    </div>
-    <div class="modal-body" style="color:var(--sub);font-size:14px;line-height:1.8">
-      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
-        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">一、车牌识别</h3>
-        <p style="margin:0">打开首页，点击“摄像头扫描”，将车牌对准屏幕取景框并保持 1~2 秒，系统会自动识别车牌颜色与号码。若未识别成功，可点击“输入查询”手动输入车牌号查询。</p>
-      </div>
-      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
-        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">二、车辆管理</h3>
-        <p style="margin:0">通过底部“车辆管理”入口，可以添加、编辑、删除车辆信息。添加车辆时可填写车牌号、车主、部门、手机号、有效期与备注，支持单条录入与批量录入。</p>
-      </div>
-      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
-        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">三、账号说明</h3>
-        <p style="margin:0">点击顶部“当前用户”可展开下拉菜单，进行“修改密码”或“退出登录”。如忘记密码，请联系管理员重置。</p>
-      </div>
-      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px">
-        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">四、注意事项</h3>
-        <p style="margin:0">请在光线充足的环境下扫描，避免车牌反光、遮挡或污损。识别结果仅供参考，最终以人工核验为准。</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="modal-mask" id="privacyModal" style="display:none;align-items:center;justify-content:center">
-  <div class="modal" style="width:min(680px,94vw);max-height:86vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px">
-    <div class="modal-head" style="font-size:17px;font-weight:700;color:#fff;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
-      <span>隐私权限</span><span class="x" id="privacyModalX" style="cursor:pointer;font-size:22px;line-height:1;color:var(--sub)">×</span>
-    </div>
-    <div class="modal-body" style="color:var(--sub);font-size:14px;line-height:1.8">
-      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
-        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">一、信息收集与使用</h3>
-        <p style="margin:0">本系统仅收集您主动录入的车牌、车主、联系方式等车辆管理信息，用于识别、登记与查询。识别过程临时使用摄像头画面，不会长期保存无关影像。</p>
-      </div>
-      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
-        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">二、权限说明</h3>
-        <p style="margin:0">摄像头扫描功能需要您授权相机权限；若拒绝授权，仍可切换到“输入查询”模式手动使用。系统不会读取与业务无关的通讯录、位置、短信等隐私权限。</p>
-      </div>
-      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
-        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">三、数据存储</h3>
-        <p style="margin:0">车辆与账号数据存储于您部署本系统的服务器本地数据库中，不会主动向第三方传输。数据安全由部署方负责管理。</p>
-      </div>
-      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px">
-        <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">四、您的权利</h3>
-        <p style="margin:0">您可以随时查看、修改或删除您录入的车辆数据；停止使用后可联系管理员清除账号及相关信息。</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 底部 Tab（与 APP 一致：车牌识别 / 车辆管理） -->
-<nav class="bottom-tabs">
-  <button class="bottom-tab active" data-tab="cpsb" onclick="location.href='/cpsb/'">
-    <span class="bt-icon" data-icon="ocr"></span><span class="bt-label">车牌识别</span>
-  </button>
-  <button class="bottom-tab" data-tab="vehicles" onclick="location.href='/cpsb/h5-vehicles.html'">
-    <span class="bt-icon" data-icon="vehicle"></span><span class="bt-label">车辆管理</span>
-  </button>
-</nav>
-
-<script src="/admin/js/icons.js"></script>
-<script src="js/common.js"></script>
-<script src="js/query.js"></script>
-<script src="js/camera.js"></script>
-<script>
-/* 门禁：已登录（token 且后端有效）才初始化识别功能，否则跳登录页 */
-(async ()=>{
-  if(await checkLogin()){
-    document.body.classList.remove('guard-loading');
-    renderUserArea();
-    bindChangePwdEvents();
-    applySiteName();
-    applyFavicon();
-    applyBrandLogo(document.getElementById('orgLogo'), 'icon');
-    applyBeian();
-  } else {
-    goLogin();
+  // 探测识别通道是否可达（public 接口）
+  function pingChannel(){
+    const tag = document.getElementById('channelTag');
+    const txt = document.getElementById('channelText');
+    if(!tag || !txt) return;
+    fetch(API + '/api/settings/public').then(function(r){ return r.ok; }).then(function(ok){
+      if(ok){ tag.classList.remove('off'); txt.textContent = '通道正常'; }
+      else { tag.classList.add('off'); txt.textContent = '通道异常'; }
+    }).catch(function(){ tag.classList.add('off'); txt.textContent = '通道异常'; });
   }
-})();
 
-/* 使用说明 / 隐私权限 以模态框打开 */
-function openDoc(id){ const m=document.getElementById(id); if(m) m.classList.add('show'); }
-function closeDoc(id){ const m=document.getElementById(id); if(m) m.classList.remove('show'); }
-const usageModal=document.getElementById('usageModal');
-const privacyModal=document.getElementById('privacyModal');
-document.getElementById('openUsage').addEventListener('click', ()=>openDoc('usageModal'));
-document.getElementById('openPrivacy').addEventListener('click', ()=>openDoc('privacyModal'));
-document.getElementById('usageModalX').addEventListener('click', ()=>closeDoc('usageModal'));
-document.getElementById('privacyModalX').addEventListener('click', ()=>closeDoc('privacyModal'));
-usageModal.addEventListener('click', e=>{ if(e.target===usageModal) closeDoc('usageModal'); });
-privacyModal.addEventListener('click', e=>{ if(e.target===privacyModal) closeDoc('privacyModal'); });
+  /* 单页切换：显示对应 iframe，postMessage 控制子页摄像头 */
+  function switchView(name){
+    var fp = document.getElementById('frame-plate');
+    var fv = document.getElementById('frame-vehicles');
+    var tabs = document.querySelectorAll('.h5-tabbar .tab');
 
-/* 扫描/搜索结果下拉卡片需要归属地数据 */
-loadPlateAreas();
-</script>
+    if(name === 'vehicles'){
+      fp.hidden = true; fv.hidden = false;
+      postCam(fp, 'stop');              // 切走：停车牌页摄像头
+    } else {
+      fv.hidden = true; fp.hidden = false;
+      postCam(fp, 'start');             // 切回：启车牌页摄像头
+    }
+    tabs.forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-view') === name); });
+  }
+
+  function postCam(frame, action){
+    try { frame.contentWindow.postMessage({ type:'cam', action:action }, location.origin); } catch(e){}
+  }
+
+  // iframe 子页就绪后回报，父窗口再下发摄像头指令（避免时序丢失）
+  var plateReady = false;
+  window.addEventListener('message', function(e){
+    if(e.data && e.data.type === 'cam-ready'){
+      plateReady = true;
+      postCam(document.getElementById('frame-plate'), 'start');
+    }
+  });
+  // 兜底：load 后若子页已就绪则直接下发
+  window.addEventListener('load', function(){ if(plateReady) postCam(document.getElementById('frame-plate'), 'start'); });
+  </script>
 </body>
 </html>

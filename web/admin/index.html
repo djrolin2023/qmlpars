@@ -104,7 +104,7 @@
           if (policeLine) {
             const policeNo = d.POLICE_NO || '';
             if (policeNo) {
-              const code = String(policeNo).replace(/^[\u4e00-\u9fa5]公网安备/, '').replace(/号$/, '').trim();
+              const code = String(policeNo).replace(/^[\u4e00-\u9fa5]+公网安备/, '').replace(/号$/, '').trim();
               const url = ((d.POLICE_URL && d.POLICE_URL.indexOf('#') < 0)
                 ? d.POLICE_URL
                 : 'https://beian.mps.gov.cn/#/query/webSearch')

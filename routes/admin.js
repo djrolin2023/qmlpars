@@ -768,6 +768,35 @@ module.exports = function (ctx) {
     res.json({ success: true, message: '已保存，配置即时生效' })
   })
 
+  // OCR 通道连通性测试（验证凭证/接口是否可用，不强制识别到车牌）
+  const ocr = require('../ocr')
+  router.post('/api/admin/ocr-test', ...roleGate('admin', 'manager'), async (req, res) => {
+    const channel = String((req.body && req.body.channel) || '').trim()
+    const map = {
+      baidu: 'recognizeByBaidu',
+      tencent: 'recognizeByTencent',
+      aliyun: 'recognizeByAliyun',
+      huawei: 'recognizeByHuawei',
+      custom: 'recognizeByCustom'
+    }
+    const fn = ocr[map[channel]]
+    if (!fn) return res.status(400).json({ success: false, message: '未知 OCR 通道：' + channel })
+    // 1x1 透明 PNG，仅用于验证接口连通与鉴权，识别不到车牌属正常
+    const testImg = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    try {
+      await fn(testImg, null)
+      res.json({ success: true, ok: true, message: '连接成功，凭证有效' })
+    } catch (e) {
+      const msg = String(e && e.message || e)
+      // 接口已通（鉴权通过）但图片无法识别/格式不支持，说明凭证有效，判为连接成功
+      if (/未识别|未识别到车牌|未找到车牌|无法识别|无车牌|plate|OcrFailed|image format|image|图片/i.test(msg)) {
+        res.json({ success: true, ok: true, message: '连接成功（凭证有效，但未从测试图识别到车牌，属正常）' })
+      } else {
+        res.json({ success: true, ok: false, message: '连接失败：' + msg })
+      }
+    }
+  })
+
   // 9. 站点图片资源上传
   router.post('/api/admin/upload', ...roleGate('admin', 'manager'), upload.single('image'), async (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, message: '请选择图片' })

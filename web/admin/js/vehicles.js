@@ -18,8 +18,8 @@ function formatPlate(plate) {
   return p
 }
 function unformatPlate(plate) {
-  // 去除各种可能出现的「圆点/分隔符」变体（中间点·、项目符号•、片假名中点・、全角句号．等），避免 OCR 误识导致归属地/查重失效
-  return String(plate || '').replace(/[·•・．・]/g, '').replace(/\s+/g, '').toUpperCase()
+  // 去除各种可能出现的「圆点/分隔符/新能源图标误识」变体（中间点·、项目符号•、片假名中点・、全角句号．、短横-、波浪~、下划线_、全角空格　等），避免 OCR 误识导致归属地/查重失效
+  return String(plate || '').replace(/[·•・．・\-~_　]/g, '').replace(/\s+/g, '').toUpperCase()
 }
 function isValidPlate(p) {
   return PLATE_RE.test(unformatPlate(p))
@@ -94,8 +94,6 @@ function checkPlateDuplicate(plate) {
       })
       .catch(() => { if (dup) dup.style.display = 'none'; });
   }, 350);
-}
-  return true;
 }
 
 // ---------- 有效期日期选择器（开始 ~ 结束，自动计算） ----------
@@ -296,7 +294,7 @@ function initVehicles() {
     // 仅做大写 / 去空格，不在此插入「·」分隔符，避免打断移动端英文（九宫格）输入
     plateInput.addEventListener('input', e => {
       const el = e.target;
-      const v = el.value.toUpperCase().replace(/\s+/g, '').replace(/[·•・．・]/g, '');
+      const v = el.value.toUpperCase().replace(/\s+/g, '').replace(/[·•・．・\-~_　]/g, '');
       if (el.value !== v) {
         const start = el.selectionStart;
         el.value = v;
@@ -422,8 +420,8 @@ async function loadVehicles() {
           <td>${formatValidCell(v.validUntil)}</td>
           <td class="remark-cell">${esc(v.remark || '')}</td>
           <td>
-            <button class="btn sm danger" onclick="delVehicle(${v.id})">删除</button>
             <button class="btn sm warn" onclick="editVehicle(${v.id})">编辑</button>
+            <button class="btn sm danger" onclick="delVehicle(${v.id})">删除</button>
           </td>
         </tr>`;
       }).join('');
@@ -604,9 +602,9 @@ async function saveVehicle() {
   }
 }
 
-function delVehicle(id) {
+async function delVehicle(id) {
   const v = vRows[id] || {};
-  if (!confirm('确定删除车辆 ' + (v.plateNo || id) + ' 吗？')) return;
+  if (!(await confirmModal('删除车辆', '确定删除车辆 ' + (v.plateNo || id) + ' 吗？', '删除', true))) return;
   api('/api/admin/vehicles/' + id, { method: 'DELETE' }).then(r => {
     if (r.success) { toast('已删除'); selectedIds.delete(id); loadVehicles(); }
     else toast(r.message || '删除失败');
@@ -624,7 +622,7 @@ function updateSelCount() {
 
 async function batchDelete() {
   if (!selectedIds.size) { toast('请先勾选要删除的车辆', 'error'); return; }
-  if (!confirm(`确定删除选中的 ${selectedIds.size} 辆车？`)) return;
+  if (!(await confirmModal('批量删除', `确定删除选中的 ${selectedIds.size} 辆车？`, '删除', true))) return;
   try {
     const r = await api('/api/admin/vehicles/batch-delete', {
       method: 'POST',

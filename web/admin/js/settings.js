@@ -97,9 +97,8 @@ function initSettings() {
   function renderAll() {
     document.getElementById('site-fields').innerHTML = GROUPS.site.map(fieldHtml).join('')
     document.getElementById('icp-fields').innerHTML = GROUPS.icp.map(fieldHtml).join('')
-    renderOcrCards()
+    renderOcrPanel()
     renderImg()
-    renderFooter()
   }
 
   function renderImg() {
@@ -159,13 +158,6 @@ function initSettings() {
     }
   }
 
-  function renderFooter() {
-    const cn = store.COMPANY_NAME ? store.COMPANY_NAME.value : ''
-    const foot = document.getElementById('site-footer-text')
-    foot.style.cssText = 'margin-top:26px;color:#64748b;font-size:12px;text-align:center'
-    foot.innerHTML = (cn ? cn : '')
-  }
-
   function collect(keys) {
     const obj = {}
     for (const key of keys) {
@@ -179,7 +171,8 @@ function initSettings() {
     return obj
   }
 
-  // OCR 通道定义（卡片式，独立保存）
+  // OCR 通道定义（标签切换，独立保存）
+  let currentOcr = 'baidu'
   const OCR_CHANNELS = [
     {
       id: 'baidu', name: '百度 OCR', badge: '主通道', badgeCls: 'green',
@@ -208,50 +201,114 @@ function initSettings() {
     }
   ]
 
-  function ocrCardFieldHtml(key) {
+  function ocrFieldHtml(key) {
     const s = store[key] || { value: '', secret: false }
     const label = LABELS[key] || key
     const ph = PLACEHOLDERS[key] || ''
     const isLong = /_BODY_TEMPLATE$|_HEADERS$/.test(key)
-    const input = isLong
-      ? `<textarea data-key="${key}" rows="3" placeholder="${ph}">${escapeAttr(s.value)}</textarea>`
-      : `<input type="text" data-key="${key}" value="${escapeAttr(s.value)}" placeholder="${ph}">`
-    const hint = s.secret ? '<div class="hint">留空则不修改</div>' : ''
+    const configured = !!(s.value && s.value.trim())
+    let ctrl
+    if (s.secret) {
+      // 当前值为后端脱敏串（含 * 或 •）时，视为已配置；默认 password 隐藏
+      const masked = configured && /[•*]/.test(s.value)
+      ctrl = `<div class="ocr-input-wrap">
+        <input type="password" data-key="${key}" data-secret="1" data-masked="${masked ? 1 : 0}" value="${escapeAttr(s.value)}" placeholder="${ph}" autocomplete="new-password">
+        <button type="button" class="ocr-eye" data-eye="${key}" data-show="0" title="显示 / 隐藏" aria-label="显示或隐藏">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path class="eye-open" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/>
+            <circle class="eye-open" cx="12" cy="12" r="3"/>
+            <line class="eye-off" x1="3" y1="3" x2="21" y2="21" style="display:none"/>
+          </svg>
+        </button>
+        <button type="button" class="ocr-clear" data-clear="${key}" title="清空并重填">✕</button>
+      </div>`
+      const hint = `<div class="hint"><span class="ocr-dot ${configured ? 'on' : 'off'}"></span>${configured ? '已配置' : '未配置'} · 留空保存表示「不修改」；点眼睛查看掩码，点 ✕ 清空后重填</div>`
+      return `<div class="ocr-field">
+        <label>${label}</label>
+        ${ctrl}
+        ${hint}
+      </div>`
+    }
+    if (isLong) {
+      ctrl = `<textarea data-key="${key}" rows="3" placeholder="${ph}">${escapeAttr(s.value)}</textarea>`
+    } else {
+      ctrl = `<input type="text" data-key="${key}" value="${escapeAttr(s.value)}" placeholder="${ph}">`
+    }
     return `<div class="ocr-field">
       <label>${label}</label>
-      ${input}
-      ${hint}
+      ${ctrl}
     </div>`
   }
 
-  function renderOcrCards() {
+  // Tab 标签栏 + 主通道下拉
+  function renderOcrTabs(activeId) {
+    const tabs = document.getElementById('ocr-tabs')
+    tabs.innerHTML = OCR_CHANNELS.map(ch => {
+      const enabled = ch.keys.some(k => store[k] && store[k].secret && store[k].value)
+      return `<button type="button" class="ocr-tab ${ch.id === activeId ? 'active' : ''}" data-tab="${ch.id}">
+        ${ch.name}<span class="ocr-dot ${enabled ? 'on' : 'off'}"></span>
+      </button>`
+    }).join('')
+    tabs.querySelectorAll('.ocr-tab').forEach(b => {
+      b.addEventListener('click', () => { currentOcr = b.getAttribute('data-tab'); renderOcrPanel() })
+    })
+    const main = document.getElementById('ocr-main')
+    main.innerHTML = OCR_CHANNELS.map(ch => `<option value="${ch.id}">${ch.name}</option>`).join('')
+    main.value = (store.OCR_MAIN_CHANNEL && store.OCR_MAIN_CHANNEL.value) || 'baidu'
+    main.onchange = async () => {
+      const old = main.value
+      try {
+        const r = await api(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ OCR_MAIN_CHANNEL: main.value }) })
+        if (!r.success) throw new Error(r.message || '保存失败')
+        toast('主识别通道已设为：' + (OCR_CHANNELS.find(c => c.id === main.value) || {}).name)
+        await load()
+      } catch (e) { toast(e.message); main.value = old }
+    }
+  }
+
+  function renderOcrPanel() {
+    renderOcrTabs(currentOcr)
+    const ch = OCR_CHANNELS.find(c => c.id === currentOcr) || OCR_CHANNELS[0]
     const wrap = document.getElementById('ocr-cards')
-    wrap.innerHTML = OCR_CHANNELS.map(ch => {
-      const fields = ch.keys.map(ocrCardFieldHtml).join('')
-      return `<div class="ocr-card" data-ch="${ch.id}">
-        <div class="ocr-card-head">
+    wrap.innerHTML = `<div class="ocr-card" data-ch="${ch.id}">
+      <div class="ocr-card-head">
+        <div class="ocr-card-title-wrap">
           <span class="ocr-card-title">${ch.name}</span>
           <span class="badge ${ch.badgeCls}">${ch.badge}</span>
-          <button type="button" class="ocr-tut-btn" data-tut="${ch.id}" title="查看配置教程">?</button>
         </div>
-        <div class="ocr-card-body">${fields}</div>
-        <div class="ocr-card-foot">
-          <button type="button" class="btn primary ocr-save" data-save="${ch.id}">保存此通道</button>
-        </div>
-      </div>`
-    }).join('')
+        <button type="button" class="ocr-tut-btn" data-tut="${ch.id}">配置教程 ›</button>
+      </div>
+      <div class="ocr-card-body">${ch.keys.map(ocrFieldHtml).join('')}</div>
+      <div class="ocr-test-result" id="ocr-test-result" style="display:none"></div>
+      <div class="ocr-card-foot">
+        <button type="button" class="btn ghost ocr-test" data-test="${ch.id}">测试连接</button>
+        <button type="button" class="btn primary ocr-save" data-save="${ch.id}">保存此通道</button>
+      </div>
+    </div>`
 
-    // 教程按钮
-    wrap.querySelectorAll('.ocr-tut-btn').forEach(b => {
-      b.addEventListener('click', () => openOcrTut(b.getAttribute('data-tut')))
-    })
-    // 保存按钮
-    wrap.querySelectorAll('.ocr-save').forEach(b => {
-      b.addEventListener('click', () => {
-        const ch = OCR_CHANNELS.find(c => c.id === b.getAttribute('data-save'))
-        saveOcrChannel(ch, b)
-      })
-    })
+    wrap.querySelectorAll('.ocr-tut-btn').forEach(b => b.addEventListener('click', () => openOcrTut(b.getAttribute('data-tut'))))
+    wrap.querySelectorAll('.ocr-save').forEach(b => b.addEventListener('click', () => {
+      const c = OCR_CHANNELS.find(x => x.id === b.getAttribute('data-save')); saveOcrChannel(c, b)
+    }))
+    wrap.querySelectorAll('.ocr-test').forEach(b => b.addEventListener('click', () => {
+      const c = OCR_CHANNELS.find(x => x.id === b.getAttribute('data-test')); testOcrChannel(c, b)
+    }))
+    // 眼睛切换（SVG 睁眼 / 闭眼）
+    wrap.querySelectorAll('.ocr-eye').forEach(b => b.addEventListener('click', () => {
+      const k = b.getAttribute('data-eye')
+      const inp = wrap.querySelector(`input[data-key="${k}"]`)
+      if (!inp) return
+      const show = b.getAttribute('data-show') !== '1'
+      inp.type = show ? 'text' : 'password'
+      b.setAttribute('data-show', show ? '1' : '0')
+      b.classList.toggle('showing', show)
+    }))
+    // 清空重填
+    wrap.querySelectorAll('.ocr-clear').forEach(b => b.addEventListener('click', () => {
+      const k = b.getAttribute('data-clear')
+      const inp = wrap.querySelector(`input[data-key="${k}"]`)
+      if (inp) { inp.value = ''; inp.type = 'text'; inp.focus() }
+    }))
   }
 
   async function saveOcrChannel(ch, btn) {
@@ -264,6 +321,31 @@ function initSettings() {
       await load() // 重新拉取，刷新脱敏值
     } catch (e) {
       toast(e.message)
+    } finally { btn.disabled = false; btn.textContent = old }
+  }
+
+  async function testOcrChannel(ch, btn) {
+    const old = btn.textContent
+    const box = document.getElementById('ocr-test-result')
+    box.style.display = 'block'
+    box.className = 'ocr-test-result testing'
+    box.textContent = '测试中…（使用当前已保存的凭证）'
+    btn.disabled = true; btn.textContent = '测试中…'
+    try {
+      // 先保存再测试，确保用最新凭证
+      const obj = collect(ch.keys)
+      await api(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) })
+      const r = await api('/api/admin/ocr-test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: ch.id }) })
+      if (r.ok) {
+        box.className = 'ocr-test-result ok'
+        box.innerHTML = '✓ <strong>连接成功</strong> · ' + escapeHtml(r.message || '凭证有效')
+      } else {
+        box.className = 'ocr-test-result fail'
+        box.innerHTML = '✗ <strong>连接失败</strong> · ' + escapeHtml(r.message || '未知错误')
+      }
+    } catch (e) {
+      box.className = 'ocr-test-result fail'
+      box.innerHTML = '✗ <strong>连接失败</strong> · ' + escapeHtml(e.message)
     } finally { btn.disabled = false; btn.textContent = old }
   }
 
@@ -324,5 +406,8 @@ function initSettings() {
 }
 
 function escapeAttr(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+}
+function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 }

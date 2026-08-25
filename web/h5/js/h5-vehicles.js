@@ -18,8 +18,8 @@ function formatPlate(plate) {
   return p
 }
 function unformatPlate(plate) {
-  // 去除各种可能出现的「圆点/分隔符」变体（中间点·、项目符号•、片假名中点・、全角句号．等），避免 OCR 误识导致归属地/查重失效
-  return String(plate || '').replace(/[·•・．・]/g, '').replace(/\s+/g, '').toUpperCase()
+  // 去除各种可能出现的「圆点/分隔符/新能源图标误识」变体（中间点·、项目符号•、片假名中点・、全角句号．、短横-、波浪~、下划线_、全角空格　等），避免 OCR 误识导致归属地/查重失效
+  return String(plate || '').replace(/[·•・．・\-~_　]/g, '').replace(/\s+/g, '').toUpperCase()
 }
 function isValidPlate(p) {
   return PLATE_RE.test(unformatPlate(p))
@@ -287,7 +287,7 @@ function initVehicles() {
     // 仅做大写 / 去空格，不在此插入「·」分隔符，避免打断移动端英文（九宫格）输入
     plateInput.addEventListener('input', e => {
       const el = e.target;
-      const v = el.value.toUpperCase().replace(/\s+/g, '').replace(/[·•・．・]/g, '');
+      const v = el.value.toUpperCase().replace(/\s+/g, '').replace(/[·•・．・\-~_　]/g, '');
       if (el.value !== v) {
         const start = el.selectionStart;
         el.value = v;
@@ -354,14 +354,15 @@ async function loadDepFilter() {
   } catch (e) { /* 忽略，保留默认全部部门 */ }
 }
 
-// 车牌类型判断（蓝/黄/绿/白）
+// 车牌类型判断（蓝/黄/绿/白）。新能源（绿牌）以「省份+字母+第3位 D/F」为判据，中间渲染 ev-plate-mark.png 图标
 function plateType(plate) {
   const p = String(plate || '').toUpperCase().replace(/\s+/g, '').replace(/·/g, '');
   if (/使|领|警|O|WJ/.test(p)) return 'white';
   if (/挂|学|港|澳/.test(p)) return 'yellow';
-  const body = p.slice(1);
+  const body = p.slice(1);                 // 城市字母 + 余下号码
+  // 新能源绿牌：城市字母后紧跟 D 或 F（小型车 6 位后缀 / 大型车 5 位后缀均涵盖）
+  if (/^[A-Z][DF]/.test(body)) return 'green';
   if (/^[A-Z][0-9A-Z]{5}$/.test(body)) return 'blue';
-  if (/^[A-Z][0-9A-Z]{6}$/.test(body)) return 'green';
   if (/^[A-Z][0-9]{4,}[A-Z]?$/.test(body)) return 'yellow';
   return 'blue';
 }
@@ -407,23 +408,19 @@ async function loadVehicles() {
       tbody.innerHTML = list.map(v => {
         const deps = (v.department || '').split(/[,，]/).map(s => s.trim()).filter(Boolean);
         const depHtml = deps.length
-          ? deps.map(d => '<span class="plate-dep">' + esc(d) + '</span>').join('')
-          : '<span style="color:#5b6b80;font-size:12px">未分配部门</span>';
+          ? deps.map(d => '<span class="vc-tag">' + esc(d) + '</span>').join('')
+          : '';
         const hasPhoto = !!(v.photo && String(v.photo).trim());
-        const photoTag = hasPhoto
-          ? '<span class="plate-photo has" title="已上传车辆图片">' +
-              '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9 3l-1.5 2H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.5L15 3H9zm3 5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zm0 2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg></span>'
-          : '<span class="plate-photo none" title="未上传车辆图片">' +
-              '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">' +
-                '<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 8l1.5-3.5h13L20 8"/>' +
-                '<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 8h16v11H4z"/>' +
-                '<circle cx="12" cy="13" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/>' +
-                '<line x1="5" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
-              '</svg></span>';
-        return `<div class="plate-btn" onclick="openDetail(${v.id})">
-          ${plateHtml(v.plateNo)}
-          <div class="plate-meta">车主：<b>${esc(v.owner || '-')}</b>${photoTag}</div>
-          <div class="plate-tags">${depHtml}</div>
+        const photoHtml = hasPhoto
+          ? '<div class="vc-thumb" onclick="event.stopPropagation();zoomPhoto(\'' + esc(v.photoUrl) + '\')"><img src="' + esc(v.photoUrl) + '" alt="" onerror="this.classList.add(\'broken\')"></div>'
+          : '<div class="vc-thumb no-photo" title="未上传车辆图片"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M4 8l1.5-3.5h13L20 8"/><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M4 8h16v11H4z"/><circle cx="12" cy="13" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="5.5" y1="5.5" x2="18.5" y2="18.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>';
+        return `<div class="vehicle-card" data-id="${v.id}" onclick="openDetail(${v.id})">
+          <div class="vc-plate-row">${plateHtml(v.plateNo)}</div>
+          <div class="vc-row">
+            <div class="vc-meta">车主：<b>${esc(v.owner || '-')}</b></div>
+            ${photoHtml}
+          </div>
+          ${depHtml ? '<div class="vc-tags">' + depHtml + '</div>' : ''}
         </div>`;
       }).join('');
       document.getElementById('empty').style.display = 'none';
@@ -594,13 +591,18 @@ async function saveVehicle() {
   }
 }
 
-function delVehicle(id) {
+async function delVehicle(id) {
   const v = vRows[id] || {};
-  if (!confirm('确定删除车辆 ' + (v.plateNo || id) + ' 吗？')) return;
+  if (!(await confirmModal('删除车辆', '确定删除车辆 ' + (v.plateNo || id) + ' 吗？', '删除', true))) return;
   api('/api/admin/vehicles/' + id, { method: 'DELETE' }).then(r => {
     if (r.success) { toast('已删除'); selectedIds.delete(id); loadVehicles(); }
     else toast(r.message || '删除失败');
   }).catch(e => toast('删除失败：' + e.message));
+}
+
+function toggleSelect(id, checked) {
+  if (checked) selectedIds.add(id); else selectedIds.delete(id);
+  updateSelCount();
 }
 
 function updateSelCount() {
@@ -614,7 +616,7 @@ function updateSelCount() {
 
 async function batchDelete() {
   if (!selectedIds.size) { toast('请先勾选要删除的车辆', 'error'); return; }
-  if (!confirm(`确定删除选中的 ${selectedIds.size} 辆车？`)) return;
+  if (!(await confirmModal('批量删除', `确定删除选中的 ${selectedIds.size} 辆车？`, '删除', true))) return;
   try {
     const r = await api('/api/admin/vehicles/batch-delete', {
       method: 'POST',

@@ -72,6 +72,30 @@ function toast(msg, type) {
   _toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
 }
 
+// 通用模态确认框（替代原生 confirm），返回 Promise<boolean>
+function confirmModal(title, message, confirmText, danger) {
+  return new Promise(resolve => {
+    const id = 'confirm-modal-' + Date.now();
+    const mask = document.createElement('div');
+    mask.className = 'modal-mask show';
+    mask.id = id;
+    mask.innerHTML =
+      '<div class="modal confirm-modal">' +
+        '<div class="modal-head"><span>' + escapeHtml(title || '确认操作') + '</span></div>' +
+        '<div class="modal-body"><p class="confirm-msg">' + escapeHtml(message || '') + '</p></div>' +
+        '<div class="modal-foot">' +
+          '<button class="btn" data-act="cancel">取消</button>' +
+          '<button class="btn ' + (danger ? 'danger' : 'primary') + '" data-act="ok">' + escapeHtml(confirmText || '确定') + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(mask);
+    const close = (val) => { mask.remove(); resolve(val); };
+    mask.querySelector('[data-act="cancel"]').onclick = () => close(false);
+    mask.querySelector('[data-act="ok"]').onclick = () => close(true);
+    // 点击遮罩不关闭，避免误触；仅按钮可确认
+  });
+}
+
 function esc(s) { return escapeHtml(s); }
 
 async function loadDeps(selectId, cb, withAll) {
@@ -244,22 +268,35 @@ function bindMenuToggle() {
   if (t && s) t.onclick = () => s.classList.toggle('open');
 }
 
-// 页脚版权：公司名 + ICP + 公安备案（不依赖不存在的老接口）
+// 公安备案编号提取：去掉「<省简称>公网安备」前缀（兼容粤/京/沪等任意省份，1+个汉字）与结尾「号」字
+function normalizePoliceCode(no) {
+  return String(no || '').replace(/^[\u4e00-\u9fa5]+公网安备/, '').replace(/号$/, '').trim();
+}
+
+// 统一页脚：单行 © + 技术支持 + ICP + 公安备案（全部从后台「备案信息」读取，不硬编码）
 async function loadSiteFooter() {
   const el = document.getElementById('site-footer-text');
   if (!el) return;
   const year = new Date().getFullYear();
-  let txt = '© ' + year + ' 乾明车牌识别系统 版权所有';
+  let icpNo = '', policeNo = '', policeUrl = '';
   try {
     const data = await api('/api/settings/public');
     const s = (data && data.data) ? data.data : {};
-    const parts = [];
-    if (s.COMPANY_NAME) parts.push(s.COMPANY_NAME);
-    if (s.ICP_NO) parts.push('ICP备' + s.ICP_NO + '号');
-    if (s.POLICE_NO) parts.push(s.POLICE_NO);
-    if (parts.length) txt = '© ' + year + ' ' + parts.join('　') + '　版权所有';
-  } catch (e) { /* 保持默认版权 */ }
-  el.textContent = txt;
+    icpNo = s.ICP_NO || '';
+    policeNo = s.POLICE_NO || '';
+    policeUrl = s.POLICE_URL || '';
+  } catch (e) { /* 保持空白 */ }
+  const icpPart = icpNo ? `<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">${escapeHtml(icpNo)}</a>` : '';
+  const code = policeNo ? normalizePoliceCode(policeNo) : '';
+  const pLink = policeUrl && policeUrl.indexOf('#') < 0
+    ? policeUrl + (code ? '?code=' + encodeURIComponent(code) : '')
+    : 'https://beian.mps.gov.cn/#/query/webSearch' + (code ? '?code=' + encodeURIComponent(code) : '');
+  const policePart = policeNo
+    ? `<a href="${pLink}" target="_blank" rel="noopener" class="police-link"><img src="/static/images/police.png" class="police" alt="公安备案"> ${escapeHtml(policeNo)}</a>`
+    : '';
+  el.innerHTML =
+    '© ' + year + ' 乾明工作室 版权所有 | 技术支持：乾明' +
+    '<div class="beian-line">' + icpPart + (icpPart && policePart ? '　' : '') + policePart + '</div>';
 }
 
 // 页面公共初始化（每个业务页末尾调用）

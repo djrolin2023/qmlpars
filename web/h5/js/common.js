@@ -125,66 +125,39 @@ async function applyBrandLogo(container, variant){
    备案号格式为「<省简称>公网安备<编号>号」（如 粤公网安备…号 / 京公网安备…号），
    提取其中的编号时，去掉开头的「X公网安备」前缀与结尾的「号」字；图标在前、编号文字在右。 */
 function normalizePoliceCode(no){
-  return String(no||'').replace(/^[\u4e00-\u9fa5]公网安备/, '').replace(/号$/, '').trim();
+  return String(no||'').replace(/^[\u4e00-\u9fa5]+公网安备/, '').replace(/号$/, '').trim();
+}
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 async function applyBeian(){
-  // 容器
-  const icpLine=document.getElementById('icpLine');
-  const policeLine=document.getElementById('policeLine');
-  let data={};
+  // 登录页 / 手机端 / APP 端：两行显示（第1行版权+技术支持，第2行备案号），全部从后台「备案信息」读取，不硬编码
+  const cr=document.getElementById('copyrightLine');
+  const beian=document.getElementById('beianLine');
+  const year=new Date().getFullYear();
+  let icpNo='', policeNo='', policeUrl='', policeIconUrl='';
   try{
     const r=await fetch(API+'/api/settings/public');
     const j=await r.json();
-    if(j&&j.success&&j.data) data=j.data;
+    if(j&&j.success&&j.data){
+      icpNo=j.data.ICP_NO||'';
+      policeNo=j.data.POLICE_NO||'';
+      policeUrl=j.data.POLICE_URL||'';
+      policeIconUrl=j.data.POLICE_ICON_URL||'';
+    }
   }catch(_){}
-
-  // ICP 备案号
-  if(icpLine){
-    const icpNo=data.ICP_NO||'';
-    if(icpNo){
-      const a=document.createElement('a');
-      a.href='https://beian.miit.gov.cn/';
-      a.target='_blank'; a.rel='noopener';
-      a.textContent=icpNo;
-      icpLine.appendChild(a);
-    } else {
-      icpLine.style.display='none';
-    }
+  if(cr){
+    cr.innerHTML='© '+year+' 乾明工作室 版权所有 | 技术支持：乾明';
   }
-
-  // 公安备案号（图标 + 编号）
-  if(policeLine){
-    const policeNo=data.POLICE_NO||'';
-    if(policeNo){
-      const code=normalizePoliceCode(policeNo);
-      const url=(data.POLICE_URL && data.POLICE_URL.indexOf('#')<0
-        ? data.POLICE_URL
-        : 'https://beian.mps.gov.cn/#/query/webSearch')
-        + (code ? '?code='+encodeURIComponent(code) : '');
-      const a=document.createElement('a');
-      a.href=url; a.target='_blank'; a.rel='noopener';
-      a.style.cssText='display:inline-flex;align-items:center;gap:4px;text-decoration:none;';
-      const icon=document.createElement('img');
-      icon.className='police';
-      icon.src=data.POLICE_ICON_URL || '/static/images/police.png';
-      icon.alt='';
-      icon.onerror=()=>{ icon.style.display='none'; };
-      const span=document.createElement('span');
-      span.textContent=policeNo;
-      a.appendChild(icon);
-      a.appendChild(span);
-      policeLine.appendChild(a);
-    } else {
-      policeLine.style.display='none';
-    }
-  }
-
-  // ICP 与公安备案号之间用 “| ” 分隔（仅当两者都存在时显示）
-  if (icpLine && policeLine && data.ICP_NO && data.POLICE_NO) {
-    const sep = document.createElement('span');
-    sep.className = 'beian-sep';
-    sep.textContent = ' | ';
-    policeLine.parentNode.insertBefore(sep, policeLine);
+  if(beian){
+    const icpPart=icpNo?`<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">${escapeHtml(icpNo)}</a>`:'';
+    const policeLink=policeUrl && policeUrl.indexOf('#')<0
+      ? policeUrl + (policeNo ? '?code='+encodeURIComponent(normalizePoliceCode(policeNo)) : '')
+      : 'https://beian.mps.gov.cn/#/query/webSearch' + (policeNo ? '?code='+encodeURIComponent(normalizePoliceCode(policeNo)) : '');
+    const policePart=policeNo
+      ? `<a href="${policeLink}" rel="noopener" class="police-link"><img src="${policeIconUrl||'/static/images/police.png'}" class="police" alt="公安备案" onerror="this.style.display='none'"> ${escapeHtml(policeNo)}</a>`
+      : '';
+    beian.innerHTML=icpPart + (icpPart && policePart ? '　' : '') + policePart;
   }
 }
 
@@ -223,7 +196,7 @@ function renderUserArea(){
   if(!token) return;
   const wrap=document.createElement('div'); wrap.className='user-dropdown';
   const toggle=document.createElement('button'); toggle.className='user-dropdown-toggle';
-  toggle.innerHTML='<span class="user-dropdown-name">当前用户：加载中…</span><span class="caret">▼</span>';
+  toggle.innerHTML='<span class="user-dropdown-name">加载中…</span><span class="caret">▼</span>';
   const menu=document.createElement('div'); menu.className='user-dropdown-menu';
   menu.innerHTML='<button class="user-dropdown-item" data-action="changePwd">修改密码</button><button class="user-dropdown-item" data-action="logout">退出登录</button>';
   wrap.appendChild(toggle); wrap.appendChild(menu); topUser.appendChild(wrap);
@@ -240,7 +213,7 @@ function renderUserArea(){
   });
 
   fetch(API+'/api/auth/me',{headers:{'x-user-token':token}}).then(r=>r.json()).then(j=>{
-    if(j&&j.success&&j.data){ toggle.querySelector('.user-dropdown-name').textContent='当前用户：'+(j.data.name?j.data.name+'（'+j.data.username+'）':j.data.username); }
+    if(j&&j.success&&j.data){ toggle.querySelector('.user-dropdown-name').textContent=(j.data.name?j.data.name+'（'+j.data.username+'）':j.data.username); }
     else { toggle.querySelector('.user-dropdown-name').textContent='已登录'; }
   }).catch(()=>{ toggle.querySelector('.user-dropdown-name').textContent='已登录'; });
 }
@@ -454,10 +427,9 @@ function plateType(plate){
   const p = String(plate || '').toUpperCase().replace(/\s+/g,'').replace(/·/g,'');
   if(/使|领|警/.test(p) || /WJ$/.test(p) || /O$/.test(p)) return 'white';
   if(/挂$/.test(p) || /学$/.test(p) || /港$/.test(p) || /澳$/.test(p)) return 'yellow';
-  // 去掉尾部单字符后缀（如 "挂"），再看 body
   const body = p.slice(1);
-  // 新能源：body 7 位 = 字母+字母/数字+5 字符  或  字母+6 字符
-  if(/^[A-Z][0-9A-Z]{6}$/.test(body)) return 'green';
+  // 新能源绿牌：城市字母后紧跟 D 或 F（小型车 6 位后缀 / 大型车 5 位后缀均涵盖），中间渲染 ev-plate-mark.png 图标
+  if(/^[A-Z][DF]/.test(body)) return 'green';
   // 其他 6/7 位普通车牌 → 蓝牌（小型车）
   return 'blue';
 }
@@ -633,6 +605,28 @@ function toast(msg){
   if(!t){ t=document.createElement('div'); t.id='toast'; t.style.cssText='position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:60;background:rgba(29,39,51,.92);color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.35);transition:opacity .3s;'; document.body.appendChild(t); }
   t.textContent=msg; t.style.opacity='1';
   clearTimeout(t._timer); t._timer=setTimeout(()=>{ t.style.opacity='0'; }, 1800);
+}
+// 通用模态确认框（替代原生 confirm），返回 Promise<boolean>
+function confirmModal(title, message, confirmText, danger) {
+  return new Promise(resolve => {
+    const id = 'confirm-modal-' + Date.now();
+    const mask = document.createElement('div');
+    mask.className = 'modal-mask show';
+    mask.id = id;
+    mask.innerHTML =
+      '<div class="modal confirm-modal">' +
+        '<div class="modal-head"><span>' + escapeHtml(title || '确认操作') + '</span></div>' +
+        '<div class="modal-body"><p class="confirm-msg">' + escapeHtml(message || '') + '</p></div>' +
+        '<div class="modal-foot">' +
+          '<button class="btn" data-act="cancel">取消</button>' +
+          '<button class="btn ' + (danger ? 'danger' : 'primary') + '" data-act="ok">' + escapeHtml(confirmText || '确定') + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(mask);
+    const close = (val) => { mask.remove(); resolve(val); };
+    mask.querySelector('[data-act="cancel"]').onclick = () => close(false);
+    mask.querySelector('[data-act="ok"]').onclick = () => close(true);
+  });
 }
 async function copyLink(){
   const url=location.href;
