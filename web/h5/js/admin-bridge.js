@@ -41,7 +41,9 @@ async function api(path, opts = {}, retries = 2) {
   try {
     const res = await fetch(API + path, Object.assign({}, rest, { headers }));
     if (res.status === 401) {
-      if (!noLogout) doLogout();
+      // 注意：H5 车辆页运行在 /cpsb/ 的 iframe 内，若此处自动 doLogout() 顶层跳 /admin/login.html，
+      // 会把整个手机 webview 带走，用户看到“管理后台登录页”。改为仅抛出错误，
+      // 由调用方（如 loadVehicles 的 catch）显示“登录已失效，点击重新登录”提示，用户主动点击才跳。
       throw new Error('未授权，请重新登录');
     }
     let data = null;

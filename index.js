@@ -201,7 +201,7 @@ fs.mkdirSync(staticDir, { recursive: true })
 //       反而导致旧 h5-vehicles.html（含 location.replace('/admin/login.html')）被执行、跳后台。
 //       子页面统一由父页 iframe 的 src 直接带 ?v= 参数请求（见 web/h5/index.html），服务器直接返回 200 新版。
 // 每次修复前端后把 CACHE_BUST 改新值即可全量刷新入口，无需动 version.json。
-const CACHE_BUST = '20260826f'
+const CACHE_BUST = '20260826g'
 function vBust(){
   return function(req, res, next){
     if((req.path === '' || req.path === '/') && !req.query.v){
