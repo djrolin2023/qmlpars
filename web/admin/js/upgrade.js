@@ -21,7 +21,7 @@
   }
 
   const MODAL_HTML = `
-  <div class="modal-mask" id="upgrade-modal" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;z-index:9999;">
+  <div class="modal-mask" id="upgrade-modal" style="position:fixed;inset:0;align-items:center;justify-content:center;z-index:9999;">
     <div class="modal" style="margin:auto;">
       <div class="modal-head"><span>版本更新</span><span class="x" data-close="upgrade-modal">×</span></div>
       <div class="modal-body">
