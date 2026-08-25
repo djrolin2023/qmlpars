@@ -255,14 +255,6 @@ function formatValidCell(v) {
 }
 
 function initVehicles() {
-  try {
-    initColResize('vehTbl',
-      ['check', 'photo', 'plate', 'owner', 'phone', 'dept', 'valid', 'remark', 'op'],
-      { check: 42, photo: 76, plate: 110, owner: 90, phone: 120, dept: 110, valid: 120, remark: 150, op: 150 },
-      'vehTbl_colwidths', { lastFixed: 'op' })
-  } catch (e) {
-    console.error('initColResize failed:', e)
-  }
   loadPlateAreas();
   loadVehicles();
 
@@ -414,7 +406,11 @@ async function loadVehicles() {
     vState.reload = loadVehicles;
     renderPager('pager', vState);
   } catch (e) {
-    document.getElementById('list').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+    const msg = (e && e.message) || '加载失败';
+    const isAuth = /登录|授权|失效|token/i.test(msg);
+    document.getElementById('list').innerHTML = isAuth
+      ? '<div class="empty">登录已失效，<a href="javascript:doLogout()" style="color:var(--primary)">点击重新登录</a></div>'
+      : '<div class="empty">' + esc(msg) + '</div>';
   }
 }
 
