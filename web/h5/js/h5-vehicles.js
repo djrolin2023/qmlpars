@@ -18,7 +18,8 @@ function formatPlate(plate) {
   return p
 }
 function unformatPlate(plate) {
-  return String(plate || '').replace(/·/g, '').replace(/\s+/g, '').toUpperCase()
+  // 去除各种可能出现的「圆点/分隔符」变体（中间点·、项目符号•、片假名中点・、全角句号．等），避免 OCR 误识导致归属地/查重失效
+  return String(plate || '').replace(/[·•・．・]/g, '').replace(/\s+/g, '').toUpperCase()
 }
 function isValidPlate(p) {
   return PLATE_RE.test(unformatPlate(p))
@@ -286,7 +287,7 @@ function initVehicles() {
     // 仅做大写 / 去空格，不在此插入「·」分隔符，避免打断移动端英文（九宫格）输入
     plateInput.addEventListener('input', e => {
       const el = e.target;
-      const v = el.value.toUpperCase().replace(/\s+/g, '');
+      const v = el.value.toUpperCase().replace(/\s+/g, '').replace(/[·•・．・]/g, '');
       if (el.value !== v) {
         const start = el.selectionStart;
         el.value = v;
