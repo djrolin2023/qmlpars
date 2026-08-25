@@ -131,4 +131,172 @@ async function recognizeByTencent(imageBase64, imageUrl) {
   }
 }
 
-module.exports = { recognizeByBaidu, recognizeByTencent }
+// 从嵌套响应对象按点号路径取值
+function resolvePath(obj, path) {
+  if (!path) return undefined
+  return String(path).split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj)
+}
+
+// 替换模板中的 {{base64}} / {{url}}
+function applyTemplate(template, vars) {
+  if (typeof template !== 'string') return JSON.stringify(template)
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+    const v = vars[key]
+    return v != null ? v : ''
+  })
+}
+
+// 阿里云车牌识别（官方 RPC 接口 RecognizeLicensePlate，AccessKey 签名）
+async function recognizeByAliyun(imageBase64, imageUrl) {
+  if (!config.ALIYUN_ENABLED) throw new Error('阿里云 OCR 未配置')
+  const accessKeyId = config.ALIYUN_ACCESS_KEY_ID
+  const accessKeySecret = config.ALIYUN_ACCESS_KEY_SECRET
+  const region = config.ALIYUN_REGION || 'cn-shanghai'
+  const endpoint = `https://ocr.${region}.aliyuncs.com/`
+  const action = 'RecognizeLicensePlate'
+  const version = '2019-12-30'
+
+  // 业务参数：优先图片 URL（ImageURL），否则传 Base64（Image，需 URLEncode）
+  const params = {
+    Action: action,
+    Version: version,
+    Format: 'JSON',
+    SignatureMethod: 'HMAC-SHA1',
+    SignatureVersion: '1.0',
+    AccessKeyId: accessKeyId,
+    Timestamp: new Date().toISOString(),
+    SignatureNonce: crypto.randomUUID(),
+  }
+  if (imageUrl) params.ImageURL = imageUrl
+  else if (imageBase64) params.Image = imageBase64
+
+  const signed = aliyunSign(params, accessKeySecret)
+  params.Signature = signed
+
+  const res = await axios.get(endpoint, { params, timeout: 15000 })
+  const plates = res.data && res.data.Data && res.data.Data.Plates
+  if (!plates || !plates.length || !plates[0].PlateNumber) {
+    throw new Error('阿里云未识别到车牌')
+  }
+  const p = plates[0]
+  return {
+    plateNo: normalizePlate(p.PlateNumber),
+    confidence: p.Confidence != null ? Number(p.Confidence) : 0,
+    color: '' // 阿里云车牌识别接口不返回颜色
+  }
+}
+
+// 阿里云 RPC 签名（HMAC-SHA1 + Base64），参考官方公共参数签名规范
+function aliyunSign(params, accessKeySecret) {
+  const sorted = Object.keys(params).sort()
+  const canonical = sorted.map(k => {
+    return `${percentEncode(k)}=${percentEncode(params[k])}`
+  }).join('&')
+  const stringToSign = `GET&${percentEncode('/')}&${percentEncode(canonical)}`
+  const hmac = crypto.createHmac('sha1', accessKeySecret + '&')
+  hmac.update(stringToSign, 'utf8')
+  return hmac.digest('base64')
+}
+
+function percentEncode(str) {
+  return encodeURIComponent(String(str))
+    .replace(/\+/g, '%20')
+    .replace(/\*/g, '%2A')
+    .replace(/%7E/g, '~')
+}
+
+// 华为云车牌识别（官方接口 /v2/{project_id}/ocr/license-plate，AK/SK 签名）
+async function recognizeByHuawei(imageBase64, imageUrl) {
+  if (!config.HUAWEI_ENABLED) throw new Error('华为云 OCR 未配置')
+  const ak = config.HUAWEI_AK
+  const sk = config.HUAWEI_SK
+  const projectId = config.HUAWEI_PROJECT_ID
+  const region = config.HUAWEI_REGION || 'cn-north-4'
+  const endpoint = `https://ocr.${region}.myhuaweicloud.com`
+  const url = `${endpoint}/v2/${projectId}/ocr/license-plate`
+
+  const body = {}
+  if (imageBase64) body.image = imageBase64
+  else if (imageUrl) body.url = imageUrl
+  else throw new Error('缺少图片数据')
+
+  const { authorization, date } = huaweiSign(ak, sk, projectId, region, JSON.stringify(body))
+  const res = await axios.post(url, body, {
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Sdk-Date': date,
+      'X-Project-Id': projectId,
+      'Authorization': authorization
+    },
+    timeout: 15000
+  })
+  const result = res.data && res.data.result
+  const item = result && result[0]
+  if (!item || !item.plate_number) throw new Error('华为云未识别到车牌')
+  return {
+    plateNo: normalizePlate(item.plate_number),
+    confidence: item.confidence != null ? Number(item.confidence) : 0,
+    color: item.plate_color || ''
+  }
+}
+
+// 华为云 AK/SK 签名（SDK-HMAC-SHA256）
+function huaweiSign(ak, sk, projectId, region, bodyStr) {
+  const sdkDate = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z').replace(/[-:]/g, '')
+  const dateStamp = sdkDate.slice(0, 8)
+  const host = `ocr.${region}.myhuaweicloud.com`
+
+  const canonicalHeaders = `host:${host}\nx-sdk-date:${sdkDate}\n`
+  const signedHeaders = 'host;x-sdk-date'
+  const hashedPayload = crypto.createHash('sha256').update(bodyStr, 'utf8').digest('hex')
+  const canonicalRequest = [
+    'POST', '/v2/' + projectId + '/ocr/license-plate',
+    '', canonicalHeaders, signedHeaders, hashedPayload
+  ].join('\n')
+
+  const algorithm = 'SDK-HMAC-SHA256'
+  const scope = `${dateStamp}/${region}/ocr/sha256`
+  const canonicalRequestHash = crypto.createHash('sha256').update(canonicalRequest, 'utf8').digest('hex')
+  const stringToSign = `${algorithm}\n${sdkDate}\n${scope}\n${canonicalRequestHash}`
+
+  const kDate = crypto.createHmac('sha256', ('SDK' + sk)).update(dateStamp).digest()
+  const kRegion = crypto.createHmac('sha256', kDate).update(region).digest()
+  const kService = crypto.createHmac('sha256', kRegion).update('ocr').digest()
+  const kSigning = crypto.createHmac('sha256', kService).update('sha256').digest()
+  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex')
+
+  const authorization = `${algorithm} Access=${ak}, SignedHeaders=${signedHeaders}, Signature=${signature}`
+  return { authorization, date: sdkDate }
+}
+
+// 完全自定义 OCR：URL、方法、Headers、Body、字段映射全部可配
+async function recognizeByCustom(imageBase64, imageUrl) {
+  if (!config.CUSTOM_OCR_ENABLED) throw new Error('自定义 OCR 未配置')
+  const url = config.CUSTOM_OCR_URL
+  if (!url) throw new Error('缺少 CUSTOM_OCR_URL')
+  const method = String(config.CUSTOM_OCR_METHOD || 'POST').toUpperCase()
+  let headers = { 'Content-Type': 'application/json' }
+  try {
+    if (config.CUSTOM_OCR_HEADERS) headers = Object.assign(headers, JSON.parse(config.CUSTOM_OCR_HEADERS))
+  } catch (_) { /* 忽略非法 headers */ }
+  const bodyTemplate = config.CUSTOM_OCR_BODY_TEMPLATE || '{"image":"{{base64}}"}'
+  const body = applyTemplate(bodyTemplate, { base64: imageBase64 || '', url: imageUrl || '' })
+  let res
+  if (method === 'GET') {
+    res = await axios.get(url, { headers, timeout: 15000, params: JSON.parse(body) })
+  } else {
+    res = await axios.post(url, body, { headers, timeout: 15000 })
+  }
+  const plateField = config.CUSTOM_OCR_PLATE_FIELD || 'plateNo'
+  const confField = config.CUSTOM_OCR_CONFIDENCE_FIELD || 'confidence'
+  const colorField = config.CUSTOM_OCR_COLOR_FIELD || 'color'
+  const rawPlate = resolvePath(res.data, plateField)
+  if (!rawPlate) throw new Error('自定义 OCR 未识别到车牌')
+  return {
+    plateNo: normalizePlate(rawPlate),
+    confidence: Number(resolvePath(res.data, confField) || 0),
+    color: resolvePath(res.data, colorField) || ''
+  }
+}
+
+module.exports = { recognizeByBaidu, recognizeByTencent, recognizeByAliyun, recognizeByHuawei, recognizeByCustom }

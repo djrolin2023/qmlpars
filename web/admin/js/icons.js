@@ -42,7 +42,7 @@ const SVG_PATHS = {
 function svgIcon(name, extraClass) {
   const p = SVG_PATHS[name] || '';
   const cls = 'svg-ic' + (extraClass ? ' ' + extraClass : '');
-  return '<svg class="' + cls + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+  return '<svg class="' + cls + '" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
     'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>';
 }
 

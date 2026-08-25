@@ -26,7 +26,7 @@
       border:1px solid rgba(120,200,255,.18); border-radius:14px; padding:24px 10px 10px; position:sticky; top:18px; }
     .nav-item { display:flex; align-items:center; gap:10px; padding:11px 13px; border-radius:10px; cursor:pointer; font-size:14px; color:#cbd5e1; transition:all .15s; margin-bottom:4px; }
     .nav-item:hover { background:rgba(120,200,255,.08); color:#fff; }
-    .nav-item.active { background:rgba(24,144,255,.14); color:#4cb3ff; font-weight:600; box-shadow:none; border-left:3px solid #1890ff; padding-left:10px; }
+    .nav-item.active { background:rgba(24,144,255,.14); color:#4cb3ff; font-weight:600; box-shadow:none; }
     .nav-item .ic { width:20px; height:20px; flex:none; display:inline-flex; align-items:center; justify-content:center; font-size:18px; }
 
     .panel-wrap { flex:1; min-width:0; }
@@ -75,6 +75,28 @@
       opacity:0; transform:translateY(-12px); transition:opacity .25s, transform .25s; pointer-events:none; }
     .toast.show { opacity:1; transform:translateY(0); }
 
+    /* 与 OCR 区一致的设置卡片（站点信息 / 备案信息） */
+    .settings-card { display:flex; flex-direction:column; background:rgba(15,20,25,.45); border:1px solid rgba(120,200,255,.16); border-radius:12px; overflow:hidden; margin-bottom:0; }
+    .settings-card .card-head { display:flex; align-items:center; gap:10px; padding:16px 18px 12px; border-bottom:1px solid rgba(120,200,255,.12); }
+    .settings-card .card-head h3 { margin:0; font-size:16px; }
+    .settings-card .card-sub { padding:8px 18px 0; color:#86909C; font-size:13px; }
+    .settings-card .card-body { padding:18px; }
+    .settings-card .card-foot { padding:14px 18px 16px; border-top:1px solid rgba(120,200,255,.12); display:flex; justify-content:flex-end; gap:12px; }
+
+    /* OCR 教程弹窗（settings.html 以 iframe 嵌入，需要自带样式） */
+    .modal-mask { position:fixed; inset:0; background:rgba(2,6,23,.6); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+      display:none; align-items:center; justify-content:center; z-index:200; }
+    .modal-mask.show { display:flex; }
+    .modal-mask .modal { cursor:auto; background:rgba(29,39,51,.92); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+      border:1px solid rgba(120,200,255,.25); border-radius:14px; width:min(560px,94vw); max-height:90vh; overflow:auto;
+      box-shadow:0 20px 60px rgba(0,130,200,.3); }
+    .modal-mask .modal-head { padding:16px 20px; border-bottom:1px solid rgba(120,200,255,.18); font-weight:600; font-size:16px;
+      display:flex; justify-content:space-between; align-items:center; }
+    .modal-mask .modal-head .x { cursor:pointer; color:#86909C; font-size:22px; line-height:1; }
+    .modal-mask .modal-head .x:hover { color:#fff; }
+    .modal-mask .modal-body { padding:20px; }
+    .modal-mask .modal-foot { padding:14px 20px; border-top:1px solid rgba(120,200,255,.18); display:flex; justify-content:flex-end; gap:10px; }
+
     @media (max-width: 768px) {
       .layout { flex-direction:column; }
       .nav { width:100%; display:flex; gap:8px; overflow-x:auto; position:static; }
@@ -96,18 +118,22 @@
       <div class="panel-wrap">
         <!-- 站点信息 -->
         <section class="panel active" data-panel="site">
-          <h3>站点信息</h3>
-          <div class="panel-sub">用于识别页、分享卡片等对外展示的公司名称</div>
-          <div id="site-fields"></div>
-          <div class="save-bar"><button class="btn primary" id="save-site">保存站点信息</button></div>
+          <div class="settings-card">
+            <div class="card-head"><h3>站点信息</h3><span class="badge green">对外展示</span></div>
+            <div class="card-sub">用于识别页、分享卡片等对外展示的公司名称</div>
+            <div class="card-body" id="site-fields"></div>
+            <div class="card-foot"><button class="btn primary" id="save-site">保存站点信息</button></div>
+          </div>
         </section>
 
         <!-- 备案信息 -->
         <section class="panel" data-panel="icp">
-          <h3>备案信息</h3>
-          <div class="panel-sub">ICP 与公安备案号将展示在页脚</div>
-          <div id="icp-fields"></div>
-          <div class="save-bar"><button class="btn primary" id="save-info">保存备案信息</button></div>
+          <div class="settings-card">
+            <div class="card-head"><h3>备案信息</h3><span class="badge green">页脚展示</span></div>
+            <div class="card-sub">ICP 与公安备案号将展示在页脚</div>
+            <div class="card-body" id="icp-fields"></div>
+            <div class="card-foot"><button class="btn primary" id="save-info">保存备案信息</button></div>
+          </div>
         </section>
 
         <!-- 站点图片 -->
@@ -118,12 +144,11 @@
           <div class="save-bar"><button class="btn primary" id="save-img">保存图片设置</button></div>
         </section>
 
-        <!-- OCR 配置 -->
+        <!-- OCR 配置：每个通道一张卡片，独立保存 -->
         <section class="panel" data-panel="ocr">
           <h3>OCR 配置 <span class="badge">车牌识别</span></h3>
-          <div class="panel-sub">用于识别车牌的 OCR 服务密钥（仅本机存储，不对外传输）</div>
-          <div id="ocr-fields"></div>
-          <div class="save-bar"><button class="btn primary" id="save-ocr">保存 OCR 配置</button></div>
+          <div class="panel-sub">用于识别车牌的 OCR 服务密钥（仅本机存储，不对外传输）。每个通道可单独保存。</div>
+          <div class="ocr-cards" id="ocr-cards"></div>
         </section>
 
       </div>
@@ -132,6 +157,15 @@
   </div>
 
   <div class="toast" id="toast"></div>
+
+  <!-- OCR 通道教程模态框 -->
+  <div class="modal-mask" id="ocr-tut-modal">
+    <div class="modal">
+      <div class="modal-head"><span id="ocr-tut-title">OCR 配置教程</span><span class="x" id="ocr-tut-close">×</span></div>
+      <div class="modal-body" id="ocr-tut-body"></div>
+      <div class="modal-foot"><button class="btn" id="ocr-tut-ok">知道了</button></div>
+    </div>
+  </div>
 
   <script src="js/icons.js"></script>
   <script src="js/common.js"></script>

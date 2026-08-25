@@ -232,6 +232,23 @@ function renderSysInfo(d, version) {
   if (elScreen) elScreen.textContent = window.screen.width + ' × ' + window.screen.height + ' · ' + navigator.language
 }
 
+async function fetchWithRetry(url, opts = {}, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const r = await fetch(url, opts);
+      if (!r.ok) return null;
+      return await r.json();
+    } catch (e) {
+      if (i < retries && typeof isNetworkError === 'function' && isNetworkError(e)) {
+        await new Promise(res => setTimeout(res, 600));
+        continue;
+      }
+      return null;
+    }
+  }
+  return null;
+}
+
 async function initSysInfo() {
   // 浏览器与屏幕尺寸是前端信息，立即渲染
   const b = detectBrowser()
@@ -244,7 +261,7 @@ async function initSysInfo() {
     try {
       const [infoR, verR] = await Promise.all([
         api('/api/admin/sysinfo'),
-        fetch('/version.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null)
+        fetchWithRetry('/version.json', { cache: 'no-store' })
       ])
       const info = (infoR && infoR.success && infoR.data) ? infoR.data : null
       const ver = verR && verR.version ? verR.version : null

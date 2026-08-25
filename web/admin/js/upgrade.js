@@ -98,6 +98,8 @@
 
   // ---------------- 主初始化 ----------------
   function initUpgrade() {
+    // 只在顶层窗口（后台壳）初始化；iframe 内由壳统一提供版本节点与弹窗，避免重复注入和无 CSS 时样式错乱
+    if (window.self !== window.top) return
     injectVersionNode()
     injectModal()
 

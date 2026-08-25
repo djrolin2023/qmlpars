@@ -169,7 +169,7 @@ module.exports = function (ctx) {
     const wheres = []
     const params = []
     if (channel === 'app' || channel === 'mini') { wheres.push('channel IN (?,?)'); params.push('app', 'mini') }
-    else if (channel === 'web') { wheres.push('channel = ?'); params.push('web') }
+    else if (channel === 'web' || channel === 'h5') { wheres.push('channel IN (?,?)'); params.push('web', 'h5') }
     if (start) { wheres.push('createdAt >= ?'); params.push(start + ' 00:00:00') }
     if (end) { wheres.push('createdAt <= ?'); params.push(end + ' 23:59:59') }
     const whereSql = wheres.length ? ('WHERE ' + wheres.join(' AND ')) : ''
@@ -281,7 +281,7 @@ module.exports = function (ctx) {
       const externalTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE result LIKE '%未命中%'").get().c) || 0
       const validTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE result LIKE '%命中%'").get().c) || 0
       const appTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE channel IN ('app','mini')").get().c) || 0
-      const webTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE channel = 'web'").get().c) || 0
+      const webTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE channel IN ('web','h5')").get().c) || 0
       const trendRows = db.prepare(`
         WITH RECURSIVE days(d) AS (
           SELECT date('now','localtime','-6 days')
@@ -344,7 +344,7 @@ module.exports = function (ctx) {
     const params = []
     if (body.all) {
       if (channel === 'app' || channel === 'mini') { wheres.push('channel IN (?,?)'); params.push('app', 'mini') }
-      else if (channel === 'web') { wheres.push('channel = ?'); params.push('web') }
+      else if (channel === 'web' || channel === 'h5') { wheres.push('channel IN (?,?)'); params.push('web', 'h5') }
       if (start) { wheres.push('createdAt >= ?'); params.push(start + ' 00:00:00') }
       if (end) { wheres.push('createdAt <= ?'); params.push(end + ' 23:59:59') }
       const whereSql = wheres.length ? ('WHERE ' + wheres.join(' AND ')) : ''
@@ -478,20 +478,35 @@ module.exports = function (ctx) {
     res.json({ success: true, message: '保存成功' })
   })
   // 6.0 批量新增车辆（多行表单 / 批量输入，后端仅接收已解析的数组）
+  // conflict 策略：skip(默认，跳过已存在) / update(覆盖已存在) / force(强制新增重复记录)
   router.post('/api/admin/vehicles/batch-create', ...roleGate('admin', 'manager', 'user'), (req, res) => {
     const body = req.body || {}
     let items = body.items
+    const conflict = (body.conflict === 'update' || body.conflict === 'force') ? body.conflict : 'skip'
     if (!Array.isArray(items)) return res.status(400).json({ success: false, message: '数据格式错误' })
     items = items.slice(0, 1000)
     if (!items.length) return res.status(400).json({ success: false, message: '未解析到任何车辆数据' })
-    const added = [], skipped = [], errors = []
+    const added = [], skipped = [], updated = [], errors = [], conflictPlates = []
     const seenKeys = new Set()
     for (const it of items) {
       const plateNo = normalizePlate(it.plateNo || it.车牌号 || it.车牌 || '')
       if (!plateNo) { errors.push('车牌号为空，已跳过'); continue }
       const plateKey = toPlateKey(plateNo)
-      if (seenKeys.has(plateKey) || db.prepare('SELECT id FROM vehicles WHERE plateKey = ?').get(plateKey)) {
-        skipped.push(plateNo); continue
+      if (seenKeys.has(plateKey)) { skipped.push(plateNo); continue }   // 本次批量内重复
+      const existing = db.prepare('SELECT id FROM vehicles WHERE plateKey = ?').get(plateKey)
+      if (existing) {
+        conflictPlates.push(plateNo)
+        if (conflict === 'skip') { skipped.push(plateNo); continue }    // 命中数据库已有数据
+        const department = String(it.department || it.部门 || '').split(/[,，]/).map(s => s.trim()).filter(Boolean).join(',')
+        const validUntil = String(it.validUntil || it.有效期 || '').trim() || null
+        if (conflict === 'update') {
+          // 覆盖更新已有记录（保留原照片）
+          db.prepare(`UPDATE vehicles SET owner=?, phone=?, department=?, remark=?, validUntil=?, updatedAt=? WHERE id=?`)
+            .run(String(it.owner || it.车主 || '').trim(), String(it.phone || it.手机号 || '').trim(),
+              department, String(it.remark || it.备注 || '').trim(), validUntil, nowLocal(), existing.id)
+          updated.push(plateNo); seenKeys.add(plateKey); continue
+        }
+        // force：允许重复插入
       }
       const department = String(it.department || it.部门 || '').split(/[,，]/).map(s => s.trim()).filter(Boolean).join(',')
       const validUntil = String(it.validUntil || it.有效期 || '').trim() || null
@@ -503,11 +518,14 @@ module.exports = function (ctx) {
       added.push(plateNo)
     }
     const op = (req.admin && req.admin.username) || (req.user && req.user.username) || '未知'
-    ctx.addSysLog('批量新增车辆', null, `新增 ${added.length} 条` + (skipped.length ? `，跳过重复 ${skipped.length} 条` : '') + (errors.length ? `，忽略无效 ${errors.length} 条` : ''), op, req.ip)
+    ctx.addSysLog('批量新增车辆', null,
+      `新增 ${added.length} 条` + (updated.length ? `，更新 ${updated.length} 条` : '') + (skipped.length ? `，跳过 ${skipped.length} 条` : '') + (errors.length ? `，忽略无效 ${errors.length} 条` : ''),
+      op, req.ip)
     res.json({
       success: true,
-      message: `新增 ${added.length} 条` + (skipped.length ? `，跳过重复 ${skipped.length} 条` : '') + (errors.length ? `，忽略无效 ${errors.length} 条` : ''),
-      added: added.length, skipped: skipped.length, errors: errors.length
+      message: `新增 ${added.length} 条` + (updated.length ? `，更新 ${updated.length} 条` : '') + (skipped.length ? `，跳过 ${skipped.length} 条` : '') + (errors.length ? `，忽略无效 ${errors.length} 条` : ''),
+      added: added.length, updated: updated.length, skipped: skipped.length, errors: errors.length,
+      conflictPlates
     })
   })
 
@@ -684,6 +702,20 @@ module.exports = function (ctx) {
     { key: 'BAIDU_SECRET_KEY', label: '百度 OCR Secret Key', placeholder: '', secret: true },
     { key: 'TENCENT_SECRET_ID', label: '腾讯云 SecretId', placeholder: '', secret: true },
     { key: 'TENCENT_SECRET_KEY', label: '腾讯云 SecretKey', placeholder: '', secret: true },
+    { key: 'ALIYUN_ACCESS_KEY_ID', label: '阿里云 AccessKeyId', placeholder: '', secret: true },
+    { key: 'ALIYUN_ACCESS_KEY_SECRET', label: '阿里云 AccessKeySecret', placeholder: '', secret: true },
+    { key: 'ALIYUN_REGION', label: '阿里云 Region', placeholder: 'cn-shanghai', secret: false },
+    { key: 'HUAWEI_AK', label: '华为云 Ak', placeholder: '', secret: true },
+    { key: 'HUAWEI_SK', label: '华为云 Sk', placeholder: '', secret: true },
+    { key: 'HUAWEI_PROJECT_ID', label: '华为云 ProjectId', placeholder: '', secret: false },
+    { key: 'HUAWEI_REGION', label: '华为云 Region', placeholder: 'cn-north-4', secret: false },
+    { key: 'CUSTOM_OCR_URL', label: '自定义 OCR 接口 URL', placeholder: 'https://your-api.com/recognize', secret: false },
+    { key: 'CUSTOM_OCR_METHOD', label: '自定义 OCR 请求方法', placeholder: 'POST', secret: false },
+    { key: 'CUSTOM_OCR_HEADERS', label: '自定义 OCR 请求头（JSON）', placeholder: '{"Authorization":"Bearer xxx"}', secret: true },
+    { key: 'CUSTOM_OCR_BODY_TEMPLATE', label: '自定义 OCR 请求体模板', placeholder: '{"image":"{{base64}}"}', secret: false },
+    { key: 'CUSTOM_OCR_PLATE_FIELD', label: '自定义 OCR 车牌字段', placeholder: 'plateNo', secret: false },
+    { key: 'CUSTOM_OCR_CONFIDENCE_FIELD', label: '自定义 OCR 置信度字段', placeholder: 'confidence', secret: false },
+    { key: 'CUSTOM_OCR_COLOR_FIELD', label: '自定义 OCR 颜色字段', placeholder: 'color', secret: false },
     { key: 'COMPANY_NAME', label: '公司名称', placeholder: '如：乾明车牌识别系统 / XX公司', secret: false },
     { key: 'ICP_NO', label: 'ICP 备案号', placeholder: '如：粤ICP备XXXXXXXX号', secret: false },
     { key: 'POLICE_NO', label: '公安备案号', placeholder: '如：粤公网安备XXXXXXXX号', secret: false },

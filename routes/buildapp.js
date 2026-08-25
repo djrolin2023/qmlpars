@@ -203,8 +203,8 @@ module.exports = function (ctx) {
     const url = (serverUrl || '').replace(/\/+$/, '')
     const js = 'window.__API_BASE__=' + JSON.stringify(url) + ';\n'
       + 'window.APP_CONFIG=' + JSON.stringify({ serverUrl: url, buildAt: new Date().toISOString() }) + ';\n'
-    // web/cpsb 页面引用 ./app-config.js，即 www/cpsb/app-config.js
-    await fsp.writeFile(path.join(WWW_DIR, 'cpsb', 'app-config.js'), js)
+    // web/h5 页面引用 ./app-config.js，即 www/h5/app-config.js
+    await fsp.writeFile(path.join(WWW_DIR, 'h5', 'app-config.js'), js)
   }
 
   // 在 HTML 的 <head> 最前插入 app-config.js，使 js/common.js 运行前 __API_BASE__ 已就绪
@@ -427,20 +427,20 @@ export default config;
         log('开始准备 H5 资源...')
         await fsp.rm(WWW_DIR, { recursive: true, force: true })
         await fsp.mkdir(WWW_DIR, { recursive: true })
-        // APP 界面与 WEB 端完全一致：直接打包 web/cpsb 整目录（含 css/js/html），
+        // APP 界面与 WEB 端完全一致：直接打包 web/h5 整目录（含 css/js/html），
         // 仅额外注入 app-config.js 提供服务器地址，并把 /static 资源带进来（离线不 404）。
-        await copyDir(path.join(ROOT, 'web', 'cpsb'), path.join(WWW_DIR, 'cpsb'))
+        await copyDir(path.join(ROOT, 'web', 'h5'), path.join(WWW_DIR, 'h5'))
         if (fs.existsSync(path.join(ROOT, 'static', 'images'))) {
           await copyDir(path.join(ROOT, 'static', 'images'), path.join(WWW_DIR, 'static', 'images'))
         }
         // 在入口页与登录页的 <head> 最前注入 app-config.js，确保 js/common.js 读取 __API_BASE__ 前已就绪
-        await injectAppConfig(path.join(WWW_DIR, 'cpsb', 'index.html'))
-        await injectAppConfig(path.join(WWW_DIR, 'cpsb', 'login.html'))
-        await injectAppConfig(path.join(WWW_DIR, 'cpsb', 'logout.html'))
+        await injectAppConfig(path.join(WWW_DIR, 'h5', 'index.html'))
+        await injectAppConfig(path.join(WWW_DIR, 'h5', 'login.html'))
+        await injectAppConfig(path.join(WWW_DIR, 'h5', 'logout.html'))
         // 引导首页
         await fsp.writeFile(path.join(WWW_DIR, 'index.html'), buildIndexHtml(appName))
         await writeAppConfig(serverUrl)
-        log('H5 资源已拷贝（web/cpsb 整目录，与 WEB 端一致）')
+        log('H5 资源已拷贝（web/h5 整目录，与 WEB 端一致）')
         setProgress(20)
 
         log('生成图标/开屏资源...')
@@ -780,7 +780,7 @@ export default config;
     }
   })
 
-  // APP 直接复用 WEB 端页面，入口重定向到 web/cpsb 的车牌识别页（与 WEB 端一致）
+  // APP 直接复用 WEB 端页面，入口重定向到 web/h5 的车牌识别页（与 WEB 端一致）
   function buildIndexHtml(appName) {
     return `<!DOCTYPE html>
 <html lang="zh-CN">

@@ -61,7 +61,7 @@
       table.data td{ border:none; padding:8px 0; white-space:normal; display:flex;
         align-items:flex-start; gap:10px; font-size:14px; color:#fff; }
       table.data td:not(:first-child):not(:nth-child(2)):not(:nth-child(9)){
-        border-bottom:1px solid rgba(46,58,75,.5); }
+        border-bottom:1px solid rgba(120,200,255,.18); }
       table.data td::before{ content:attr(data-label); flex:0 0 auto; min-width:0; color:#86909C; font-size:12px; padding-top:2px; }
       table.data td:first-child{ display:none; } /* 卡片模式隐藏复选框列 */
       /* 照片行：顶部居中、紧凑尺寸 */
@@ -84,7 +84,7 @@
       table.data td:nth-child(8)::before{ content:"备注"; }
       /* 操作行：分隔 + 按钮优化 */
       table.data td:nth-child(9){ display:flex; gap:10px; padding-top:12px; margin-top:4px;
-        border-top:1px solid #2E3A4B; }
+        border-top:1px solid rgba(120,200,255,.25); }
       table.data td:nth-child(9)::before{ content:"操作"; }
       table.data td:nth-child(9) .btn{ flex:1; height:38px; font-size:14px; border-radius:9px; padding:0;
         display:inline-flex; align-items:center; justify-content:center; color:#04283a; font-weight:600; border:none; }
@@ -108,6 +108,7 @@
       <input id="search" class="search-input" placeholder="搜索车牌 / 车主 / 电话">
       <select id="dep-filter"><option value="">全部部门</option></select>
       <button class="btn primary" id="add-btn">+ 新增车辆</button>
+      <button class="btn" id="batch-input-btn" onclick="openBatchAdd()">批量输入</button>
       <button class="btn" id="refresh-btn">刷新</button>
       <button class="btn danger" id="batch-del-btn" style="display:none">批量删除</button>
       <span id="sel-count" style="color:var(--muted);font-size:13px;margin-left:4px"></span>

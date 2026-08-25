@@ -1,165 +1,57 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>乾明车牌识别系统</title>
-<style>
-:root{
-  --bg:#0F1419;
-  --card:#1D2733;
-  --border:#2E3A4B;
-  --primary:#1890FF;
-  --primary-d:#40a9ff;
-  --text:#FFFFFF;
-  --text-sub:#86909C;
-  --radius:16px;
-  --shadow:0 10px 30px rgba(0,0,0,.35);
-}
-*{margin:0;padding:0;box-sizing:border-box}
-body{
-  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
-  background:var(--bg);
-  background-image:radial-gradient(1200px 600px at 50% -10%, rgba(24,144,255,.18), transparent 60%);
-  min-height:100vh;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:24px;color:var(--text);
-}
-.brand{display:flex;flex-direction:column;align-items:center;gap:14px;margin-bottom:36px;text-align:center}
-.logo{
-  width:64px;height:64px;
-  display:flex;align-items:center;justify-content:center;
-}
-.logo img{width:64px;height:64px}
-.brand h1{font-size:28px;font-weight:700;letter-spacing:.5px}
-.brand p{color:var(--text-sub);font-size:15px}
-.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;width:100%;max-width:960px}
-@media (max-width:760px){.cards{grid-template-columns:1fr;max-width:420px}}
-.card{
-  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);
-  padding:28px 24px;text-decoration:none;color:var(--text);
-  display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden;
-  transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease;
-}
-.card:hover{transform:translateY(-4px);border-color:var(--primary);box-shadow:0 18px 40px rgba(0,0,0,.45)}
-.card .icon{
-  width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;
-  background:rgba(24,144,255,.14);
-}
-.card.c1 .icon{background:rgba(24,144,255,.16)}
-.card.c2 .icon{background:rgba(54,207,201,.16)}
-.card.c3 .icon{background:rgba(255,184,77,.16)}
-.card .icon svg{width:26px;height:26px}
-.card h2{font-size:18px;font-weight:600}
-.card .desc{color:var(--text-sub);font-size:13.5px;line-height:1.6;flex:1}
-.card .go{
-  display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:var(--primary-d);
-}
-.card.c2 .go{color:#36CFC9}
-.card.c3 .go{color:#FFB84D}
-.card .go svg{width:15px;height:15px}
-.foot{margin-top:36px;color:var(--text-sub);font-size:12.5px;text-align:center;line-height:1.9}
-.foot a{color:var(--text-sub);text-decoration:none}
-
-.foot .police{height:14px;vertical-align:middle;margin-right:4px}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>车牌识别管理系统</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(135deg, #0b1a2b, #0e2a3f); color: #e6f0ff; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .wrap { text-align: center; padding: 24px; }
+    .logo { font-size: 26px; font-weight: 700; letter-spacing: 1px; margin-bottom: 6px; }
+    .sub { color: #8fb6d6; margin-bottom: 28px; font-size: 14px; }
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 14px; max-width: 560px; margin: 0 auto; }
+    .card { background: rgba(255,255,255,.06); border: 1px solid rgba(120,200,255,.2); border-radius: 12px; padding: 22px 14px;
+      text-decoration: none; color: #e6f0ff; transition: .2s; }
+    .card:hover { background: rgba(120,200,255,.16); transform: translateY(-2px); }
+    .card .t { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .card .d { font-size: 12px; color: #8fb6d6; }
+    .foot { margin-top: 26px; font-size: 12px; color: #6c8aa6; }
+    @media (max-width: 520px) { .cards { grid-template-columns: 1fr; } }
+  </style>
 </head>
 <body>
-  <div class="brand">
-    <div class="logo">
-      <img src="/static/images/logo.png" alt="logo">
+  <div class="wrap">
+    <div class="logo">车牌识别管理系统</div>
+    <div class="sub">正在根据设备自动跳转…</div>
+    <div class="cards" id="cards" style="display:none">
+      <a class="card" href="/admin/"><div class="t">PC 管理后台</div><div class="d">电脑端 · 车辆/记录/设置</div></a>
+      <a class="card" href="/cpsb/"><div class="t">H5 移动端</div><div class="d">微信/手机浏览器</div></a>
+      <a class="card" href="/app/"><div class="t">APP 端</div><div class="d">原生应用内嵌</div></a>
     </div>
-    <h1>乾明车牌识别系统</h1>
-    <p>请选择您要进入的入口</p>
+    <div class="foot" id="foot">若未自动跳转，请手动选择上方入口</div>
   </div>
-
-  <div class="cards">
-    <a class="card c1" href="/cpsb/">
-      <div class="icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#40a9ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-          <circle cx="12" cy="13" r="4"></circle>
-        </svg>
-      </div>
-      <h2>车辆识别查询</h2>
-      <div class="desc">门卫 / 物业使用：对准车牌自动识别，或手动输入车牌号查询车辆信息</div>
-      <span class="go">进入识别页 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-    </a>
-
-    <a class="card c2" href="/admin/">
-      <div class="icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#36CFC9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-        </svg>
-      </div>
-      <h2>后台管理</h2>
-      <div class="desc">管理员使用：车辆登记、部门管理、识别日志、数据大屏、系统设置</div>
-      <span class="go">进入管理后台 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-    </a>
-
-    <a class="card c3" href="/app/">
-      <div class="icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#FFB84D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="7" y="2" width="10" height="20" rx="2.5"></rect>
-          <path d="M11 18h2"></path>
-        </svg>
-      </div>
-      <h2>APP 下载</h2>
-      <div class="desc">获取安卓离线安装包：门卫识别与管理后台合二为一，内网可用</div>
-      <span class="go">下载安卓 APP <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg></span>
-    </a>
-  </div>
-
-  <div class="foot">
-    © 乾明车牌识别系统 · 基于 <a href="https://github.com/djrolin2023/qmlpars/blob/main/LICENSE" target="_blank" rel="noopener">AGPL-3.0</a> 开源<br>
-    <span id="icp-line"></span>
-    <span id="police-line"></span>
-  </div>
-
   <script>
-  // 页脚备案信息（来自后台设置，未填写则不显示）
-  (function () {
-    function normalizePoliceCode(no) {
-      return String(no || '').replace(/^粤公网安备/, '').replace(/号$/, '').trim();
-    }
-    fetch('/api/settings/public').then(function (r) { return r.json(); }).then(function (j) {
-      var d = (j && j.success && j.data) ? j.data : {};
-      var icp = document.getElementById('icp-line');
-      if (icp) {
-        if (d.ICP_NO) {
-          var a = document.createElement('a');
-          a.href = 'https://beian.miit.gov.cn/';
-          a.target = '_blank'; a.rel = 'noopener';
-          a.textContent = d.ICP_NO;
-          icp.appendChild(a);
-        } else { icp.style.display = 'none'; }
+    (function () {
+      var UA = navigator.userAgent || '';
+      var q = location.search || '';
+      // 1) 显式参数或 APP 专属 UA 关键字 → APP 端
+      var isApp = /[?&](from=app|app=1)\b/.test(q) || /QMLPARS_APP/i.test(UA);
+      // 2) 微信 / 移动端 → H5
+      var isMobile = /MicroMessenger|Mobile|Android|iPhone|iPad|iPod|Windows Phone/i.test(UA);
+      var target;
+      if (isApp) target = '/app/';
+      else if (isMobile) target = '/cpsb/';
+      else target = '/admin/';
+      // 手动模式：?manual=1 不自动跳，展示卡片
+      if (/[?&]manual=1\b/.test(q)) {
+        document.getElementById('cards').style.display = 'grid';
+        document.querySelector('.sub').textContent = '请选择入口';
+        return;
       }
-      var police = document.getElementById('police-line');
-      if (police) {
-        if (d.POLICE_NO) {
-          var code = normalizePoliceCode(d.POLICE_NO);
-          var url = ((d.POLICE_URL && d.POLICE_URL.indexOf('#') < 0)
-            ? d.POLICE_URL
-            : 'https://beian.mps.gov.cn/#/query/webSearch')
-            + (code ? '?code=' + encodeURIComponent(code) : '');
-          var a2 = document.createElement('a');
-          a2.href = url; a2.target = '_blank'; a2.rel = 'noopener';
-          a2.style.cssText = 'display:inline-flex;align-items:center;gap:4px;text-decoration:none;';
-          var icon = document.createElement('img');
-          icon.className = 'police';
-          icon.src = d.POLICE_ICON_URL || '/static/images/police.png';
-          icon.alt = '';
-          icon.onerror = function () { icon.style.display = 'none'; };
-          var span = document.createElement('span');
-          span.textContent = d.POLICE_NO;
-          a2.appendChild(icon);
-          a2.appendChild(span);
-          police.appendChild(a2);
-        } else { police.style.display = 'none'; }
-      }
-    }).catch(function () { /* 备案非关键，失败静默 */ });
-  })();
+      location.replace(target);
+    })();
   </script>
 </body>
 </html>

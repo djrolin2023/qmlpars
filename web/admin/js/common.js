@@ -7,20 +7,58 @@ function setToken(t) { if (t) localStorage.setItem(TOKEN_KEY, t); else localStor
 function setUser(u) { localStorage.setItem('qmlpars_admin_user', u || ''); }
 function getDepartmentLabels() { return JSON.parse(localStorage.getItem('qmlpars_departments') || '[]'); }
 
-// 后端 authMiddleware 读取 x-admin-token 请求头
-function authHeaders() { const t = getToken(); return t ? { 'x-admin-token': t } : {}; }
+// 后端 authMiddleware 读取 x-admin-token 请求头；H5 页面额外带上 x-user-token，给 /api/recognize 双保险
+function authHeaders() {
+  const t = getToken();
+  const h = t ? { 'x-admin-token': t } : {};
+  try {
+    if (location.pathname.includes('/cpsb/')) {
+      const ut = localStorage.getItem('qmlpars_user_token');
+      if (ut) h['x-user-token'] = ut;
+    }
+  } catch (_) {}
+  return h;
+}
 
-async function api(path, opts = {}) {
+function isNetworkError(e) {
+  if (!e) return false;
+  const msg = (e.message || '').toString();
+  return msg.includes('Failed to fetch') ||
+         msg.includes('ERR_NETWORK_CHANGED') ||
+         msg.includes('ERR_INTERNET_DISCONNECTED') ||
+         msg.includes('ERR_CONNECTION') ||
+         msg.includes('NetworkError') ||
+         msg.includes('AbortError') ||
+         msg.includes('timeout') ||
+         e.name === 'TypeError';
+}
+
+async function api(path, opts = {}, retries = 2) {
   const noJson = !!opts.noJson;
+  const noLogout = !!opts.noLogout;
   const headers = Object.assign({}, authHeaders(), opts.headers || {});
   if (!noJson) headers['Content-Type'] = 'application/json';
-  const { noJson: _nj, ...rest } = opts;
-  const res = await fetch(API + path, Object.assign({}, rest, { headers }));
-  if (res.status === 401) { doLogout(); throw new Error('未授权，请重新登录'); }
-  let data = null;
-  try { data = await res.json(); } catch (e) { data = null; }
-  if (!res.ok) throw new Error((data && (data.error || data.message)) || ('请求失败 ' + res.status));
-  return data;
+  const { noJson: _nj, noLogout: _nl, ...rest } = opts;
+  try {
+    const res = await fetch(API + path, Object.assign({}, rest, { headers }));
+    // 后台接口返回 401 表示登录失效：默认跳转登录页；
+    // 但上传图片、OCR 等非关键链路用 noLogout 标记，失败仅提示，避免误踢回登录页。
+    if (res.status === 401) {
+      if (!noLogout) doLogout();
+      throw new Error('未授权，请重新登录');
+    }
+    let data = null;
+    try { data = await res.json(); } catch (e) { data = null; }
+    if (!res.ok) throw new Error((data && (data.error || data.message)) || ('请求失败 ' + res.status));
+    return data;
+  } catch (e) {
+    if (retries > 0 && isNetworkError(e)) {
+      await new Promise(r => setTimeout(r, 600));
+      return api(path, opts, retries - 1);
+    }
+    console.error('Fetch request failed:', e);
+    throw e;
+  }
 }
 
 let _toastTimer = null;
@@ -122,7 +160,6 @@ const NAV_ICON_NAMES = {
   'backup.html': 'backup',
   'buildapp.html': 'buildapp',
   'syslog.html': 'syslog',
-  'ocr.html': 'ocr',
   'settings.html': 'setting',
   'about.html': 'about'
 };

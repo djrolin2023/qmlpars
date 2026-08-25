@@ -125,16 +125,29 @@ function roleGate(...roles) {
 
 // 普通用户鉴权（H5/APP 端识别/查询）
 function userAuthMiddleware(req, res, next) {
-  const token = req.headers['x-user-token'] || req.query.token || req.body.token
+  const token = req.headers['x-user-token'] || req.headers['x-admin-token'] || req.query.token || req.body.token
   if (!token) return res.status(401).json({ success: false, message: '请先登录', needLogin: true })
+  // 1) 普通用户会话
   const row = db.prepare('SELECT * FROM user_sessions WHERE token = ?').get(token)
-  if (!row) return res.status(401).json({ success: false, message: '登录已失效', needLogin: true })
-  if (new Date(row.expireAt).getTime() < Date.now()) {
-    db.prepare('DELETE FROM user_sessions WHERE token = ?').run(token)
-    return res.status(401).json({ success: false, message: '登录已过期', needLogin: true })
+  if (row) {
+    if (new Date(row.expireAt).getTime() < Date.now()) {
+      db.prepare('DELETE FROM user_sessions WHERE token = ?').run(token)
+      return res.status(401).json({ success: false, message: '登录已过期', needLogin: true })
+    }
+    req.user = row
+    return next()
   }
-  req.user = row
-  next()
+  // 2) 管理员会话（H5 车辆管理页复用 admin common.js，上传后 OCR 走 x-admin-token）
+  const adminRow = db.prepare('SELECT * FROM admin_sessions WHERE token = ?').get(token)
+  if (adminRow) {
+    if (new Date(adminRow.expireAt).getTime() < Date.now()) {
+      db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(token)
+      return res.status(401).json({ success: false, message: '登录已过期', needLogin: true })
+    }
+    req.user = { userId: 0, username: adminRow.username, name: adminRow.username, token: adminRow.token, role: 'admin' }
+    return next()
+  }
+  return res.status(401).json({ success: false, message: '登录已失效', needLogin: true })
 }
 
 function genUserToken() { return crypto.randomBytes(24).toString('hex') }
@@ -176,7 +189,7 @@ app.use(require('./routes/buildapp')(ctx))   // APP 离线打包构建
 
 // ================= PC 管理端 / 前台页面托管 =================
 const adminDir = path.join(__dirname, 'web', 'admin')
-const cpsbDir = path.join(__dirname, 'web', 'cpsb')
+const cpsbDir = path.join(__dirname, 'web', 'h5')
 const staticDir = path.join(__dirname, 'static')
 fs.mkdirSync(adminDir, { recursive: true })
 fs.mkdirSync(cpsbDir, { recursive: true })
@@ -191,7 +204,10 @@ app.use('/static', express.static(staticDir, {
 
 app.use('/admin', express.static(adminDir, {
   setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+    // HTML 始终不缓存；JS/CSS 每次上线后内容可能变化，也不缓存，避免前端升级后浏览器仍用旧文件
+    if (filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+    }
   }
 }))
 app.get(['/admin', '/admin/'], (req, res) => res.sendFile(path.join(adminDir, 'index.html')))

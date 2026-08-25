@@ -1,7 +1,14 @@
 // 服务配置文件
 // 配置优先从数据库 settings 表读取（即时生效，无需重启），
 // 数据库中没有时回退到 .env 环境变量（仅用于首次初始化/部署）。
+//
+// 文件拆分说明：
+//   - config/core.js  服务核心配置（端口/上传/管理员等）
+//   - config/ocr.js   OCR 各通道配置（百度/腾讯/阿里云/华为云/自定义）
+//   - config.js       入口：合并上面两个模块并导出，对调用方完全透明
 const db = require('./db')
+const buildCore = require('./config/core')
+const buildOcr = require('./config/ocr')
 
 // 从数据库 settings 表读取一个配置值
 function dbGet(key, fallback) {
@@ -24,7 +31,11 @@ function migrateEnvToDb() {
   const envKeys = [
     'BASE_URL', 'ADMIN_USERNAME', 'ADMIN_PASSWORD_HASH', 'ADMIN_PASSWORD',
     'BAIDU_API_KEY', 'BAIDU_SECRET_KEY',
-    'TENCENT_SECRET_ID', 'TENCENT_SECRET_KEY', 'TENCENT_REGION'
+    'TENCENT_SECRET_ID', 'TENCENT_SECRET_KEY', 'TENCENT_REGION',
+    'ALIYUN_ACCESS_KEY_ID', 'ALIYUN_ACCESS_KEY_SECRET', 'ALIYUN_REGION',
+    'HUAWEI_AK', 'HUAWEI_SK', 'HUAWEI_PROJECT_ID', 'HUAWEI_REGION',
+    'CUSTOM_OCR_URL', 'CUSTOM_OCR_METHOD', 'CUSTOM_OCR_HEADERS', 'CUSTOM_OCR_BODY_TEMPLATE',
+    'CUSTOM_OCR_PLATE_FIELD', 'CUSTOM_OCR_CONFIDENCE_FIELD', 'CUSTOM_OCR_COLOR_FIELD'
   ]
   for (const k of envKeys) {
     const envVal = process.env[k]
@@ -34,52 +45,18 @@ function migrateEnvToDb() {
   }
 }
 
-module.exports = {
-  // 服务监听端口（群晖反向代理会转发到此端口）—— 端口/DB路径仍走 .env，启动即固定
-  PORT: process.env.PORT || 7081,
-  DB_PATH: process.env.DB_PATH || '',
-
-  // 对外可访问的基础 URL（仅用于拼接上传图片完整地址，当前前端未强制使用）
-  get BASE_URL() { return dbGet('BASE_URL', process.env.BASE_URL || '') },
-
-  // 自适应基础 URL：优先取当前请求的协议+域名（兼容反向代理 X-Forwarded-*），
-  // 其次回退到 settings/.env 中配置的 BASE_URL，最后回退空串（前端用相对路径也能工作）。
-  // 这样内外网、不同域名部署都无需手动改配置。
-  baseUrl(req) {
-    if (req) {
-      const proto = (req.headers['x-forwarded-proto'] || (req.connection && req.connection.encrypted ? 'https' : req.protocol) || 'http').split(',')[0]
-      const host = req.headers['x-forwarded-host'] || req.headers.host
-      if (host) return `${proto}://${host}`
-    }
-    const cfg = dbGet('BASE_URL', process.env.BASE_URL || '')
-    return cfg || ''
-  },
-
-  // 上传图片本地保存目录
-  UPLOAD_DIR: process.env.UPLOAD_DIR || 'uploads',
-
-  // 管理员登录配置（账号从数据库读取；密码哈希优先，兼容明文）
-  get ADMIN_USERNAME() { return dbGet('ADMIN_USERNAME', process.env.ADMIN_USERNAME || 'admin') },
-  get ADMIN_PASSWORD_HASH() { return dbGet('ADMIN_PASSWORD_HASH', process.env.ADMIN_PASSWORD_HASH || '') },
-  get ADMIN_PASSWORD() { return dbGet('ADMIN_PASSWORD', process.env.ADMIN_PASSWORD || '') },
-  TOKEN_EXPIRE_HOURS: 24 * 7, // 7 天
-  MAX_LOGIN_FAILS: 5,
-  LOCK_MINUTES: 10,
-  MAX_USER_DEVICES: 3, // 同一账号最多同时在线设备数（超出则挤掉最早登录的设备）
-
-  // 百度 OCR 配置（车牌识别）
-  get BAIDU_API_KEY() { return dbGet('BAIDU_API_KEY', process.env.BAIDU_API_KEY || '') },
-  get BAIDU_SECRET_KEY() { return dbGet('BAIDU_SECRET_KEY', process.env.BAIDU_SECRET_KEY || '') },
-  get BAIDU_ENABLED() { return !!(this.BAIDU_API_KEY && this.BAIDU_SECRET_KEY) },
-
-  // 腾讯云 OCR 配置（车牌识别备用通道）
-  get TENCENT_SECRET_ID() { return dbGet('TENCENT_SECRET_ID', process.env.TENCENT_SECRET_ID || '') },
-  get TENCENT_SECRET_KEY() { return dbGet('TENCENT_SECRET_KEY', process.env.TENCENT_SECRET_KEY || '') },
-  get TENCENT_REGION() { return dbGet('TENCENT_REGION', process.env.TENCENT_REGION || 'ap-guangzhou') },
-  get TENCENT_ENABLED() { return !!(this.TENCENT_SECRET_ID && this.TENCENT_SECRET_KEY) },
-
-  // 读写方法（供系统设置接口调用）
-  dbGet,
-  dbSet,
-  migrateEnvToDb
+// 合并各模块。注意：必须用 defineProperties + getOwnPropertyDescriptors，
+// 否则普通 {...a, ...b} / Object.assign 会触发 getter 求值并变成静态值，
+// 导致「改配置即时生效」的特性被破坏。
+const config = {}
+const modules = [buildCore(dbGet), buildOcr(dbGet)]
+for (const mod of modules) {
+  Object.defineProperties(config, Object.getOwnPropertyDescriptors(mod))
 }
+
+// 读写方法（供系统设置接口调用）
+config.dbGet = dbGet
+config.dbSet = dbSet
+config.migrateEnvToDb = migrateEnvToDb
+
+module.exports = config

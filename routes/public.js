@@ -8,7 +8,7 @@ module.exports = function (ctx) {
   const { db, config, upload, authMiddleware, userAuthMiddleware, genUserToken } = ctx
   const { hashPassword, verifyPassword } = require('../auth')
   const { normalizePlate, toPlateKey } = require('../plate')
-  const { recognizeByBaidu, recognizeByTencent } = require('../ocr')
+  const { recognizeByBaidu, recognizeByTencent, recognizeByAliyun, recognizeByHuawei, recognizeByCustom } = require('../ocr')
 
   // 限制同一账号同时在线设备数：先清理过期会话，若仍超出上限则删除「最早登录」的设备会话
   function enforceDeviceLimit(userId, req) {
@@ -157,8 +157,8 @@ module.exports = function (ctx) {
       if (!req.file && !req.body.imageBase64 && !req.body.imageUrl) {
         return res.status(400).json({ success: false, message: '缺少图片数据' })
       }
-      // 来源渠道：原生 APP 传 'app'，H5 网页传 'web'/'h5'；缺省兜底为 app
-      const rawChannel = (req.body.channel || 'app')
+      // 来源渠道：原生 APP 传 'app'，H5 网页传 'web'/'h5'；缺省兜底为 h5
+      const rawChannel = (req.body.channel || 'h5')
       const channel = (rawChannel === 'web' || rawChannel === 'h5') ? 'h5' : 'app'
       let imageBase64 = null, imageUrl = null
       if (req.file) {
@@ -179,6 +179,9 @@ module.exports = function (ctx) {
       const channels = []
       if (config.TENCENT_ENABLED) channels.push(['腾讯OCR', recognizeByTencent])
       if (config.BAIDU_ENABLED) channels.push(['百度OCR', recognizeByBaidu])
+      if (config.ALIYUN_OCR_ENABLED) channels.push(['阿里云OCR', recognizeByAliyun])
+      if (config.HUAWEI_OCR_ENABLED) channels.push(['华为云OCR', recognizeByHuawei])
+      if (config.CUSTOM_OCR_ENABLED) channels.push(['自定义OCR', recognizeByCustom])
       if (channels.length === 0) {
         if (req.file && fs.existsSync(req.file.path)) { try { fs.unlinkSync(req.file.path) } catch (e) {} }
         return res.status(500).json({ success: false, message: '未配置任何 OCR 通道（请到系统设置填写百度或腾讯 OCR 密钥）' })

@@ -344,25 +344,80 @@ table.log-table thead th .col-resizer.active { background: rgba(56,189,248,.55);
 
 /* 批量新增车辆表单 */
 .batch-multi { padding: 4px 0; }
-.batch-multi-head,
-.batch-row { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr 1.1fr 1.3fr 1.2fr 70px; gap: 8px; align-items: center; margin-bottom: 8px; }
-.batch-multi-head { font-size: 12px; color: var(--muted); padding: 0 4px 6px; border-bottom: 1px solid var(--glass-border); }
+
+/* 粘贴导入 */
+.batch-paste-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.batch-paste-panel { margin-bottom: 14px; padding: 12px; border: 1px dashed var(--glass-border); border-radius: 10px; background: rgba(255,255,255,.02); }
+.batch-paste-panel textarea { width: 100%; min-height: 90px; box-sizing: border-box; padding: 10px; background: rgba(30,41,59,.6); border: 1px solid var(--glass-border); border-radius: 8px; color: #fff; font-size: 13px; resize: vertical; }
+.batch-paste-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+
+/* 桌面端表头 */
+.batch-multi-head { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr 1.3fr 1fr 70px; gap: 8px; font-size: 12px; color: var(--muted); padding: 0 4px 8px; border-bottom: 1px solid var(--glass-border); margin-bottom: 8px; }
 .batch-multi-head span { white-space: nowrap; }
-.batch-row > input { width: 100%; height: 36px; padding: 0 8px; font-size: 13px; background: rgba(30,41,59,.6); border: 1px solid var(--glass-border); border-radius: 6px; color: #fff; box-sizing: border-box; }
-.batch-row input::placeholder { color: var(--muted); }
-.batch-row input:focus { outline: none; border-color: var(--primary); }
-.batch-row input.error { border-color: var(--no); }
+
+/* 行基础 */
+.batch-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr 1.3fr 1fr 70px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.batch-row .batch-row-head { display: none; }
+.batch-row .batch-fields { display: contents; }
+.batch-field label { display: none; }
+.batch-field input { width: 100%; height: 36px; padding: 0 8px; font-size: 13px; background: rgba(30,41,59,.6); border: 1px solid var(--glass-border); border-radius: 6px; color: #fff; box-sizing: border-box; }
+.batch-field input::placeholder { color: var(--muted); }
+.batch-field input:focus { outline: none; border-color: var(--primary); }
+.batch-field input.error { border-color: var(--no); }
+.batch-valid-inputs { display: flex; align-items: center; gap: 4px; }
+.batch-valid-inputs input[type="date"] { width: auto; min-width: 0; flex: 1; height: 36px; padding: 0 4px; font-size: 12px; background: rgba(30,41,59,.6); border: 1px solid var(--glass-border); border-radius: 6px; color: #fff; box-sizing: border-box; }
+.batch-valid-inputs input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.7); cursor: pointer; }
+.batch-valid-sep { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .batch-actions { display: flex; gap: 4px; justify-content: flex-end; }
 .batch-actions button { width: 28px; height: 28px; padding: 0; border-radius: 6px; border: 1px solid var(--glass-border); background: rgba(30,41,59,.6); color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; line-height: 1; }
 .batch-actions button:hover { background: var(--primary); border-color: var(--primary); color: #fff; }
 .batch-actions button.del:hover { background: var(--no); border-color: var(--no); }
 .batch-actions button:disabled { opacity: .35; cursor: not-allowed; }
+
+/* 添加行与提示 */
 .batch-add-row { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 .batch-add-row .hint { margin: 0; flex: 1; text-align: right; color: var(--no); }
-.batch-valid { display: flex; align-items: center; gap: 4px; }
-.batch-valid input[type="date"] { width: auto; min-width: 0; flex: 1; height: 36px; padding: 0 4px; font-size: 12px; background: rgba(30,41,59,.6); border: 1px solid var(--glass-border); border-radius: 6px; color: #fff; box-sizing: border-box; }
-.batch-valid input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.7); cursor: pointer; }
-.batch-valid-sep { color: var(--muted); font-size: 12px; }
+
+/* 移动端：卡片式布局 */
+@media (max-width: 768px) {
+  .batch-multi-head.desktop-only { display: none; }
+  .batch-row {
+    display: block;
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 12px;
+    background: rgba(255,255,255,.02);
+  }
+  .batch-row .batch-row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--glass-border);
+  }
+  .batch-row .batch-seq { font-weight: 700; color: var(--primary); font-size: 14px; }
+  .batch-row .batch-row-head .del {
+    width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--glass-border);
+    background: rgba(30,41,59,.6); color: #fff; cursor: pointer; display: inline-flex;
+    align-items: center; justify-content: center; font-size: 16px;
+  }
+  .batch-row .batch-row-head .del:disabled { opacity: .35; cursor: not-allowed; }
+  .batch-row .batch-row-head .del:hover { background: var(--no); border-color: var(--no); }
+  .batch-row .batch-fields {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .batch-field { display: flex; flex-direction: column; gap: 4px; }
+  .batch-field label { display: block; font-size: 12px; color: var(--muted); }
+  .batch-field input { height: 38px; font-size: 14px; }
+  .batch-field.batch-plate { grid-column: 1 / -1; }
+  .batch-field.batch-valid { grid-column: 1 / -1; }
+  .batch-valid-inputs { display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px; }
+  .batch-actions { display: none; }
+}
 .form-row { margin-bottom: 14px; }
 .form-row.row2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .form-row.row2 > div { min-width: 0; }
@@ -381,12 +436,91 @@ table.log-table thead th .col-resizer.active { background: rgba(56,189,248,.55);
 /* ============ OCR 教程 ============ */
 .panel .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: rgba(24,144,255,.14); color: #1890FF; vertical-align: middle; }
 .panel .badge.green { background: rgba(54,207,201,.16); color: #36CFC9; }
+.panel .badge.purple { background: rgba(139,92,246,.16); color: #a78bfa; }
 .panel .help { font-size: 13px; color: var(--muted); margin: -4px 0 12px; line-height: 1.6; }
 .panel .steps { margin: 0 0 14px; padding-left: 20px; color: var(--muted); font-size: 13px; line-height: 1.9; }
 .panel .steps li { margin-bottom: 2px; }
 .panel .steps code { background: #1D2733; border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; font-size: 12px; color: #86909C; }
 .panel .steps a { color: var(--primary-d); text-decoration: none; }
 .panel .steps a:hover { text-decoration: underline; }
+
+/* ============ OCR 通道卡片（系统设置页） ============ */
+.ocr-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 6px;
+}
+.ocr-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2, rgba(255,255,255,.02));
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+.ocr-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.ocr-card-title { font-size: 15px; font-weight: 700; color: var(--text); flex: 1; }
+.ocr-tut-btn {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--muted); cursor: pointer; font-size: 13px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 auto;
+}
+.ocr-tut-btn:hover { border-color: var(--primary-d, #4F9BFF); color: var(--primary-d, #4F9BFF); }
+.ocr-card-body { flex: 1; }
+.ocr-field { margin-bottom: 12px; }
+.ocr-field label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 5px; }
+.ocr-field input, .ocr-field textarea {
+  width: 100%; box-sizing: border-box;
+  padding: 8px 10px; font-size: 13px;
+  background: rgba(30,41,59,.6); border: 1px solid var(--border);
+  border-radius: 8px; color: #fff;
+}
+.ocr-field textarea { resize: vertical; }
+.ocr-field input:focus, .ocr-field textarea:focus { outline: none; border-color: var(--primary-d, #4F9BFF); }
+.ocr-field .hint { margin: 4px 0 0; font-size: 11.5px; color: var(--muted); }
+.ocr-card-foot { margin-top: 6px; }
+
+/* 批量录入：车牌拍照识别 */
+.batch-plate-input { display: flex; gap: 6px; }
+.batch-plate-input input { flex: 1; }
+.batch-plate-input .ocr-snap {
+  width: 34px; height: 34px; padding: 0; flex: 0 0 34px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: rgba(30,41,59,.8); cursor: pointer; font-size: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.batch-plate-input .ocr-snap:hover { background: var(--primary-d, #4F9BFF); border-color: var(--primary-d, #4F9BFF); }
+.batch-plate-input .ocr-snap:disabled { opacity: .5; cursor: not-allowed; }
+.ocr-card-foot .btn { width: 100%; }
+.ocr-card .badge.blue { background: rgba(24,144,255,.14); color: #1890FF; }
+
+/* OCR 教程模态框内样式 */
+#ocr-tut-body { color: var(--muted, #8a94a6); font-size: 13.5px; line-height: 1.9; }
+#ocr-tut-body ol { padding-left: 20px; margin: 0; }
+#ocr-tut-body code {
+  background: rgba(255,255,255,.06); border: 1px solid var(--border);
+  border-radius: 5px; padding: 1px 6px; font-size: 12px; color: #86909C;
+}
+#ocr-tut-body a { color: var(--primary-d, #4F9BFF); text-decoration: none; }
+#ocr-tut-body a:hover { text-decoration: underline; }
+
+/* 窄屏：自适应减少每行卡片数 */
+@media (max-width: 1100px) {
+  .ocr-cards { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 680px) {
+  .ocr-cards { grid-template-columns: 1fr; }
+}
 
 /* ============ 日期 ============ */
 .date-range { position: relative; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

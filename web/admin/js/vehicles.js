@@ -5,12 +5,38 @@ let editingId = null;      // null=新增
 let photoUrl = '';         // 已上传照片 URL
 let selectedIds = new Set();
 let depTags = [];          // 当前车辆所属部门标签（可多个）
-const PLATE_RE = /^[\u4e00-\u9fa5][A-Za-z0-9]{5,7}$/;
+const PLATE_RE = /^[\u4e00-\u9fa5][A-Za-z0-9]{5,8}$/;
+
+// 车牌显示格式化：粤B12345 → 粤B·12345；粤M FP196 → 粤M·FP196
+function formatPlate(plate) {
+  if (!plate) return ''
+  let p = String(plate).trim().toUpperCase().replace(/\s+/g, '')
+  if (/^[\u4e00-\u9fa5][A-Za-z]·/.test(p)) return p
+  if (/^[\u4e00-\u9fa5][A-Za-z]/.test(p)) {
+    p = p.slice(0, 2) + '·' + p.slice(2)
+  }
+  return p
+}
+function unformatPlate(plate) {
+  return String(plate || '').replace(/·/g, '').replace(/\s+/g, '').toUpperCase()
+}
+function isValidPlate(p) {
+  return PLATE_RE.test(unformatPlate(p))
+}
 // HTML 转义（用于动态拼接行内 input 的 value）
 function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+// 给图片 URL 追加 token，避免 <img> 请求 /uploads/* 或 /api/vehicles/:id/photo 因无令牌而 401 破图
+function withToken(url) {
+  if (!url) return url;
+  if (/[?&]token=/.test(url)) return url;
+  const token = getToken();
+  if (!token) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return url + sep + 'token=' + encodeURIComponent(token);
 }
 let plateAreas = {};       // 全国车牌地区映射（省份简称 -> {province, cities}）
 
@@ -26,7 +52,7 @@ async function loadPlateAreas() {
 function updatePlateArea(plate) {
   const hint = document.getElementById('plate-area');
   if (!hint) return true;
-  plate = (plate || '').trim();
+  plate = unformatPlate(plate);
   if (!plate) { hint.textContent = ''; hint.className = 'plate-area-hint'; return false; }
   if (!PLATE_RE.test(plate)) {
     hint.textContent = '车牌号格式不正确';
@@ -68,7 +94,8 @@ function fmtRange() {
   if (!dpStart && !dpEnd) return '';
   const s = dpStart ? fmtDate(dpStart.y, dpStart.m, dpStart.d) : '';
   const e = dpEnd ? fmtDate(dpEnd.y, dpEnd.m, dpEnd.d) : '';
-  return e ? (s + '~' + e) : s;   // 仅开始：自该日起长期；都有：区间；都无：空(长期)
+  // 仅开始日期 → 结束留空（形如 "2026-08-25~"）表示长期；都有 → 区间；都无 → 空(长期)
+  return s + '~' + e;
 }
 function toggleValidUntilClear() {
   const v = fmtRange();
@@ -185,6 +212,7 @@ function formatValid(v) {
 function formatPlateCell(plate) {
   if (!plate) return '<div>—</div>';
   const p = String(plate).trim();
+  const display = formatPlate(p);
   const prov = p.charAt(0);
   const letter = p.charAt(1);
   const info = plateAreas[prov];
@@ -194,8 +222,8 @@ function formatPlateCell(plate) {
     area = info.province + (city && city !== info.province ? ' · ' + city : '');
   }
   return area
-    ? '<div><b>' + esc(p) + '</b></div><div class="plate-area-cell">' + esc(area) + '</div>'
-    : '<div><b>' + esc(p) + '</b></div>';
+    ? '<div><b>' + esc(display) + '</b></div><div class="plate-area-cell">' + esc(area) + '</div>'
+    : '<div><b>' + esc(display) + '</b></div>';
 }
 
 // 列表单元格：有效期 + 剩余时间
@@ -227,21 +255,50 @@ function formatValidCell(v) {
 }
 
 function initVehicles() {
-  initColResize('vehTbl',
-    ['check', 'photo', 'plate', 'owner', 'phone', 'dept', 'valid', 'remark', 'op'],
-    { check: 42, photo: 76, plate: 110, owner: 90, phone: 120, dept: 110, valid: 120, remark: 150, op: 150 },
-    'vehTbl_colwidths', { lastFixed: 'op' })
+  try {
+    initColResize('vehTbl',
+      ['check', 'photo', 'plate', 'owner', 'phone', 'dept', 'valid', 'remark', 'op'],
+      { check: 42, photo: 76, plate: 110, owner: 90, phone: 120, dept: 110, valid: 120, remark: 150, op: 150 },
+      'vehTbl_colwidths', { lastFixed: 'op' })
+  } catch (e) {
+    console.error('initColResize failed:', e)
+  }
   loadPlateAreas();
   loadVehicles();
 
   const plateInput = document.getElementById('f-plate');
-  if (plateInput) plateInput.addEventListener('input', e => updatePlateArea(e.target.value));
+  if (plateInput) {
+    // 仅做大写 / 去空格，不在此插入「·」分隔符，避免打断移动端英文（九宫格）输入
+    plateInput.addEventListener('input', e => {
+      const el = e.target;
+      const v = el.value.toUpperCase().replace(/\s+/g, '');
+      if (el.value !== v) {
+        const start = el.selectionStart;
+        el.value = v;
+        const pos = Math.min(start, el.value.length);
+        el.setSelectionRange(pos, pos);
+      }
+      updatePlateArea(el.value);
+    });
+    // 失焦时再统一格式化为「粤B·12345」展示样式
+    plateInput.addEventListener('blur', e => {
+      const el = e.target;
+      if (el.value) el.value = formatPlate(el.value);
+    });
+  }
 
   document.getElementById('add-btn').onclick = openAdd;
   document.getElementById('refresh-btn').onclick = loadVehicles;
   document.getElementById('search').addEventListener('keydown', e => {
     if (e.key === 'Enter') { vState.keyword = e.target.value.trim(); vState.page = 1; loadVehicles(); }
   });
+  // 查询按钮
+  const queryBtn = document.getElementById('query-btn');
+  if (queryBtn) queryBtn.onclick = () => {
+    vState.keyword = document.getElementById('search').value.trim();
+    vState.page = 1;
+    loadVehicles();
+  };
 
   // 部门筛选
   loadDepFilter();
@@ -267,6 +324,13 @@ function initVehicles() {
   // 批量表单底部「+ 添加一行」
   const batchAddBtn = document.getElementById('batch-add-btn')
   if (batchAddBtn) batchAddBtn.onclick = () => addBatchRow()
+  // 粘贴导入
+  const batchPasteToggle = document.getElementById('batch-paste-toggle')
+  if (batchPasteToggle) batchPasteToggle.onclick = () => showBatchPastePanel(true)
+  const batchPasteCancel = document.getElementById('batch-paste-cancel')
+  if (batchPasteCancel) batchPasteCancel.onclick = () => showBatchPastePanel(false)
+  const batchPasteConfirm = document.getElementById('batch-paste-confirm')
+  if (batchPasteConfirm) batchPasteConfirm.onclick = applyBatchPaste
 
   document.getElementById('check-all').addEventListener('change', e => {
     const checked = e.target.checked;
@@ -331,8 +395,8 @@ async function loadVehicles() {
           <td>${formatValidCell(v.validUntil)}</td>
           <td class="remark-cell">${esc(v.remark || '')}</td>
           <td>
-            <button class="btn sm warn" onclick="editVehicle(${v.id})">编辑</button>
             <button class="btn sm danger" onclick="delVehicle(${v.id})">删除</button>
+            <button class="btn sm warn" onclick="editVehicle(${v.id})">编辑</button>
           </td>
         </tr>`;
       }).join('');
@@ -441,15 +505,15 @@ function editVehicle(id) {
   const v = vRows[id];
   if (!v) { toast('数据不存在，请刷新后重试'); return; }
   editingId = id;
-  // 切回单条编辑视图（若此前处于批量视图）
+  // 切回单条编辑视图（若此前处于批量视图）；H5 无批量区块，做存在性保护
   modalMode = 'single';
-  document.getElementById('batch-single').style.display = '';
-  document.getElementById('batch-multi').style.display = 'none';
+  const bs = document.getElementById('batch-single'); if (bs) bs.style.display = '';
+  const bm = document.getElementById('batch-multi'); if (bm) bm.style.display = 'none';
   const box = document.getElementById('modal-box');
   if (box) box.style.width = '';
-  document.getElementById('modal-save').textContent = '保存';
+  const saveBtn = document.getElementById('modal-save'); if (saveBtn) saveBtn.textContent = '保存';
   document.getElementById('modal-title').textContent = '编辑车辆';
-  document.getElementById('f-plate').value = v.plateNo || '';
+  document.getElementById('f-plate').value = formatPlate(v.plateNo || '');
   document.getElementById('f-owner').value = v.owner || '';
   document.getElementById('f-phone').value = v.phone || '';
   document.getElementById('f-remark').value = v.remark || '';
@@ -472,7 +536,7 @@ function editVehicle(id) {
 
 async function saveVehicle() {
   if (modalMode === 'batch') { await submitBatchCreate(); return; }
-  const plate = document.getElementById('f-plate').value.trim().toUpperCase();
+  const plate = unformatPlate(document.getElementById('f-plate').value);
   const owner = document.getElementById('f-owner').value.trim();
   const phone = document.getElementById('f-phone').value.trim();
   const department = depTags.join(',');
@@ -585,32 +649,75 @@ function pickPhoto(f) {
   const fd = new FormData();
   fd.append('photo', f);
   showPhotoLoading();
-  api('/api/admin/vehicles/photo', { method: 'POST', body: fd, noJson: true })
+  api('/api/admin/vehicles/photo', { method: 'POST', body: fd, noJson: true, noLogout: true })
     .then(r => {
       if (!r.success) throw new Error(r.message || '上传失败');
-      photoUrl = r.url;
       photoRemoteUrl = r.url;       // 提交给后端的 URL（服务器返回的绝对地址）
+      photoUrl = withToken(r.url);  // 预览/识别用带令牌的 URL，防止 401 破图
       photoUploaded = true;         // 标记本次确实重新上传了
-      showPhotoDone(r.url);
-      autoOcr(r.url);
+      showPhotoDone(photoUrl);
+      autoOcr(photoUrl);
     })
     .catch(e => { showPhotoEmpty(); toast('上传失败：' + e.message); });
 }
 
 function autoOcr(url) {
-  fetch(url).then(res => res.blob()).then(blob => {
-    const fd = new FormData();
-    fd.append('image', blob, 'snap.jpg');
-    api('/api/recognize', { method: 'POST', body: fd, noJson: true })
-      .then(r => {
-        const plate = r && r.data && r.data.plateNo;
-        if (plate && !document.getElementById('f-plate').value) {
-          document.getElementById('f-plate').value = plate;
-        }
-      })
-      .catch(() => {});
-  }).catch(() => {});
+  // 下载刚上传的图片交给 OCR。注意：/uploads/* 是鉴权接口，必须用带令牌的请求，
+  // 否则会返回 401，而 H5 页把 doLogout 覆盖成跳登录页，导致“上传即跳登录”。
+  fetch(url, { headers: authHeaders() })
+    .then(res => { if (!res.ok) throw new Error('download ' + res.status); return res.blob(); })
+    .then(blob => {
+      const fd = new FormData();
+      fd.append('image', blob, 'snap.jpg');
+      api('/api/recognize', { method: 'POST', body: fd, noJson: true, noLogout: true })
+        .then(r => {
+          if (!r || r.success === false) { toast('车牌识别失败：' + ((r && r.message) || '未知错误')); return; }
+          const plate = r && r.data && r.data.plateNo;
+          if (plate && !document.getElementById('f-plate').value) {
+            document.getElementById('f-plate').value = formatPlate(plate);
+            updatePlateArea(plate);
+          }
+        })
+        .catch(e => { toast('车牌识别失败：' + (e && e.message || '请求异常')); });
+    })
+    .catch(e => { toast('车牌识别失败：' + (e && e.message || '图片下载异常')); });
 }
+
+// 批量录入：对某一行拍照/上传并识别车牌
+async function batchRowOcr(seq, file) {
+  if (!file || file.type.indexOf('image/') !== 0) { toast('请选择图片文件'); return; }
+  const row = document.querySelector('.batch-row[data-seq="' + seq + '"]');
+  if (!row) return;
+  const plateInput = row.querySelector('[data-f="plateNo"]');
+  const snapBtn = row.querySelector('.ocr-snap');
+  if (snapBtn) { snapBtn.disabled = true; snapBtn.textContent = '…'; }
+  try {
+    const fd = new FormData(); fd.append('photo', file);
+    const up = await api('/api/admin/vehicles/photo', { method: 'POST', body: fd, noJson: true, noLogout: true });
+    if (!up.success) throw new Error(up.message || '上传失败');
+    const url = withToken(up.url);
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) throw new Error('download ' + res.status);
+    const blob = await res.blob();
+    const rfd = new FormData(); rfd.append('image', blob, 'snap.jpg');
+    const r = await api('/api/recognize', { method: 'POST', body: rfd, noJson: true, noLogout: true });
+    if (!r || r.success === false) throw new Error((r && r.message) || '识别失败');
+    const plate = r && r.data && r.data.plateNo;
+    if (!plate) throw new Error('未识别到车牌');
+    if (plateInput) {
+      plateInput.value = formatPlate(plate);
+      plateInput.classList.remove('error');
+    }
+    toast('识别成功：' + formatPlate(plate));
+  } catch (e) {
+    toast('识别失败：' + (e && e.message || '请求异常'));
+  } finally {
+    if (snapBtn) { snapBtn.disabled = false; snapBtn.textContent = '📷'; }
+  }
+}
+
+// 供 HTML 内联 onclick 调用
+window.batchRowOcr = batchRowOcr
 
 function showPhotoEmpty() {
   document.getElementById('v-photo-empty').style.display = '';
@@ -646,75 +753,121 @@ function openBatchAdd() {
   editingId = null;
   document.getElementById('modal-title').textContent = '批量新增车辆';
   document.getElementById('batch-single').style.display = 'none';
-  document.getElementById('batch-multi').style.display = '';
+  document.getElementById('batch-multi').style.display = 'block';
   // 切换模式时让 modal 更宽
   const box = document.getElementById('modal-box');
   if (box) box.style.width = 'min(1100px,96vw)';
   document.getElementById('modal-save').textContent = '批量添加';
+  // 清空粘贴面板与提示
+  showBatchPastePanel(false);
+  const ta = document.getElementById('batch-paste-text');
+  if (ta) ta.value = '';
   const hint = document.getElementById('batch-hint');
-  if (hint) { hint.textContent = ''; hint.style.color = 'var(--no)'; }
+  if (hint) { hint.textContent = ''; hint.style.color = ''; }
   // 初始给 2 个空行
   const wrap = document.getElementById('batch-rows');
   wrap.innerHTML = '';
+  batchRowSeq = 0;
   for (let i = 0; i < 2; i++) addBatchRow();
+  refreshBatchSeq();
   document.getElementById('modal').classList.add('show');
 }
 
-// 切换回单条新增
-function openAdd() {
-  modalMode = 'single';
-  editingId = null; photoUrl = ''; photoUploaded = false; photoRemoteUrl = '';
-  document.getElementById('modal-title').textContent = '新增车辆';
-  document.getElementById('batch-single').style.display = '';
-  document.getElementById('batch-multi').style.display = 'none';
-  const box = document.getElementById('modal-box');
-  if (box) box.style.width = '';
-  document.getElementById('modal-save').textContent = '保存';
-  document.getElementById('f-plate').value = '';
-  document.getElementById('f-owner').value = '';
-  document.getElementById('f-phone').value = '';
-  document.getElementById('f-remark').value = '';
-  depTags = [];
-  renderDepTags();
-  const td = new Date();
-  dpStart = { y: td.getFullYear(), m: td.getMonth(), d: td.getDate() };
-  dpEnd = null;
-  toggleValidUntilClear();
-  showPhotoEmpty();
-  document.getElementById('modal').classList.add('show');
-  updatePlateArea(document.getElementById('f-plate').value);
-  document.getElementById('f-plate').focus();
+// 解析 validUntil 字符串为 {validStart, validEnd}
+function splitValidUntil(v) {
+  if (!v) return { validStart: '', validEnd: '' };
+  v = String(v).trim();
+  if (v.includes('~')) {
+    const [s, e] = v.split('~').map(x => x.trim());
+    return { validStart: s || '', validEnd: e || '' };
+  }
+  // 单个日期视为结束日期，开始日期留空（后端按今天处理）
+  return { validStart: '', validEnd: v };
 }
 
-// 单行 HTML：车牌号 / 车主 / 部门 / 手机号 / 有效期(开始~结束) / 备注 / 操作
+// 新增批量录入行：桌面端横向一行，移动端自动变卡片
 function addBatchRow(values) {
   values = values || {};
+  let { validStart, validEnd } = splitValidUntil(values.validUntil || '');
+  if (values.validStart) validStart = values.validStart;
+  if (values.validEnd) validEnd = values.validEnd;
   const seq = ++batchRowSeq;
   const wrap = document.getElementById('batch-rows');
   const row = document.createElement('div');
   row.className = 'batch-row';
   row.dataset.seq = seq;
-  row.innerHTML =
-    '<input data-f="plateNo" maxlength="10" placeholder="粤B12345" value="' + esc(values.plateNo || '') + '">' +
-    '<input data-f="owner" placeholder="车主" value="' + esc(values.owner || '') + '">' +
-    '<input data-f="department" placeholder="部门" value="' + esc(values.department || '') + '">' +
-    '<input data-f="phone" placeholder="手机号" value="' + esc(values.phone || '') + '">' +
-    '<div class="batch-valid">' +
-      '<input type="date" data-f="validStart" value="' + esc(values.validStart || '') + '">' +
-      '<span class="batch-valid-sep">~</span>' +
-      '<input type="date" data-f="validEnd" value="' + esc(values.validEnd || '') + '">' +
-    '</div>' +
-    '<input data-f="remark" placeholder="备注" value="' + esc(values.remark || '') + '">' +
-    '<div class="batch-actions">' +
-      '<button type="button" class="add" title="新增一行" onclick="addBatchRow()">+</button>' +
-      '<button type="button" class="del" title="删除本行" onclick="removeBatchRow(' + seq + ')">×</button>' +
+  const fields = [
+    { f: 'plateNo', label: '车牌号', ph: '粤B12345', cls: 'batch-plate', required: true },
+    { f: 'owner', label: '车主', ph: '姓名', cls: 'batch-owner', required: true },
+    { f: 'department', label: '部门', ph: '部门', cls: 'batch-dept' },
+    { f: 'phone', label: '手机号', ph: '11位手机号', cls: 'batch-phone' },
+    { f: 'validRange', label: '有效期', cls: 'batch-valid', isRange: true },
+    { f: 'remark', label: '备注', ph: '选填', cls: 'batch-remark' }
+    ];
+    let html = '<div class="batch-row-head"><span class="batch-seq">#</span><button type="button" class="del" title="删除本行" onclick="removeBatchRow(' + seq + ')">×</button></div>';
+    html += '<div class="batch-fields">';
+    for (const fd of fields) {
+    if (fd.isRange) {
+    html += '<div class="batch-field ' + fd.cls + '">' +
+      '<label>' + (fd.required ? '<span class="req">*</span>' : '') + fd.label + '</label>' +
+      '<div class="batch-valid-inputs">' +
+        '<input type="date" data-f="validStart" value="' + esc(validStart) + '" title="开始时间">' +
+        '<span class="batch-valid-sep">~</span>' +
+        '<input type="date" data-f="validEnd" value="' + esc(validEnd) + '" title="结束时间（留空为长期）">' +
+      '</div>' +
     '</div>';
-  // 车牌输入时实时校验格式
-  row.querySelector('[data-f="plateNo"]').addEventListener('input', e => {
-    const v = e.target.value.trim().toUpperCase();
-    e.target.value = v;
-    e.target.classList.toggle('error', v && !PLATE_RE.test(v));
-  });
+    } else if (fd.f === 'plateNo') {
+    const val = esc(formatPlate(values[fd.f] || ''));
+    html += '<div class="batch-field ' + fd.cls + '">' +
+      '<label>' + (fd.required ? '<span class="req">*</span>' : '') + fd.label + '</label>' +
+      '<div class="batch-plate-input">' +
+        '<input data-f="plateNo" placeholder="' + fd.ph + '" value="' + val + '" maxlength="10">' +
+        '<button type="button" class="ocr-snap" title="拍照/上传识别车牌" data-seq="' + seq + '">📷</button>' +
+        '<input type="file" accept="image/*" capture="environment" class="ocr-file" data-seq="' + seq + '" style="display:none">' +
+      '</div>' +
+    '</div>';
+    } else {
+    const val = esc(values[fd.f] || '');
+    html += '<div class="batch-field ' + fd.cls + '">' +
+      '<label>' + (fd.required ? '<span class="req">*</span>' : '') + fd.label + '</label>' +
+      '<input data-f="' + fd.f + '" placeholder="' + fd.ph + '" value="' + val + '">' +
+    '</div>';
+    }
+    }
+    html += '</div>';
+    html += '<div class="batch-actions">' +
+    '<button type="button" class="add" title="新增一行" onclick="addBatchRow()">+</button>' +
+    '<button type="button" class="del" title="删除本行" onclick="removeBatchRow(' + seq + ')">×</button>' +
+    '</div>';
+    row.innerHTML = html;
+
+    // 车牌输入时实时格式化并校验
+    const plateInput = row.querySelector('[data-f="plateNo"]');
+    plateInput.addEventListener('input', e => {
+    const el = e.target;
+    const start = el.selectionStart;
+    const formatted = formatPlate(el.value);
+    if (el.value !== formatted) {
+    el.value = formatted;
+    el.setSelectionRange(Math.min(start + 1, el.value.length), Math.min(start + 1, el.value.length));
+    }
+    el.classList.toggle('error', el.value && !isValidPlate(el.value));
+    });
+    // 拍照识别车牌
+    const snapBtn = row.querySelector('.ocr-snap');
+    const fileInput = row.querySelector('.ocr-file');
+    if (snapBtn && fileInput) {
+    snapBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (f) batchRowOcr(seq, f);
+    fileInput.value = ''; // 允许重复选同一张图
+    });
+    }
+    // 手机号输入仅允许数字
+    const phoneInput = row.querySelector('[data-f="phone"]');
+    phoneInput.addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 11); });
+
   wrap.appendChild(row);
   refreshBatchDelState();
   return row;
@@ -723,18 +876,23 @@ function addBatchRow(values) {
 function removeBatchRow(seq) {
   const row = document.querySelector('.batch-row[data-seq="' + seq + '"]');
   if (row) row.remove();
+  refreshBatchSeq();
   refreshBatchDelState();
+}
+
+// 重排卡片序号
+function refreshBatchSeq() {
+  document.querySelectorAll('#batch-rows .batch-row').forEach((r, i) => {
+    const seqEl = r.querySelector('.batch-seq');
+    if (seqEl) seqEl.textContent = '#' + (i + 1);
+  });
 }
 
 // 至少保留一行（首行删除按钮禁用）
 function refreshBatchDelState() {
   const rows = document.querySelectorAll('#batch-rows .batch-row');
-  rows.forEach((r, i) => {
-    const delBtn = r.querySelector('.batch-actions .del');
-    if (delBtn) {
-      // 仅当只有一行时禁用删除，否则允许
-      delBtn.disabled = rows.length <= 1;
-    }
+  rows.forEach(r => {
+    r.querySelectorAll('.del').forEach(btn => { btn.disabled = rows.length <= 1; });
   });
 }
 
@@ -745,7 +903,8 @@ function collectBatchRows() {
   let firstErr = '';
   rows.forEach(r => {
     const get = f => (r.querySelector('[data-f="' + f + '"]') || {}).value || '';
-    const plateNo = get('plateNo').trim().toUpperCase();
+    const rawPlate = get('plateNo').trim();
+    const plateNo = unformatPlate(rawPlate);
     const owner = get('owner').trim();
     const department = get('department').trim();
     const phone = get('phone').trim();
@@ -755,7 +914,7 @@ function collectBatchRows() {
     if (!plateNo && !owner && !department && !phone && !remark) return; // 空行跳过
     // 校验
     if (!plateNo) { firstErr = firstErr || '存在车牌号为空行，请补全'; return; }
-    if (!PLATE_RE.test(plateNo)) { firstErr = firstErr || ('车牌号格式不正确：' + plateNo); return; }
+    if (!PLATE_RE.test(plateNo)) { firstErr = firstErr || ('车牌号格式不正确：' + rawPlate); return; }
     if (!owner) { firstErr = firstErr || ('车主不能为空：' + plateNo); return; }
     if (phone && !/^1[3-9]\d{9}$/.test(phone)) { firstErr = firstErr || ('手机号格式不正确：' + plateNo); return; }
     if (validEnd && validStart && validEnd < validStart) { firstErr = firstErr || ('结束时间早于开始时间：' + plateNo); return; }
@@ -763,6 +922,45 @@ function collectBatchRows() {
     items.push({ plateNo, owner, department, phone, validUntil, remark });
   });
   return { items, error: firstErr };
+}
+
+// 智能粘贴导入：从 Excel / 文本解析多行
+function showBatchPastePanel(show) {
+  document.getElementById('batch-paste-panel').style.display = show ? 'block' : 'none';
+  if (show) document.getElementById('batch-paste-text').focus();
+}
+
+function parseBatchPaste(text) {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const items = [];
+  for (const line of lines) {
+    // 优先按 Tab 分割；没有 Tab 则按 2 个及以上空格 或 全角逗号/英文逗号分割
+    let parts = line.includes('\t') ? line.split('\t') : line.split(/\s{2,}|[，,]/);
+    parts = parts.map(p => p.trim()).filter(p => p !== '');
+    if (!parts.length) continue;
+    const [plateNo, owner = '', department = '', phone = '', validUntil = '', remark = ''] = parts;
+    if (!plateNo) continue;
+    items.push({ plateNo, owner, department, phone, validUntil, remark });
+  }
+  return items;
+}
+
+function applyBatchPaste() {
+  const ta = document.getElementById('batch-paste-text');
+  const hint = document.getElementById('batch-hint');
+  const items = parseBatchPaste(ta.value || '');
+  if (!items.length) {
+    if (hint) { hint.textContent = '未解析到有效数据，请检查粘贴内容'; hint.style.color = 'var(--no)'; }
+    return;
+  }
+  // 清空现有行并填充
+  const wrap = document.getElementById('batch-rows');
+  wrap.innerHTML = '';
+  items.forEach(it => addBatchRow(it));
+  refreshBatchSeq();
+  showBatchPastePanel(false);
+  ta.value = '';
+  if (hint) { hint.textContent = '已解析 ' + items.length + ' 条数据，请核对后保存'; hint.style.color = 'var(--yes)'; }
 }
 
 // 批量保存：在 saveVehicle 内根据 modalMode 分流
@@ -775,11 +973,16 @@ async function submitBatchCreate() {
   if (hint) { hint.textContent = ''; }
   btn.disabled = true; btn.textContent = '提交中…';
   try {
+    const conflict = (document.getElementById('batch-conflict') || {}).value || 'skip'
     const r = await api('/api/admin/vehicles/batch-create', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items })
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items, conflict })
     });
     if (!r.success) throw new Error(r.message || '导入失败');
-    toast(r.message || '批量导入成功');
+    let msg = r.message || '批量导入成功'
+    if (r.conflictPlates && r.conflictPlates.length) {
+      msg += `（已存在 ${r.conflictPlates.length} 个：${r.conflictPlates.slice(0, 10).join('、')}${r.conflictPlates.length > 10 ? '…' : ''}）`
+    }
+    toast(msg, r.conflictPlates && r.conflictPlates.length ? 'warn' : 'ok');
     closeModal();
     loadVehicles();
   } catch (e) {

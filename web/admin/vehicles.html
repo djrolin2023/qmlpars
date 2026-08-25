@@ -13,6 +13,7 @@
 
       <div class="toolbar">
         <input id="search" class="search-input" placeholder="搜索车牌 / 车主 / 电话">
+        <button class="btn" id="query-btn">查询</button>
         <select id="dep-filter"><option value="">全部部门</option></select>
         <button class="btn primary" id="add-btn">+ 新增车辆</button>
         <button class="btn" id="batch-input-btn"><span class="ic" data-icon="batch"></span>批量输入车牌</button>
@@ -118,7 +119,18 @@
 
         <!-- 批量录入 -->
         <div class="batch-multi" id="batch-multi" style="display:none">
-          <div class="batch-multi-head">
+          <div class="batch-paste-bar">
+            <button type="button" class="btn" id="batch-paste-toggle">从 Excel / 文本粘贴导入</button>
+            <span class="hint">支持 Tab、空格或逗号分隔的多行数据</span>
+          </div>
+          <div class="batch-paste-panel" id="batch-paste-panel" style="display:none">
+            <textarea id="batch-paste-text" rows="5" placeholder="从 Excel 复制多行粘贴，例如：&#10;粤B12345	张三	技术部	13800138000	2026-12-31	备注&#10;粤B67890	李四	行政部	13900139000		"></textarea>
+            <div class="batch-paste-actions">
+              <button type="button" class="btn" id="batch-paste-cancel">取消</button>
+              <button type="button" class="btn primary" id="batch-paste-confirm">解析并填充</button>
+            </div>
+          </div>
+          <div class="batch-multi-head desktop-only">
             <span>车牌号</span>
             <span>车主</span>
             <span>部门</span>
@@ -126,6 +138,14 @@
             <span>有效期</span>
             <span>备注</span>
             <span class="batch-actions-col"></span>
+          </div>
+          <div class="batch-conflict-bar" style="display:flex;align-items:center;gap:8px;margin:10px 0 4px;flex-wrap:wrap">
+            <label style="font-size:13px;color:var(--muted)">遇到已存在的车牌：</label>
+            <select id="batch-conflict" style="padding:6px 10px;border-radius:8px;background:rgba(15,20,25,.6);color:inherit;border:1px solid rgba(120,200,255,.2)">
+              <option value="skip">跳过（保留原记录）</option>
+              <option value="update">覆盖更新（按本批数据更新已有记录）</option>
+              <option value="force">仍新增（允许重复）</option>
+            </select>
           </div>
           <div class="batch-rows" id="batch-rows"></div>
           <div class="batch-add-row">

@@ -1,6 +1,6 @@
 {
   "name": "qmlpars-vehicle-server",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "内部车辆识别小程序 - 自建后端服务 (群晖部署)",
   "license": "AGPL-3.0",
   "main": "index.js",
