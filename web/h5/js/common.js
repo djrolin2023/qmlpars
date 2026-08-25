@@ -176,12 +176,15 @@ function goLogin(){
   location.replace('login.html?redirect=' + encodeURIComponent(location.pathname + location.search));
 }
 
-/* 登录态校验：带 token 且后端 /api/auth/me 有效才返回 true */
+/* 登录态校验：带 token 且后端 /api/auth/me 有效才返回 true（带超时兜底，避免无限 pending） */
 async function checkLogin(){
   const t=getUserToken();
   if(!t) return false;
   try {
-    const r=await fetch(API+'/api/auth/me',{headers:{'x-user-token':t}});
+    const ctrl=new AbortController();
+    const to=setTimeout(()=>ctrl.abort(), 6000);
+    const r=await fetch(API+'/api/auth/me',{headers:{'x-user-token':t}, signal:ctrl.signal});
+    clearTimeout(to);
     if(r.ok){ const j=await r.json(); return !!(j&&j.success); }
   } catch(_){}
   return false;

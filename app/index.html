@@ -259,7 +259,8 @@
   </div>
 
   <footer>
-    © 乾明车牌识别系统 · 基于 <a href="https://github.com/djrolin2023/qmlpars/blob/main/LICENSE" target="_blank" rel="noopener">AGPL-3.0</a> 开源
+    <span id="copyrightLine"></span><br>
+    <span id="beianLine"></span>
   </footer>
 </div>
 
@@ -339,8 +340,13 @@
     }
   }
 
-  loadLatest();
-  loadHistory();
+</script>
+<script src="/cpsb/js/common.js"></script>
+<script>
+  // 页脚统一登录页风格（备案信息来自后台设置）
+  if (window.applyBeian) applyBeian();
+  if (window.applySiteName) applySiteName();
+  if (window.applyFavicon) applyFavicon();
 </script>
 </body>
 </html>

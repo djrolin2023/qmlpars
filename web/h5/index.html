@@ -82,16 +82,22 @@
     </div>
   </div>
 
-  <script src="/admin/js/icons.js"></script>
-  <script src="/cpsb/js/common.js"></script>
+  <script defer src="/admin/js/icons.js"></script>
+  <script defer src="/cpsb/js/common.js"></script>
   <script>
   (function(){
+    // 兜底：任何异常导致校验卡死时，最多 10s 强制跳登录，绝不停留在“正在校验登录”
+    var guardTimer = setTimeout(function(){
+      location.replace('login.html?redirect=' + encodeURIComponent('/cpsb/'));
+    }, 10000);
+
     // PC 端访问提示：车牌识别仅支持微信 / 手机端
     if(!/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|MicroMessenger|Mobile/i.test(navigator.userAgent)){
+      clearTimeout(guardTimer);
       var al = document.getElementById('auth-loading');
       if(al){
         al.innerHTML = '<div style="text-align:center;padding:40px 20px;max-width:340px;margin:0 auto;">'
-          + '<div style="font-size:48px;margin-bottom:14px;">📱</div>'
+          + '<svg viewBox="0 0 24 24" fill="none" stroke="#36cfc9" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:48px;height:48px;margin-bottom:14px;"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg>'
           + '<div style="font-size:17px;font-weight:700;margin-bottom:10px;">请从微信端 / 手机端访问</div>'
           + '<div style="color:#94a3b8;font-size:14px;line-height:1.6;">车牌识别依赖手机摄像头与触摸操作，'
           + '请在手机微信或手机浏览器中打开本系统。<br>如需管理车辆，请使用 PC 访问管理后台。</div>'
@@ -103,6 +109,7 @@
       location.replace('login.html?redirect=' + encodeURIComponent('/cpsb/'));
       return;
     }
+    clearTimeout(guardTimer);
     document.body.classList.add('authed');
     const al = document.getElementById('auth-loading'); if(al) al.remove();
 

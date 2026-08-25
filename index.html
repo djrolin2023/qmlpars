@@ -53,7 +53,7 @@
     display:none;align-items:center;justify-content:center;z-index:9999;padding:20px;}
   .mask.show{display:flex;}
   .modal{background:var(--card);border:1px solid var(--border);border-radius:18px;
-    max-width:520px;width:100%;max-height:86vh;overflow:auto;padding:26px 26px 22px;
+    max-width:520px;width:100%;max-height:92vh;overflow:auto;padding:22px 22px 18px;
     box-shadow:0 16px 48px rgba(0,0,0,.45);position:relative;}
   .modal h3{margin:0 0 16px;font-size:18px;display:flex;align-items:center;gap:8px;}
   .modal h3::before{content:'';width:4px;height:16px;border-radius:2px;
@@ -74,6 +74,12 @@
   .modal .entry .eic svg{width:26px;height:26px;color:var(--accent);}
   .modal .entry .eti{font-weight:600;}
   .modal .entry .ede{font-size:12.5px;color:var(--muted);}
+  .modal .chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .modal .chip{flex:1 1 calc(33% - 8px);min-width:120px;display:flex;flex-direction:column;
+    align-items:center;gap:6px;padding:12px 8px;border-radius:12px;
+    background:rgba(120,200,255,.06);border:1px solid rgba(120,200,255,.14);color:var(--text);}
+  .modal .chip svg{width:26px;height:26px;color:var(--accent);}
+  .modal .chip span{font-size:12.5px;font-weight:600;text-align:center;}
   .modal .btn{display:inline-block;margin-top:18px;padding:6px 10px;background:transparent;
     color:var(--accent);text-decoration:none;font-size:14px;font-weight:600;cursor:pointer;
     border:none;box-shadow:none;transition:color .15s;}
@@ -124,25 +130,18 @@
     <div class="modal">
       <button class="close" onclick="closeModal('guideMask')" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
       <h3>欢迎使用乾明车牌识别</h3>
-      <p>本系统提供三种使用方式，按需选择：</p>
-      <div class="entry">
-        <div class="eic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
-        <div><div class="eti">车牌识别（H5）</div><div class="ede">手机/微信浏览器打开，摄像头对准车牌自动识别，或手动输入车牌查询。</div></div>
+      <p style="margin:0 0 12px;">三种使用方式，按场景选择：</p>
+      <div class="chips">
+        <div class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg><span>车牌识别 H5</span></div>
+        <div class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg><span>APP 客户端</span></div>
+        <div class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="16" x2="12" y2="20"/></svg><span>管理后台</span></div>
       </div>
-      <div class="entry">
-        <div class="eic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg></div>
-        <div><div class="eti">APP 客户端</div><div class="ede">安卓安装包，功能与 H5 一致，更适合长期随身使用，支持离线缓存。</div></div>
-      </div>
-      <div class="entry">
-        <div class="eic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="16" x2="12" y2="20"/></svg></div>
-        <div><div class="eti">管理后台</div><div class="ede">PC 浏览器访问，用于车辆登记、识别日志查看、系统设置等管理工作。</div></div>
-      </div>
-      <h3 style="margin-top:22px;">快速上手</h3>
+      <h3 style="margin:14px 0 8px;">快速上手</h3>
       <div class="steps">
-        <div class="step"><span class="num">1</span><div>在「APP 客户端」下载并安装安卓 APP，或用手机浏览器打开「车牌识别」。</div></div>
-        <div class="step"><span class="num">2</span><div>将摄像头对准车牌，系统自动识别并返回车主、电话、部门等登记信息。</div></div>
-        <div class="step"><span class="num">3</span><div>无摄像头时可手动输入车牌号查询；所有识别记录自动同步到管理后台。</div></div>
-        <div class="step"><span class="num">4</span><div>管理员通过 PC 端「管理后台」维护车辆信息、批量导入与查看日志。</div></div>
+        <div class="step"><span class="num">1</span><div>下载安卓 APP 或用手机浏览器打开「车牌识别」。</div></div>
+        <div class="step"><span class="num">2</span><div>摄像头对准车牌，自动识别车主、电话、部门等登记信息。</div></div>
+        <div class="step"><span class="num">3</span><div>无摄像头时手动输入车牌查询；识别记录自动同步后台。</div></div>
+        <div class="step"><span class="num">4</span><div>管理员在 PC「管理后台」维护车辆、批量导入与查看日志。</div></div>
       </div>
       <button class="btn" onclick="closeModal('guideMask')">关闭</button>
     </div>
