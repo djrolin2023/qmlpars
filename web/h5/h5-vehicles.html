@@ -119,7 +119,7 @@
     #modal .modal-body{ padding:18px 18px 8px; }
     #modal .form-row{ display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
     #modal .form-row > div{ min-width:0; width:100%; }
-    #modal .photo-row, #modal .row3{ display:flex; flex-direction:column; gap:14px; }
+    #modal .photo-row, #modal .owner-row{ display:flex; flex-direction:column; gap:14px; }
     #modal label{ display:block; font-weight:600; font-size:13.5px; color:var(--txt,#e7eef6); margin-bottom:2px; }
     #modal label .req{ color:#ff8a80; margin-right:3px; }
     #modal input, #modal textarea, #modal select{
@@ -175,10 +175,11 @@
     @media (max-width: 560px) {
       .toolbar-search-row select#dep-filter{ max-width:38%; }
       .toolbar-action-row #add-btn{ max-width:none; }
-      /* 窄屏：模态框接近全屏，按钮固定大点击区 */
-      #modal-box{ width:96vw; max-height:90vh; display:flex; flex-direction:column; }
-      #modal .modal-body{ overflow:auto; -webkit-overflow-scrolling:touch; }
-      #modal .modal-foot{ flex-direction:column-reverse; position:sticky; bottom:0; }
+      /* 窄屏：模态框接近全屏，内容可滚动，底部按钮始终可见 */
+      #modal-box{ width:96vw; max-height:88vh; display:flex; flex-direction:column; }
+      #modal .modal-head{ flex:0 0 auto; }
+      #modal .modal-body{ flex:1 1 auto; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
+      #modal .modal-foot{ flex:0 0 auto; flex-direction:column-reverse; padding-bottom:max(14px,calc(14px + env(safe-area-inset-bottom))); }
       #modal .modal-foot .btn{ width:100%; }
     }
   </style>
@@ -273,7 +274,7 @@
             <div class="plate-area-hint" id="plate-area"></div>
           </div>
         </div>
-        <div class="form-row row3">
+        <div class="form-row owner-row">
           <div>
             <label><span class="req">*</span>车主</label>
             <input id="f-owner" placeholder="车主姓名">
