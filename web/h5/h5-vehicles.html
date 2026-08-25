@@ -151,7 +151,8 @@
     #modal .tag-suggest span{ cursor:pointer; background:rgba(255,255,255,.05); border:1px solid var(--line,#2E3A4B); color:var(--sub,#8aa0b4); font-size:12.5px; padding:3px 9px; border-radius:7px; }
     #modal .tag-suggest span:hover{ border-color:var(--ok,#36cfc9); color:var(--ok,#36cfc9); }
     /* 照片上传区 */
-    #modal .photo-col{ order:-1; }
+    #modal .photo-col{ order:-1; flex:0 0 auto !important; }
+    #modal .plate-col{ flex:0 0 auto !important; min-width:0; }
     #modal .photo-box{ border:1.5px dashed var(--line,#2E3A4B); border-radius:12px; background:var(--card,#1D2733); min-height:96px; display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; position:relative; }
     #modal .photo-box:active{ border-color:var(--ok,#36cfc9); }
     #modal .photo-placeholder{ text-align:center; color:var(--sub,#8aa0b4); }
