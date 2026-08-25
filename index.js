@@ -195,13 +195,13 @@ fs.mkdirSync(adminDir, { recursive: true })
 fs.mkdirSync(cpsbDir, { recursive: true })
 fs.mkdirSync(staticDir, { recursive: true })
 
-// 前端入口缓存破坏：微信等 webview 常强缓存入口 HTML（即便返回 no-store），导致修复后仍卡旧脚本。
-// 无 ?v= 参数的入口访问 302 跳转到带 CACHE_BUST 的 URL，webview 当作新资源重新拉取。
+// 前端缓存破坏：微信等 webview 常强缓存 HTML（即便返回 no-store），导致修复后仍卡旧脚本/旧子页面。
+// 对所有 .html 结尾的请求，若 URL 无 ?v= 参数则 302 跳转到带 CACHE_BUST 的 URL，webview 当作新资源重新拉取。
 // 每次修复前端（卡顿/样式）后把 CACHE_BUST 改新值即可全量刷新，无需动 version.json。
-const CACHE_BUST = '20260826c'
+const CACHE_BUST = '20260826f'
 function vBust(){
   return function(req, res, next){
-    if((req.path === '' || req.path === '/') && !req.query.v){
+    if(req.path.endsWith('.html') && !req.query.v){
       return res.redirect((req.originalUrl.split('?')[0]) + '?v=' + CACHE_BUST)
     }
     next()
