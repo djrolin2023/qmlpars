@@ -74,10 +74,10 @@
   .modal .entry .eic svg{width:26px;height:26px;color:var(--accent);}
   .modal .entry .eti{font-weight:600;}
   .modal .entry .ede{font-size:12.5px;color:var(--muted);}
-  .modal .btn{display:inline-block;margin-top:18px;padding:10px 20px;border-radius:10px;
-    background:linear-gradient(135deg,var(--primary),#40a9ff);color:#fff;text-decoration:none;
-    font-size:14px;font-weight:600;cursor:pointer;border:none;
-    box-shadow:0 4px 14px rgba(24,144,255,.35);}
+  .modal .btn{display:inline-block;margin-top:18px;padding:6px 10px;background:transparent;
+    color:var(--accent);text-decoration:none;font-size:14px;font-weight:600;cursor:pointer;
+    border:none;box-shadow:none;transition:color .15s;}
+  .modal .btn:hover{color:var(--primary);}
 
   .phone-tip{display:flex;gap:14px;align-items:flex-start;margin-top:6px;}
   .phone-tip .pic svg{width:40px;height:40px;color:var(--accent);}
@@ -144,7 +144,7 @@
         <div class="step"><span class="num">3</span><div>无摄像头时可手动输入车牌号查询；所有识别记录自动同步到管理后台。</div></div>
         <div class="step"><span class="num">4</span><div>管理员通过 PC 端「管理后台」维护车辆信息、批量导入与查看日志。</div></div>
       </div>
-      <button class="btn" onclick="closeModal('guideMask')">我知道了</button>
+      <button class="btn" onclick="closeModal('guideMask')">关闭</button>
     </div>
   </div>
 
@@ -154,7 +154,7 @@
       <button class="close" onclick="closeModal('plateMask')" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
       <h3>请从手机端访问</h3>
       <div class="phone-tip">
-        <div class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="6"/><line x1="11" y1="18" x2="13" y2="18"/></svg></div>
+        <div class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg></div>
         <div class="pt-text">
           <p><b>车牌识别需在微信端 / 手机浏览器中使用</b></p>
           <p>该功能依赖手机摄像头与触摸屏操作，PC 端无法使用。</p>
