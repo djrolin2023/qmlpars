@@ -140,6 +140,8 @@
     }
     #modal #f-plate::placeholder{ color:rgba(255,226,122,.45); letter-spacing:1px; font-weight:600; font-size:16px; }
     #modal .plate-area-hint{ text-align:center; font-size:12.5px; color:var(--ok,#36cfc9); margin-top:3px; min-height:14px; }
+    #modal .plate-area-row{ display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:0 8px; margin-top:3px; min-height:14px; }
+    #modal .plate-dup-hint{ font-size:12.5px; font-weight:700; color:#ff8a80; background:rgba(255,138,128,.14); border:1px solid rgba(255,138,128,.4); padding:1px 8px; border-radius:7px; }
     /* 部门标签：加底色、加粗（呼应列表风格） */
     #modal .tag-input-wrap{ background:var(--card,#1D2733); border:1px solid var(--line,#2E3A4B); border-radius:10px; padding:8px 10px; min-height:46px; }
     #modal .tag-input-box{ display:flex; flex-wrap:wrap; gap:6px; }
@@ -274,7 +276,10 @@
           <div class="plate-col">
             <label><span class="req">*</span>车牌号（上传照片后可自动识别）</label>
             <input id="f-plate" placeholder="如 粤B12345" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" lang="en" inputmode="text">
-            <div class="plate-area-hint" id="plate-area"></div>
+            <div class="plate-area-row">
+              <span class="plate-area-hint" id="plate-area"></span>
+              <span class="plate-dup-hint" id="plate-dup" style="display:none"></span>
+            </div>
           </div>
         </div>
         <div class="form-row owner-row">

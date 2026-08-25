@@ -70,6 +70,30 @@ function updatePlateArea(plate) {
   const city = info.cities[letter] || '';
   hint.textContent = '归属地：' + info.province + (city && city !== info.province ? ' · ' + city : '');
   hint.className = 'plate-area-hint';
+}
+
+// 实时查重：输入车牌时提示库中是否已存在（新增车辆场景）
+let _dupTimer = null;
+function checkPlateDuplicate(plate) {
+  const dup = document.getElementById('plate-dup');
+  plate = unformatPlate(plate || '');
+  clearTimeout(_dupTimer);
+  if (!plate || !PLATE_RE.test(plate)) { if (dup) dup.style.display = 'none'; return; }
+  _dupTimer = setTimeout(() => {
+    api('/api/admin/vehicles/check?plate=' + encodeURIComponent(plate), { noLogout: true })
+      .then(r => {
+        if (!dup) return;
+        if (r && r.success && r.exists) {
+          const d = r.data || {};
+          dup.textContent = '⚠ 库中已有' + (d.owner ? '（车主：' + d.owner + '）' : '');
+          dup.style.display = 'inline-block';
+        } else {
+          dup.style.display = 'none';
+        }
+      })
+      .catch(() => { if (dup) dup.style.display = 'none'; });
+  }, 350);
+}
   return true;
 }
 
@@ -279,11 +303,13 @@ function initVehicles() {
         el.setSelectionRange(pos, pos);
       }
       updatePlateArea(el.value);
+      checkPlateDuplicate(el.value);
     });
     // 失焦时再统一格式化为「粤B·12345」展示样式
     plateInput.addEventListener('blur', e => {
       const el = e.target;
       if (el.value) el.value = formatPlate(el.value);
+      checkPlateDuplicate(el.value);
     });
   }
 
@@ -496,6 +522,7 @@ function openAdd() {
   dpEnd = null;
   toggleValidUntilClear();
   showPhotoEmpty();
+  const dp = document.getElementById('plate-dup'); if (dp) dp.style.display = 'none';
   document.getElementById('modal').classList.add('show');
   updatePlateArea(document.getElementById('f-plate').value);
   document.getElementById('f-plate').focus();

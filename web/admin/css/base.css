@@ -670,6 +670,8 @@ table.log-table thead th .col-resizer.active { background: rgba(56,189,248,.55);
 .req { color: #F76560; margin-right: 2px; font-weight: 700; }
 .plate-area-hint { font-size: 13px; margin-top: 8px; min-height: 16px; color: #1890FF; font-weight: 500; }
 .plate-area-hint.err { color: #F76560; }
+.plate-area-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0 8px; margin-top: 8px; min-height: 16px; }
+.plate-dup-hint { font-size: 13px; font-weight: 700; color: #F76560; background: rgba(247,101,96,.14); border: 1px solid rgba(247,101,96,.4); padding: 1px 8px; border-radius: 7px; }
 .photo-box {
   position: relative; width: 100%; max-width: 200px; aspect-ratio: 3 / 2; border-radius: 10px;
   border: 2px dashed #3a4d63; background: #1D2733;

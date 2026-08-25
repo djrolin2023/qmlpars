@@ -433,6 +433,17 @@ module.exports = function (ctx) {
     res.json({ success: true, data, total, page, pageSize })
   })
 
+  // 按车牌查重（新增车辆时实时提示）
+  router.get('/api/admin/vehicles/check', authMiddleware, (req, res) => {
+    const plate = normalizePlate(String(req.query.plate || ''))
+    if (!plate) return res.json({ success: true, exists: false })
+    const row = db.prepare('SELECT id, plateNo, owner, department, validUntil FROM vehicles WHERE plateNo = ?').get(plate)
+    if (!row) return res.json({ success: true, exists: false })
+    res.json({ success: true, exists: true, data: {
+      id: row.id, plateNo: row.plateNo, owner: row.owner, department: row.department, validUntil: row.validUntil
+    }})
+  })
+
   // 5. 单独上传车辆照片
   router.post('/api/admin/vehicles/photo', authMiddleware, upload.single('photo'), async (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, message: '未收到图片' })
