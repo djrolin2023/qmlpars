@@ -224,7 +224,21 @@
   <script src="/cpsb/js/h5-vehicles.js"></script>
   <script>
   (function(){
-    if(!getToken()){ location.replace('/admin/login.html?redirect=' + encodeURIComponent(location.pathname)); return; }
+    if(!getToken()){
+      // 被 iframe 嵌入时（H5 主页的车辆管理 Tab）不要顶层跳转，否则会带走整个 webview
+      if(window.self !== window.top){
+        try { parent.postMessage({ type:'need-admin-login' }, '*'); } catch(e){}
+        document.body.innerHTML = '<div style="text-align:center;padding:60px 24px;max-width:360px;margin:0 auto;">'
+          + '<svg viewBox="0 0 24 24" fill="none" stroke="#36cfc9" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="width:46px;height:46px;margin-bottom:14px;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+          + '<div style="font-size:17px;font-weight:700;margin-bottom:10px;">车辆管理需管理员登录</div>'
+          + '<div style="color:#94a3b8;font-size:14px;line-height:1.7;">请在 PC 端管理后台登录后操作车辆数据。<br>如需在手机端管理，请使用管理员账号登录本系统。</div>'
+          + '<button onclick="parent.location.href=\'/admin/login.html?redirect=' + encodeURIComponent(location.pathname) + '\'" style="margin-top:22px;padding:11px 26px;border:none;border-radius:12px;background:#36cfc9;color:#0d1b2a;font-size:15px;font-weight:700;cursor:pointer;">前往管理员登录</button>'
+          + '</div>';
+        return;
+      }
+      location.replace('/admin/login.html?redirect=' + encodeURIComponent(location.pathname));
+      return;
+    }
     applySiteName && applySiteName();
     applyBeian && applyBeian();
     initDetailModal && initDetailModal();
