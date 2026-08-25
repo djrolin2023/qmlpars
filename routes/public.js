@@ -186,15 +186,13 @@ module.exports = function (ctx) {
         if (req.file && fs.existsSync(req.file.path)) { try { fs.unlinkSync(req.file.path) } catch (e) {} }
         return res.status(500).json({ success: false, message: '未配置任何 OCR 通道（请到系统设置填写百度或腾讯 OCR 密钥）' })
       }
-      for (const [name, fn] of channels) {
-        try {
-          if (name === '腾讯OCR' && !config.TENCENT_ENABLED) continue
-          if (name === '百度OCR' && !config.BAIDU_ENABLED) continue
-          result = await fn(imageBase64, imageUrl)
-          source = name
-          break
-        } catch (err) {
-          lastErr = err
+      // 并行竞速：同时发起所有已启用通道，取第一个成功结果，避免串行等待首通道超时
+      const settled = await Promise.allSettled(channels.map(([name, fn]) => fn(imageBase64, imageUrl).then(r => ({ name, r }))))
+      for (const s of settled) {
+        if (s.status === 'fulfilled' && s.value && s.value.r) {
+          result = s.value.r; source = s.value.name; break
+        } else if (s.status === 'rejected') {
+          lastErr = s.reason
         }
       }
       if (!result) {

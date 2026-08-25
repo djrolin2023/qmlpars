@@ -649,6 +649,8 @@ function pickPhoto(f) {
   const fd = new FormData();
   fd.append('photo', f);
   showPhotoLoading();
+  // 上传与识别并行：用同一文件直接识别，省去“下载回传”的一次往返
+  const ocrP = recognizePlate(f);
   api('/api/admin/vehicles/photo', { method: 'POST', body: fd, noJson: true, noLogout: true })
     .then(r => {
       if (!r.success) throw new Error(r.message || '上传失败');
@@ -656,31 +658,25 @@ function pickPhoto(f) {
       photoUrl = withToken(r.url);  // 预览/识别用带令牌的 URL，防止 401 破图
       photoUploaded = true;         // 标记本次确实重新上传了
       showPhotoDone(photoUrl);
-      autoOcr(photoUrl);
     })
     .catch(e => { showPhotoEmpty(); toast('上传失败：' + e.message); });
+  ocrP.catch(() => {});
 }
 
-function autoOcr(url) {
-  // 下载刚上传的图片交给 OCR。注意：/uploads/* 是鉴权接口，必须用带令牌的请求，
-  // 否则会返回 401，而 H5 页把 doLogout 覆盖成跳登录页，导致“上传即跳登录”。
-  fetch(url, { headers: authHeaders() })
-    .then(res => { if (!res.ok) throw new Error('download ' + res.status); return res.blob(); })
-    .then(blob => {
-      const fd = new FormData();
-      fd.append('image', blob, 'snap.jpg');
-      api('/api/recognize', { method: 'POST', body: fd, noJson: true, noLogout: true })
-        .then(r => {
-          if (!r || r.success === false) { toast('车牌识别失败：' + ((r && r.message) || '未知错误')); return; }
-          const plate = r && r.data && r.data.plateNo;
-          if (plate && !document.getElementById('f-plate').value) {
-            document.getElementById('f-plate').value = formatPlate(plate);
-            updatePlateArea(plate);
-          }
-        })
-        .catch(e => { toast('车牌识别失败：' + (e && e.message || '请求异常')); });
+// 直接对图片文件做车牌识别（避免先把图片下载回前端再上传，减少一次网络往返）
+function recognizePlate(file) {
+  const fd = new FormData();
+  fd.append('image', file, 'snap.jpg');
+  return api('/api/recognize', { method: 'POST', body: fd, noJson: true, noLogout: true })
+    .then(r => {
+      if (!r || r.success === false) { toast('车牌识别失败：' + ((r && r.message) || '未知错误')); return; }
+      const plate = r && r.data && r.data.plateNo;
+      if (plate && !document.getElementById('f-plate').value) {
+        document.getElementById('f-plate').value = formatPlate(plate);
+        updatePlateArea(plate);
+      }
     })
-    .catch(e => { toast('车牌识别失败：' + (e && e.message || '图片下载异常')); });
+    .catch(e => { toast('车牌识别失败：' + (e && e.message || '请求异常')); });
 }
 
 // 批量录入：对某一行拍照/上传并识别车牌
@@ -692,17 +688,14 @@ async function batchRowOcr(seq, file) {
   const snapBtn = row.querySelector('.ocr-snap');
   if (snapBtn) { snapBtn.disabled = true; snapBtn.textContent = '…'; }
   try {
+    // 上传与识别并行，且直接把原始文件发给识别接口，省去下载回传
     const fd = new FormData(); fd.append('photo', file);
-    const up = await api('/api/admin/vehicles/photo', { method: 'POST', body: fd, noJson: true, noLogout: true });
+    const upP = api('/api/admin/vehicles/photo', { method: 'POST', body: fd, noJson: true, noLogout: true });
+    const ocrR = await recognizePlate(file);
+    const up = await upP;
     if (!up.success) throw new Error(up.message || '上传失败');
-    const url = withToken(up.url);
-    const res = await fetch(url, { headers: authHeaders() });
-    if (!res.ok) throw new Error('download ' + res.status);
-    const blob = await res.blob();
-    const rfd = new FormData(); rfd.append('image', blob, 'snap.jpg');
-    const r = await api('/api/recognize', { method: 'POST', body: rfd, noJson: true, noLogout: true });
-    if (!r || r.success === false) throw new Error((r && r.message) || '识别失败');
-    const plate = r && r.data && r.data.plateNo;
+    if (!ocrR) throw new Error('识别失败');
+    const plate = (ocrR && ocrR.data && ocrR.data.plateNo);
     if (!plate) throw new Error('未识别到车牌');
     if (plateInput) {
       plateInput.value = formatPlate(plate);
