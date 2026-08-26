@@ -93,6 +93,11 @@
   .foot a{color:var(--muted);text-decoration:none;}
   .foot a:hover{color:var(--accent);}
   .foot .police-link img.police{width:13px;height:13px;vertical-align:-2px;margin-right:2px;}
+  /* 弹窗二维码居中 */
+  #plateQr{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;margin-top:16px;min-height:172px;}
+  #plateQr img{width:160px;height:160px;border-radius:8px;background:#fff;padding:6px;display:none;}
+  #plateQrHint{color:var(--muted);font-size:12px;text-align:center;}
+  #plateQrHint.err{color:#F76560;}
 </style>
 </head>
 <body>
@@ -160,9 +165,9 @@
           <p>请使用手机扫描下方二维码，或在手机浏览器中打开本系统地址。</p>
         </div>
       </div>
-      <div id="plateQr" style="margin-top:16px;text-align:center;">
-        <img id="plateQrImg" alt="二维码" style="width:160px;height:160px;border-radius:8px;background:#fff;padding:6px;display:none;">
-        <div id="plateQrHint" style="color:var(--muted);font-size:12px;">二维码加载中…</div>
+      <div id="plateQr">
+        <img id="plateQrImg" alt="二维码">
+        <div id="plateQrHint">二维码加载中…</div>
       </div>
       <button class="btn" onclick="closeModal('plateMask')">关闭</button>
     </div>
@@ -193,8 +198,13 @@
     var url = location.origin + '/cpsb/';
     var img = document.getElementById('plateQrImg');
     var hint = document.getElementById('plateQrHint');
-    img.onload = function(){ img.style.display='block'; hint.style.display='none'; };
-    img.onerror = function(){ hint.textContent='二维码生成失败，请直接访问：' + url; };
+    var timer = setTimeout(function () {
+      hint.textContent = '二维码生成超时，请刷新重试';
+      hint.classList.add('err');
+      img.style.display = 'none';
+    }, 8000);
+    img.onload = function(){ clearTimeout(timer); img.style.display='block'; hint.style.display='none'; };
+    img.onerror = function(){ clearTimeout(timer); hint.textContent='二维码生成失败，请直接访问：' + url; hint.classList.add('err'); img.style.display='none'; };
     img.src = '/api/buildapp/qrcode?size=200&url=' + encodeURIComponent(url);
   }
 

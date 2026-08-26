@@ -56,18 +56,18 @@
   .hero-icon {
     width: 96px; height: 96px;
     border-radius: 22px;
-    background: linear-gradient(135deg, #5b21b6, #db2777);
+    background: transparent;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 8px 24px rgba(91,33,182,.35);
     flex-shrink: 0;
     overflow: hidden;
     padding: 8px;
-    border: 2px solid rgba(255,255,255,.85);
+    border: none;
   }
   .hero-icon img {
     width: 100%; height: 100%;
     object-fit: contain;
     border-radius: 0;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,.25));
   }
   .hero-info { flex: 1; min-width: 0; }
   .hero-name { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
@@ -180,6 +180,18 @@
     font-size: 12px;
     margin-top: 36px;
   }
+  footer .police-link { display: inline-flex; align-items: center; gap: 4px; }
+  footer .police { width: 14px; height: 14px; vertical-align: middle; }
+  /* 二维码区域居中 */
+  .qr-area { flex: 1; min-width: 200px; }
+  #qrBox {
+    display: flex; align-items: center; justify-content: center;
+    width: 160px; height: 160px; flex-shrink: 0;
+    background: #fff; border-radius: 10px; padding: 6px;
+  }
+  #qrBox img { width: 148px; height: 148px; object-fit: contain; border-radius: 6px; }
+  #qrBox .qr-hint { color: #666; font-size: 12px; text-align: center; line-height: 1.5; padding: 10px; }
+  #qrBox .qr-hint.err { color: #F76560; }
 </style>
 <script>
 // 移除 qrcode.min.js：改用后端 /api/buildapp/qrcode 生成 PNG，避免前端 QR 库兼容性风险
@@ -216,11 +228,11 @@
   <div class="panel">
     <h2>扫码下载</h2>
     <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
-      <div id="qrBox" style="width:160px;height:160px;flex-shrink:0;background:#fff;border-radius:8px;padding:6px;display:flex;align-items:center;justify-content:center;">
-        <img id="qrImg" alt="二维码加载中" style="width:100%;height:100%;display:none;">
-        <span id="qrHint" style="color:#999;font-size:12px;">二维码加载中…</span>
+      <div id="qrBox">
+        <img id="qrImg" alt="二维码" style="display:none;">
+        <span id="qrHint" class="qr-hint">二维码加载中…</span>
       </div>
-      <div style="flex:1;min-width:200px;">
+      <div class="qr-area">
         <div style="font-size:14px;margin-bottom:6px;">手机扫码，自动下载最新版 APK</div>
         <div class="hero-meta" style="margin:0;">二维码链接：<span id="qrUrl" style="color:var(--accent);word-break:break-all;">加载中…</span></div>
         <div class="hero-meta" style="margin-top:8px;">若无下载入口，可直接扫描本二维码安装。</div>
@@ -279,8 +291,22 @@
   function setQr(url) {
     var qrImg = document.getElementById('qrImg');
     var qrHint = document.getElementById('qrHint');
-    qrImg.onload = function () { qrImg.style.display = 'block'; qrHint.style.display = 'none'; };
-    qrImg.onerror = function () { qrHint.textContent = '二维码生成失败'; qrHint.style.display = 'block'; qrImg.style.display = 'none'; };
+    var timer = setTimeout(function () {
+      qrHint.textContent = '二维码生成超时，请刷新页面重试';
+      qrHint.classList.add('err');
+      qrImg.style.display = 'none';
+    }, 8000);
+    qrImg.onload = function () {
+      clearTimeout(timer);
+      qrImg.style.display = 'block';
+      qrHint.style.display = 'none';
+    };
+    qrImg.onerror = function () {
+      clearTimeout(timer);
+      qrHint.textContent = '二维码生成失败，请刷新重试';
+      qrHint.classList.add('err');
+      qrImg.style.display = 'none';
+    };
     qrImg.src = '/api/buildapp/qrcode?size=200&url=' + encodeURIComponent(url);
   }
   function fmtDateTime(s) {
