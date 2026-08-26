@@ -77,9 +77,9 @@ async function openCam(facing){
 }
 function setCamStatus(){
   const el=document.getElementById('camStatus');
-  if(el) el.textContent = scanning ? '扫描中… 对准车牌保持 1~2 秒' : '已暂停';
+  if(el) el.textContent = scanning ? '扫描中… 对准车牌即可自动识别' : '已暂停';
 }
-function stopCam(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } if(scanTimer){ clearInterval(scanTimer); scanTimer=null; } if(lightTimer){ clearInterval(lightTimer); lightTimer=null; } scanning=true; scanState='auto'; updateScanBtn(); }
+function stopCam(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } if(scanTimer){ clearTimeout(scanTimer); clearInterval(scanTimer); scanTimer=null; } if(lightTimer){ clearInterval(lightTimer); lightTimer=null; } scanning=true; scanState='auto'; updateScanBtn(); }
 // auto | paused | manual
 function updateScanBtn(){
   const btn=document.getElementById('stopBtn');
@@ -96,9 +96,10 @@ function startScanning(){
   // 真正恢复自动扫描（不含互递归调用）
   scanState='auto'; scanning=true;
   closeResult();
-  document.getElementById('camStatus').textContent='扫描中… 对准车牌保持 1~2 秒';
+  document.getElementById('camStatus').textContent='扫描中… 对准车牌即可自动识别';
   updateScanBtn();
-  if(stream&&!scanTimer) startAutoScan();
+  if(scanTimer){ clearTimeout(scanTimer); clearInterval(scanTimer); scanTimer=null; }
+  if(stream) startAutoScan();
 }
 function resumeScan(){
   // 框内“继续扫描”按钮：恢复自动扫描，并清除上一次结果
@@ -124,23 +125,25 @@ function onScanSuccess(){
   scanState='manual';
   updateScanBtn();
 }
+let _recognizing=false;
 async function doScanOnce(manual){
-  if(!stream) return;
+  if(!stream || _recognizing) return false;
   const v=document.getElementById('video');
   const vw=v.videoWidth, vh=v.videoHeight;
-  if(!vw||!vh) return;
-  // 发送完整高清帧，不再裁剪（裁剪会把车牌压得太小导致 OCR 失败）
+  if(!vw||!vh) return false;
+  // 发送完整帧（不裁剪，避免车牌过小导致 OCR 失败）；适当缩小以加快上传与识别
   let w=vw, h=vh;
-  const max=1280;
+  const max=960;
   if(w>max || h>max){
     if(w>h){ h=Math.round(h*max/w); w=max; }
     else { w=Math.round(w*max/h); h=max; }
   }
   const c=document.createElement('canvas'); c.width=w; c.height=h;
   c.getContext('2d').drawImage(v,0,0,w,h);
-  const blob=await new Promise(res=>c.toBlob(res,'image/jpeg',0.92));
-  const fd=new FormData(); fd.append('image',blob,'f.jpg'); fd.append('channel', window.APP_CONFIG ? 'app' : 'web');
+  _recognizing=true;
   try{
+    const blob=await new Promise(res=>c.toBlob(res,'image/jpeg',0.85));
+    const fd=new FormData(); fd.append('image',blob,'f.jpg'); fd.append('channel', window.APP_CONFIG ? 'qmlpars_APP' : 'h5');
     const r=await userFetch(API+'/api/recognize',{method:'POST',body:fd});
     const j=await r.json();
     const plateNo=(j.data&&j.data.plateNo)?j.data.plateNo:j.plateNo;
@@ -154,14 +157,20 @@ async function doScanOnce(manual){
       }
     }
   }catch(e){ document.getElementById('camStatus').textContent='网络异常，识别请求失败，请重试'; }
+  finally{ _recognizing=false; }
   return false;
 }
 function startAutoScan(){
   if(scanTimer) return;
-  scanTimer = setInterval(async ()=>{
-    if(!stream||!scanning) return;
-    await doScanOnce(false);
-  }, 2000);
+  const loop=async ()=>{
+    if(!stream || !scanning){ return; }
+    if(scanState==='auto'){
+      await doScanOnce(false);
+      // 识别一完成立即拍下一帧（无需固定等 2s）；仅做极短冷却避免瞬间狂发
+      if(scanning && scanState==='auto') scanTimer=setTimeout(loop, 250);
+    }
+  };
+  scanTimer=setTimeout(loop, 0);
 }
 async function switchCam(){
   const next = (facingMode==='environment') ? 'user' : 'environment';
@@ -172,8 +181,10 @@ async function switchCam(){
 /* 出结果后点击 X / 恢复扫描时清空结果；manual 时自动恢复扫描 */
 function closeResult(){
   document.getElementById('result').innerHTML='';
+  const m = document.getElementById('scanDetailModal');
+  if(m) m.classList.remove('show');
   if(scanState==='manual') startScanning();
 }
 
-window.addEventListener('DOMContentLoaded',startCam);
+// 启动/停止由 H5 主框架 switchView 控制（切到车牌识别时 startCam，切走时 stopCam），不在加载时自动开启
 window.addEventListener('beforeunload',stopCam);

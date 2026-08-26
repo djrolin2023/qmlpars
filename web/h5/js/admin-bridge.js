@@ -6,14 +6,22 @@ const TOKEN_KEY = 'qmlpars_admin_token';
 function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
 function setToken(t) { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); }
 
-// 后端 authMiddleware 读取 x-admin-token 请求头；H5 页面额外带上 x-user-token，给 /api/recognize 双保险
+// 后端 authMiddleware 读取 x-admin-token 请求头，且已支持普通用户会话(user_sessions)。
+// H5 车辆页以普通用户身份运行，可能只有 user token（qmlpars_user_token），并无 admin token。
+// 因此当 admin token 缺失时，把 user token 作为 x-admin-token 发送，使后端 authMiddleware
+// 能用 user_sessions 通过鉴权；同时保留 x-user-token 给需要它的接口（如 /api/recognize）。
 function authHeaders() {
   const t = getToken();
-  const h = t ? { 'x-admin-token': t } : {};
+  const h = {};
   try {
-    if (location.pathname.includes('/cpsb/')) {
-      const ut = localStorage.getItem('qmlpars_user_token');
+    const ut = localStorage.getItem('qmlpars_user_token') || '';
+    if (t) {
+      h['x-admin-token'] = t;
       if (ut) h['x-user-token'] = ut;
+    } else if (ut) {
+      // 无 admin token 但有 user token：H5 普通用户场景，用 user token 走 authMiddleware
+      h['x-admin-token'] = ut;
+      h['x-user-token'] = ut;
     }
   } catch (_) {}
   return h;
@@ -140,4 +148,13 @@ function doLogout() {
   setToken('');
   localStorage.removeItem('qmlpars_admin_user');
   location.href = '/admin/login.html';
+}
+
+// H5 车辆页专用：普通用户登录失效后的重新登录，跳到 H5 登录页而非管理后台登录页。
+// 同时清空 user token，确保回退后不会因缓存的 user token 误以为仍登录。
+function h5Relogin() {
+  try { localStorage.removeItem('qmlpars_user_token'); } catch (_) {}
+  setToken('');
+  localStorage.removeItem('qmlpars_admin_user');
+  location.href = '/cpsb/login.html';
 }

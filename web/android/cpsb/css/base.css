@@ -21,12 +21,15 @@ body{
 /* 桌面端无底部 Tab，分享按钮回到右下角原位置 */
 @media (min-width: 600px){ .fab-share{ bottom:14px; } }
 
-/* 学校标识（随页面下拉滚动） */
-.org-stack{ text-align:center; padding:20px 0 4px; }
-.cn-img-logo{ height:34px; width:auto; margin:4px auto 6px; display:block; }
-.en-img-logo{ height:14px; width:auto; margin:0 auto; display:block; opacity:.85; }
-.sub-org{ font-size:16px; color:var(--txt); margin-top:8px; font-weight:700; letter-spacing:1px; }
-.sub-hint{ font-size:12px; color:var(--sub); margin-top:4px; }
+/* 学校标识（随页面下拉滚动）：左 LOGO + 右主副标题 + 底部英文 */
+.org-stack{ display:flex; align-items:center; justify-content:center; gap:14px; padding:20px 16px 6px; }
+.org-stack .brand-logo{ margin:0; flex:0 0 auto; }
+.org-stack .brand-logo-img{ max-height:56px; max-width:56px; width:auto; }
+.org-meta{ display:flex; flex-direction:column; align-items:center; line-height:1.25; }
+.org-headline{ display:flex; flex-wrap:nowrap; align-items:baseline; }
+.org-title{ font-size:20px; font-weight:700; color:var(--txt); letter-spacing:.5px; }
+.org-sub{ font-size:15px; font-weight:600; color:var(--sub); letter-spacing:.5px; margin-left:6px; }
+.org-en{ font-size:11px; color:var(--sub); opacity:.8; margin-top:3px; letter-spacing:.3px; }
 
 /* 标签切换 */
 .tabs{ display:flex; gap:8px; margin:16px 18px 0; }
@@ -107,13 +110,6 @@ footer .police{ height:14px; vertical-align:middle; margin-right:4px; }
 .brand-logo.brand-horizontal{ flex-direction:row; }
 .brand-logo-img{ max-width:220px; max-height:96px; width:auto; object-fit:contain; }
 .brand-cap{ font-size:18px; font-weight:700; color:var(--txt); letter-spacing:.5px; }
-.footer-logo{ margin:0 auto 10px; display:flex; justify-content:center; }
-.footer-logo .brand-logo-img{ max-height:40px; max-width:160px; }
-
-/* 模态框遮罩（使用说明 / 隐私权限） */
-.modal-mask{ display:none; z-index:80; }
-.modal-mask.show{ display:flex; }
-.x{ cursor:pointer; }
 
 /* 登录遮罩 */
 .login-overlay{ position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; background:rgba(6,11,20,.92); backdrop-filter:blur(6px); padding:20px; }
@@ -147,12 +143,134 @@ footer .police{ height:14px; vertical-align:middle; margin-right:4px; }
 .top-user .user-logout{ background:transparent; color:var(--sub); }
 .top-user .user-login:active, .top-user .user-logout:active{ opacity:.7; }
 
+/* 顶部用户下拉 */
+.user-dropdown{ position:relative; }
+.user-dropdown-toggle{
+  display:flex; align-items:center; gap:6px; font-size:13px; padding:7px 12px; border-radius:9px;
+  border:1px solid var(--line); background:rgba(56,189,248,.08); color:var(--accent); cursor:pointer; white-space:nowrap;
+}
+.user-dropdown-toggle .caret{ font-size:10px; transition:transform .2s; }
+.user-dropdown.open .user-dropdown-toggle .caret{ transform:rotate(180deg); }
+.user-dropdown-menu{
+  position:absolute; right:0; top:calc(100% + 6px); min-width:120px;
+  background:rgba(20,28,45,.96); border:1px solid var(--line); border-radius:10px; box-shadow:0 10px 24px rgba(0,0,0,.35);
+  display:none; flex-direction:column; padding:6px; z-index:60;
+}
+.user-dropdown.open .user-dropdown-menu{ display:flex; }
+.user-dropdown-item{
+  padding:9px 12px; font-size:13px; color:var(--text); border-radius:7px; cursor:pointer; border:none; background:transparent; text-align:left;
+}
+.user-dropdown-item:hover{ background:rgba(56,189,248,.12); color:var(--accent); }
+
+/* 弹窗遮罩 */
+.modal-mask{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100; display:none; }
+.modal-mask.show{ display:flex; }
+.x:hover{ color:var(--accent); }
+
 /* 底部 Tab 菜单（与 APP 一致：车牌识别 / 车辆管理） */
 .bottom-tabs{ position:fixed; left:0; right:0; bottom:0; height:62px; z-index:60; display:flex; background:rgba(11,17,32,.96); border-top:1px solid var(--line); backdrop-filter:blur(8px); padding-bottom:env(safe-area-inset-bottom,0); }
 .bottom-tab{ flex:1; border:none; background:transparent; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; color:var(--sub); font-size:12px; position:relative; }
 .bottom-tab + .bottom-tab::before{ content:""; position:absolute; left:0; top:14%; bottom:14%; width:1px; background:var(--line); opacity:.85; }
-.bottom-tab .bt-icon{ font-size:20px; line-height:1; }
+.bottom-tab .bt-icon{ display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; line-height:1; }
+.bottom-tab .bt-icon svg{ width:100%; height:100%; display:block; }
 .bottom-tab.active{ color:var(--accent); font-weight:600; }
 .bottom-tab:active{ opacity:.7; }
 /* 主体留出底部 Tab 空间 */
 body{ padding-bottom:76px; }
+
+/* ============ 车辆详情 / 扫描结果 模态框（车辆管理页与扫描页共用，确保显示一致） ============ */
+.modal-mask{ position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:200; display:none;
+  align-items:center; justify-content:center; padding:18px; -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); }
+.modal-mask.show{ display:flex; }
+.modal{
+  position:relative; width:100%; max-width:380px; max-height:90vh; overflow:auto;
+  background:rgba(20,26,34,.96); border-radius:16px; border:1px solid rgba(120,200,255,.18);
+  box-shadow:0 8px 40px rgba(0,0,0,.5); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px);
+}
+.detail-head{ position:relative; text-align:center; padding:20px 18px 14px; background:linear-gradient(160deg,rgba(24,144,255,.14),rgba(24,144,255,0)); border-bottom:1px solid rgba(120,200,255,.1); }
+.detail-head #detail-close{ position:absolute; top:12px; right:12px; width:26px; height:26px; border-radius:50%;
+  border:none; background:rgba(255,255,255,.1); color:#cbd5e1; font-size:14px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.detail-head #detail-close:hover{ background:rgba(255,255,255,.2); color:#fff; }
+.modal-plate-wrap{ display:flex; justify-content:center; margin-bottom:10px; }
+.modal-sub{ margin-top:8px; font-size:12px; color:#8aa0b6; letter-spacing:.5px; }
+/* 车牌（与管理页列表一致） */
+.plate-no{ display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:20px; letter-spacing:1px;
+  padding:5px 12px; border-radius:8px; border:2px solid rgba(0,0,0,.25); white-space:nowrap; line-height:1.15; }
+.plate-no.blue{ background:linear-gradient(180deg,#2b7fff,#0b5ed7); color:#fff; }
+.plate-no.yellow{ background:linear-gradient(180deg,#ffd21e,#f0b400); color:#1a1a1a; border-color:rgba(0,0,0,.3); }
+.plate-no.green{ background:linear-gradient(180deg,#1ec77a,#0a7a3e); color:#fff; border-color:rgba(255,255,255,.18); }
+.plate-no.white{ background:linear-gradient(180deg,#f4f6f8,#dfe4e8); color:#1a1a1a; border-color:rgba(0,0,0,.25); }
+.plate-no .prov{ display:inline-block; width:6px; height:6px; margin:0 2px; border-radius:50%; background:rgba(255,255,255,.85); vertical-align:middle; }
+.plate-no.yellow .prov, .plate-no.white .prov{ background:rgba(0,0,0,.7); }
+.plate-no .ev-mark{ display:inline-flex; align-items:center; margin:0 1px; }
+.plate-no .ev-mark img{ width:14px; height:18px; object-fit:contain; }
+.modal-body{ padding:6px 18px 14px; }
+/* 通用模态确认框所需样式 */
+.modal-head{ padding:16px 18px 4px; font-weight:600; font-size:16px; color:#fff; }
+.modal-foot{ padding:12px 18px 16px; display:flex; justify-content:flex-end; gap:10px; }
+.confirm-msg{ margin:8px 0 0; color:#cbd5e1; font-size:14px; line-height:1.5; }
+.btn{ padding:8px 16px; border:1px solid rgba(255,255,255,.18); background:transparent; border-radius:8px; font-size:14px; color:#e2e8f0; cursor:pointer; transition:background .15s,border-color .15s; }
+.btn:hover{ background:rgba(255,255,255,.08); }
+.btn.primary{ color:#38bdf8; border-color:rgba(56,189,248,.5); font-weight:600; }
+.btn.primary:hover{ background:rgba(56,189,248,.12); border-color:#38bdf8; }
+.btn.danger{ color:#F76560; border-color:rgba(247,101,96,.5); }
+.btn.danger:hover{ background:rgba(247,101,96,.12); border-color:#F76560; }
+.d-row{ display:flex; align-items:flex-start; padding:11px 0; border-bottom:1px solid rgba(255,255,255,.06); }
+.d-row:last-child{ border-bottom:none; }
+.d-label{ flex:0 0 70px; color:#86909C; font-size:13px; }
+.d-value{ flex:1; font-size:15px; color:#fff; word-break:break-all; }
+.d-row-owner .d-value{ flex:1; min-width:0; }
+.d-thumb{ flex:0 0 auto; width:56px; height:56px; margin-left:auto; border-radius:8px; overflow:hidden;
+  border:1px solid rgba(120,200,255,.22); background:rgba(15,20,25,.6); cursor:pointer; position:relative;
+  display:flex; align-items:center; justify-content:center; transition:transform .15s, border-color .2s; }
+.d-thumb:active{ transform:scale(.96); }
+.d-thumb:hover{ border-color:rgba(120,200,255,.55); }
+.d-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+.d-thumb-empty{ color:#4a5a6e; display:flex; align-items:center; justify-content:center; }
+.d-foot{ display:flex; justify-content:flex-end; gap:10px; padding:12px 18px 16px; }
+.d-foot button{ border:none; border-radius:10px; padding:8px 18px; font-size:14px; cursor:pointer; }
+#detail-del{ background:rgba(255,77,79,.15); color:#ff7875; }
+#detail-del:hover{ background:rgba(255,77,79,.28); }
+#detail-edit{ background:rgba(24,144,255,.18); color:#69c0ff; }
+#detail-edit:hover{ background:rgba(24,144,255,.32); }
+/* 有效期富文本 */
+.valid-long{ font-size:15px; color:#fff; }
+.valid-left{ margin-top:3px; font-size:12px; }
+.valid-left.muted{ color:#8aa0b6; }
+.valid-left.ok{ color:#36cfc9; }
+.valid-left.warn{ color:#ffa940; }
+.valid-left.expired{ color:#ff7875; }
+/* 未找到记录提示 */
+.d-notfound{ display:none; margin:14px 0 6px; padding:12px; text-align:center; border-radius:10px;
+  background:rgba(239,68,68,.12); color:#ff9a9a; font-size:14px; }
+
+/* ============ 扫描 / 搜索结果 下拉卡片（视觉与管理页详情框一致） ============ */
+.result-plate-row{ display:flex; flex-direction:column; align-items:center; gap:6px; margin:10px 0 4px; }
+.result-area{ font-size:12px; color:#8aa0b6; letter-spacing:.5px; }
+.result-owner{ display:flex; align-items:center; gap:4px; justify-content:center; font-size:14px; color:#c9d4e0; margin-top:6px; }
+.result-owner b{ color:#fff; font-weight:600; }
+.result-photo{ width:96px; height:96px; margin:10px auto 4px; border-radius:8px; overflow:hidden; background:#0a0f1c; }
+.result-photo img{ width:100%; height:100%; display:block; object-fit:cover; cursor:pointer; }
+.result-photo.empty{ display:flex; align-items:center; justify-content:center; color:#3a4a5e; }
+.result-fields{ padding:6px 2px 4px; }
+.r-row{ display:flex; flex-direction:column; align-items:flex-start; gap:3px; padding:8px 0; border-bottom:1px dashed rgba(120,200,255,.10); text-align:left; }
+.r-row:last-child{ border-bottom:none; }
+.r-k{ color:#86909C; font-size:13px; }
+.r-v{ font-size:15px; color:#fff; word-break:break-all; text-align:left; width:100%; }
+/* 扫描/查询结果卡片页头：车牌左 + 部门右 并排；放行状态换行居中；右上关闭 */
+.result-head{ position:relative; display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px;
+  padding:16px 18px 12px; background:linear-gradient(160deg,rgba(24,144,255,.14),rgba(24,144,255,0)); border-bottom:1px solid rgba(120,200,255,.1); }
+.result-plate{ flex:0 0 auto; }
+.result-plate .modal-plate-wrap{ margin-bottom:0; }
+.result-dept{ flex:1; display:inline-block; text-align:center; font-size:18px; font-weight:800; letter-spacing:1px; color:#fff;
+  padding:8px 18px; border-radius:12px; background:linear-gradient(135deg,#ffb020,#ff7a00);
+  box-shadow:0 4px 14px rgba(255,122,0,.35); line-height:1.3; }
+.result-pass{ flex-basis:100%; text-align:center; font-size:14px; font-weight:700; letter-spacing:1px; padding:6px 0; border-radius:10px; }
+.result-pass.ok{ background:rgba(54,207,201,.16); color:var(--ok); }
+.result-pass.no{ background:rgba(239,68,68,.16); color:var(--no); }
+.id-close{ position:absolute; top:10px; right:10px; width:26px; height:26px; border-radius:50%; border:none;
+  background:rgba(255,255,255,.1); color:#cbd5e1; font-size:14px; line-height:1; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; }
+.id-close:hover{ background:rgba(255,255,255,.2); color:#fff; }
+.result-notfound{ margin:14px 18px 16px; padding:12px; text-align:center; border-radius:10px;
+  background:rgba(239,68,68,.12); color:#ff9a9a; font-size:14px; line-height:1.7; }

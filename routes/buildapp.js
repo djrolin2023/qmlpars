@@ -12,7 +12,7 @@ module.exports = function (ctx) {
 
   const ROOT = ctx.root
   const APP_DIR = path.join(ROOT, 'android-app')
-  const WWW_DIR = path.join(APP_DIR, 'www')
+  const WWW_DIR = path.join(ROOT, 'web', 'android')
   const APP_OUT_DIR = path.join(ROOT, 'app-out')
   const KEYSTORE = path.join(APP_DIR, 'qianming.keystore')
   const VERSION_FILE = path.join(ROOT, 'version.json')
@@ -203,8 +203,8 @@ module.exports = function (ctx) {
     const url = (serverUrl || '').replace(/\/+$/, '')
     const js = 'window.__API_BASE__=' + JSON.stringify(url) + ';\n'
       + 'window.APP_CONFIG=' + JSON.stringify({ serverUrl: url, buildAt: new Date().toISOString() }) + ';\n'
-    // web/h5 页面引用 ./app-config.js，即 www/h5/app-config.js
-    await fsp.writeFile(path.join(WWW_DIR, 'h5', 'app-config.js'), js)
+    // web/h5 页面引用 ./app-config.js，即 www/cpsb/app-config.js（与拷贝目录一致）
+    await fsp.writeFile(path.join(WWW_DIR, 'cpsb', 'app-config.js'), js)
   }
 
   // 在 HTML 的 <head> 最前插入 app-config.js，使 js/common.js 运行前 __API_BASE__ 已就绪
@@ -214,6 +214,27 @@ module.exports = function (ctx) {
     if (/app-config\.js/.test(s)) return // 已注入则跳过
     s = s.replace(/(<head[^>]*>)/i, '$1\n  <script src="./app-config.js"></script>')
     await fsp.writeFile(htmlPath, s)
+  }
+
+  // APP 内页面运行在 https://localhost/cpsb/ 下，login.html 的 fallback 相对路径 'index.html'
+  // 在该上下文会被解析成 cpsb/index.html，叠加场景会变成 cpsb/cpsb/index.html（报 ERR）。
+  // 这里只对打包副本（www/cpsb/js/common.js）做修正，不动 web/h5 源文件：
+  // 把 redirect 的默认回退从相对路径 'index.html' 改为绝对路径 '/cpsb/index.html'。
+  async function fixCpsbRedirect() {
+    const jsPath = path.join(WWW_DIR, 'cpsb', 'js', 'common.js')
+    if (!fs.existsSync(jsPath)) return
+    let s = await fsp.readFile(jsPath, 'utf8')
+    // 1) doLogin 返回：getQuery('redirect') || 'index.html'  → '/cpsb/index.html'
+    s = s.replace(
+      /return \{ok:true, redirect: getQuery\('redirect'\) \|\| 'index\.html'\};/,
+      "return {ok:true, redirect: getQuery('redirect') || '/cpsb/index.html'};"
+    )
+    // 2) 自动登录分支：params.get('redirect')||'index.html'  → '/cpsb/index.html'
+    s = s.replace(
+      /const redirect=params\.get\('redirect'\)\|\|'index\.html';/,
+      "let redirect=params.get('redirect')||'/cpsb/index.html';"
+    )
+    await fsp.writeFile(jsPath, s)
   }
 
   // 改写 capacitor.config.ts（应用名/包名/启动参数）
@@ -427,20 +448,28 @@ export default config;
         log('开始准备 H5 资源...')
         await fsp.rm(WWW_DIR, { recursive: true, force: true })
         await fsp.mkdir(WWW_DIR, { recursive: true })
-        // APP 界面与 WEB 端完全一致：直接打包 web/h5 整目录（含 css/js/html），
+        // APP 界面与 WEB 端完全一致：直接打包 web/h5 整目录到 www/cpsb（含 css/js/html），
+        // 目录名用 cpsb 以匹配页面内 /cpsb/... 绝对路径（express 的 /cpsb 路由即映射 web/h5）。
         // 仅额外注入 app-config.js 提供服务器地址，并把 /static 资源带进来（离线不 404）。
-        await copyDir(path.join(ROOT, 'web', 'h5'), path.join(WWW_DIR, 'h5'))
+        await copyDir(path.join(ROOT, 'web', 'h5'), path.join(WWW_DIR, 'cpsb'))
         if (fs.existsSync(path.join(ROOT, 'static', 'images'))) {
           await copyDir(path.join(ROOT, 'static', 'images'), path.join(WWW_DIR, 'static', 'images'))
         }
         // 在入口页与登录页的 <head> 最前注入 app-config.js，确保 js/common.js 读取 __API_BASE__ 前已就绪
-        await injectAppConfig(path.join(WWW_DIR, 'h5', 'index.html'))
-        await injectAppConfig(path.join(WWW_DIR, 'h5', 'login.html'))
-        await injectAppConfig(path.join(WWW_DIR, 'h5', 'logout.html'))
-        // 引导首页
+        await injectAppConfig(path.join(WWW_DIR, 'cpsb', 'index.html'))
+        await injectAppConfig(path.join(WWW_DIR, 'cpsb', 'login.html'))
+        await injectAppConfig(path.join(WWW_DIR, 'cpsb', 'logout.html'))
+        // 仅修正打包副本：把 login 回退相对路径改为 /cpsb/index.html（不影响 web/h5 源）
+        await fixCpsbRedirect()
+        // 引导首页（buildIndexHtml 内部跳转 cpsb/index.html，与目录名一致）
         await fsp.writeFile(path.join(WWW_DIR, 'index.html'), buildIndexHtml(appName))
         await writeAppConfig(serverUrl)
-        log('H5 资源已拷贝（web/h5 整目录，与 WEB 端一致）')
+        log('H5 资源已拷贝（web/h5 → www/cpsb，与 WEB 端一致）')
+        // 复制包源位于 web/android；Capacitor 仍读取 android-app/www，这里同步过去
+        const CAP_WWW = path.join(APP_DIR, 'www')
+        await fsp.rm(CAP_WWW, { recursive: true, force: true })
+        await copyDir(WWW_DIR, CAP_WWW)
+        log('已同步复制包到 android-app/www（Capacitor 打包目录）')
         setProgress(20)
 
         log('生成图标/开屏资源...')

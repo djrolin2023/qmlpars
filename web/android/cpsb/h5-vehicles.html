@@ -219,13 +219,14 @@
     </div>
   </div>
 
-  <script src="/cpsb/js/common.js"></script>
-  <script src="/cpsb/js/admin-bridge.js"></script>
-  <script src="/cpsb/js/h5-vehicles.js"></script>
+  <script src="/cpsb/js/common.js?v=20260826g"></script>
+  <script src="/cpsb/js/admin-bridge.js?v=20260826g"></script>
+  <script src="/cpsb/js/h5-vehicles.js?v=20260826g"></script>
   <script>
   (function(){
-    if(!getUserToken()){ location.replace('/admin/login.html?redirect=' + encodeURIComponent(location.pathname)); return; }
-    if(!getToken()) setToken(getUserToken()); // APP 端：admin 槽位为空时同步 user token，保证车辆照片 token 正常
+    // 不再做顶层拦截：无论 iframe 还是独立打开都直接渲染车辆列表。
+    // 无 admin token 时 /api/admin/vehicles 返回 401，loadVehicles 内部会显示"登录已失效，点击重新登录"（用户主动点击才顶层跳）。
+    // 这样 H5 主页的车辆管理 Tab 不会再被顶层跳转带走整个 webview，恢复用户原本期望的列表 UI。
     applySiteName && applySiteName();
     applyBeian && applyBeian();
     initDetailModal && initDetailModal();

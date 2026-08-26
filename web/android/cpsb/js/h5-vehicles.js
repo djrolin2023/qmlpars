@@ -34,7 +34,8 @@ function esc(s) {
 function withToken(url) {
   if (!url) return url;
   if (/[?&]token=/.test(url)) return url;
-  const token = getToken();
+  // H5 普通用户可能只有 user token，优先 admin token，缺失时回退 user token
+  const token = getToken() || getUserToken();
   if (!token) return url;
   const sep = url.includes('?') ? '&' : '?';
   return url + sep + 'token=' + encodeURIComponent(token);
@@ -396,7 +397,7 @@ async function loadVehicles() {
     vState.total = r.total || 0;
     vRows = {};
     list.forEach(v => {
-      v.photoUrl = (v.photo && v.id) ? '/api/vehicles/' + v.id + '/photo?token=' + encodeURIComponent(getToken() || '') : '';
+      v.photoUrl = (v.photo && v.id) ? '/api/vehicles/' + v.id + '/photo?token=' + encodeURIComponent(getToken() || getUserToken() || '') : '';
       vRows[v.id] = v;
     });
 
@@ -432,7 +433,7 @@ async function loadVehicles() {
     const msg = (e && e.message) || '加载失败';
     const isAuth = /登录|授权|失效|token/i.test(msg);
     document.getElementById('list').innerHTML = isAuth
-      ? '<div class="empty">登录已失效，<a href="javascript:doLogout()" style="color:var(--primary)">点击重新登录</a></div>'
+      ? '<div class="empty">登录已失效，<a href="javascript:h5Relogin()" style="color:var(--primary)">点击重新登录</a></div>'
       : '<div class="empty">' + esc(msg) + '</div>';
   }
 }
@@ -541,7 +542,7 @@ function editVehicle(id) {
   toggleValidUntilClear();
   // 预览用相对路径，不依赖 config.BASE_URL（避免内外网不一致导致破图）
   // 必须附带 ?token=，否则 <img> 无法携带鉴权头，照片接口返回 401 导致编辑时图片不显示
-  photoUrl = v.photo ? ('/api/vehicles/' + v.id + '/photo?token=' + encodeURIComponent(getToken() || '')) : '';
+  photoUrl = v.photo ? ('/api/vehicles/' + v.id + '/photo?token=' + encodeURIComponent(getToken() || getUserToken() || '')) : '';
   photoUploaded = false; photoRemoteUrl = '';
   if (photoUrl) showPhotoDone(photoUrl);
   else showPhotoEmpty();
@@ -657,7 +658,7 @@ function openDetail(id) {
   const thumbImg = document.getElementById('dThumbImg');
   const thumbEmpty = document.getElementById('dThumbEmpty');
   const thumb = document.getElementById('dThumb');
-  const photoUrl = (v.id) ? ('/api/vehicles/' + v.id + '/photo?token=' + encodeURIComponent(getToken() || '')) : '';
+  const photoUrl = (v.id) ? ('/api/vehicles/' + v.id + '/photo?token=' + encodeURIComponent(getToken() || getUserToken() || '')) : '';
   if (hasPhotoLocal && photoUrl) {
     thumbImg.src = photoUrl;
     thumbImg.style.display = '';

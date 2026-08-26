@@ -42,9 +42,9 @@ async function loadLogs() {
     } else {
       document.getElementById('empty').style.display = 'none';
       tbody.innerHTML = list.map(r => {
-        // 渠道：app/H5/mini（兼容旧数据 web）
+        // 渠道：qmlpars_APP/H5/mini（兼容旧数据 app/web）
         let chan;
-        if (r.channel === 'app') chan = '<span class="pill app">APP</span>';
+        if (r.channel === 'qmlpars_APP' || r.channel === 'app') chan = '<span class="pill app">APP</span>';
         else if (r.channel === 'h5' || r.channel === 'web') chan = '<span class="pill web">H5</span>';
         else chan = '<span class="pill mini">小程序</span>';
         let res;

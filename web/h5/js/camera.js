@@ -143,7 +143,7 @@ async function doScanOnce(manual){
   _recognizing=true;
   try{
     const blob=await new Promise(res=>c.toBlob(res,'image/jpeg',0.85));
-    const fd=new FormData(); fd.append('image',blob,'f.jpg'); fd.append('channel', window.APP_CONFIG ? 'app' : 'web');
+    const fd=new FormData(); fd.append('image',blob,'f.jpg'); fd.append('channel', window.APP_CONFIG ? 'qmlpars_APP' : 'h5');
     const r=await userFetch(API+'/api/recognize',{method:'POST',body:fd});
     const j=await r.json();
     const plateNo=(j.data&&j.data.plateNo)?j.data.plateNo:j.plateNo;

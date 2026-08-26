@@ -168,7 +168,7 @@ module.exports = function (ctx) {
     const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20))
     const wheres = []
     const params = []
-    if (channel === 'app' || channel === 'mini') { wheres.push('channel IN (?,?)'); params.push('app', 'mini') }
+    if (channel === 'qmlpars_APP' || channel === 'mini') { wheres.push('channel IN (?,?)'); params.push('qmlpars_APP', 'mini') }
     else if (channel === 'web' || channel === 'h5') { wheres.push('channel IN (?,?)'); params.push('web', 'h5') }
     if (start) { wheres.push('createdAt >= ?'); params.push(start + ' 00:00:00') }
     if (end) { wheres.push('createdAt <= ?'); params.push(end + ' 23:59:59') }
@@ -280,7 +280,7 @@ module.exports = function (ctx) {
       const internalTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE result LIKE '%命中%'").get().c) || 0
       const externalTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE result LIKE '%未命中%'").get().c) || 0
       const validTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE result LIKE '%命中%'").get().c) || 0
-      const appTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE channel IN ('app','mini')").get().c) || 0
+      const appTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE channel IN ('qmlpars_APP','mini')").get().c) || 0
       const webTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE channel IN ('web','h5')").get().c) || 0
       const trendRows = db.prepare(`
         WITH RECURSIVE days(d) AS (
@@ -343,7 +343,7 @@ module.exports = function (ctx) {
     const wheres = []
     const params = []
     if (body.all) {
-      if (channel === 'app' || channel === 'mini') { wheres.push('channel IN (?,?)'); params.push('app', 'mini') }
+      if (channel === 'qmlpars_APP' || channel === 'mini') { wheres.push('channel IN (?,?)'); params.push('qmlpars_APP', 'mini') }
       else if (channel === 'web' || channel === 'h5') { wheres.push('channel IN (?,?)'); params.push('web', 'h5') }
       if (start) { wheres.push('createdAt >= ?'); params.push(start + ' 00:00:00') }
       if (end) { wheres.push('createdAt <= ?'); params.push(end + ' 23:59:59') }
