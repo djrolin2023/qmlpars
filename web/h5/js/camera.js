@@ -61,8 +61,15 @@ async function openCam(facing){
     const hasUser = cams.some(d=>/user|front/i.test(d.label||''));
     let constraint;
     const videoConstraint = { width:{ ideal:1920 }, height:{ ideal:1080 } };
-    if(hasEnv && hasUser){ constraint = { video:{ facingMode:{ exact:facing}, ...videoConstraint }, audio:false }; }
-    else { constraint = { video:videoConstraint, audio:false }; }
+    if(hasEnv && hasUser){
+      // 能明确枚举出前后摄像头（安卓等）：用 exact 精确指定当前朝向
+      constraint = { video:{ facingMode:{ exact:facing}, ...videoConstraint }, audio:false };
+    } else {
+      // iOS Safari 等无法从 label 识别朝向的设备：用 ideal 引导开后摄，
+      // 避免直接失败或默认开前置摄像头
+      const fm = (facing === 'environment') ? { ideal:'environment' } : { ideal:'user' };
+      constraint = { video:{ facingMode:fm, ...videoConstraint }, audio:false };
+    }
     stream = await navigator.mediaDevices.getUserMedia(constraint);
     facingMode = facing;
     torchOn=false; const tb=document.getElementById('torchBtn'); if(tb){ tb.classList.add('hidden'); tb.classList.remove('on','hint'); tb.innerHTML=TORCH_OFF_SVG; }
@@ -71,7 +78,7 @@ async function openCam(facing){
     setCamStatus(); updateScanBtn();
     startLightCheck();
   }catch(e){
-    try{ stream = await navigator.mediaDevices.getUserMedia({ video:{ width:{ ideal:1920 }, height:{ ideal:1080 } }, audio:false }); document.getElementById('video').srcObject=stream; if(scanning) startAutoScan(); setCamStatus(); updateScanBtn(); startLightCheck(); }
+    try{ stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1920 }, height:{ ideal:1080 } }, audio:false }); document.getElementById('video').srcObject=stream; if(scanning) startAutoScan(); setCamStatus(); updateScanBtn(); startLightCheck(); }
     catch(e2){ document.getElementById('camStatus').textContent='无法访问摄像头'; }
   }
 }
