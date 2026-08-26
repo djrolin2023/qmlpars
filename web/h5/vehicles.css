@@ -114,7 +114,7 @@
 .date-rng-cap{ font-size:12px; color:var(--muted,#9fb0c0); }
 .date-rng-sep{ color:var(--muted,#9fb0c0); }
 .date-clear{ border:none; background:rgba(255,255,255,.14); color:#e8edf2; border-radius:50%; width:26px; height:26px; cursor:pointer; font-size:18px; line-height:1; display:flex; align-items:center; justify-content:center; }
-.date-picker{ position:relative; margin-top:8px; border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px; background:#161f2b; display:none; }
+.date-picker{ position:fixed; z-index:1200; margin-top:0; border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px; background:#161f2b; display:none; box-shadow:0 8px 28px rgba(0,0,0,.45); }
 .date-picker.show{ display:block; }
 .dp-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
 .dp-nav{ border:none; background:rgba(255,255,255,.08); color:inherit; width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:16px; }

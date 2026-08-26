@@ -194,13 +194,14 @@ function renderValidDuration() {
   }
   box.textContent = '';
 }
-function openDatePicker() {
+function openDatePicker(e) {
+  if (e && e.stopPropagation) e.stopPropagation();
   const now = new Date();
   const fallback = dpStart || dpEnd || { y: now.getFullYear(), m: now.getMonth() };
   dpYear = fallback.y; dpMonth = fallback.m;
   renderPicker();
   const p = document.getElementById('date-picker');
-  const input = document.getElementById('f-valid-start');
+  const input = (e && e.target) ? e.target : document.getElementById('f-valid-start');
   const rect = input.getBoundingClientRect();
   p.classList.add('show');
   const pw = p.offsetWidth, ph = p.offsetHeight;
