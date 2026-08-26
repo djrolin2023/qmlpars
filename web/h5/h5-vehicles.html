@@ -86,7 +86,9 @@
               <div class="photo-box" id="v-photo-box">
                 <input type="file" id="v-photo-file" accept="image/*" capture="environment" hidden>
                 <div class="photo-placeholder" id="v-photo-empty">
-                  <div class="photo-plus">+</div>
+                  <div class="photo-plus" aria-label="拍照">
+                    <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  </div>
                   <div class="photo-tip">点击拍照或从相册选择图片</div>
                 </div>
                 <div class="photo-loading" id="v-photo-loading" style="display:none">上传中…</div>
@@ -131,7 +133,7 @@
               <span class="date-rng-item"><span class="date-rng-cap">开始时间</span><input type="text" id="f-valid-start" readonly onclick="openDatePicker()" placeholder="选择开始日期"></span>
               <span class="date-rng-sep">~</span>
               <span class="date-rng-item"><span class="date-rng-cap">结束时间</span><input type="text" id="f-valid-end" readonly onclick="openDatePicker()" placeholder="选择结束日期"></span>
-              <button type="button" class="date-clear" id="valid-until-clear" onclick="clearValidUntil()" title="清除日期" style="display:none"><span data-icon="close"></span></button>
+              <button type="button" class="date-clear" id="valid-until-clear" onclick="clearValidUntil()" title="清除日期" style="display:none">×</button>
             </div>
             <div class="date-picker" id="date-picker">
               <div class="dp-head">
