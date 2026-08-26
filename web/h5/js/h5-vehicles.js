@@ -205,10 +205,13 @@ function openDatePicker(e) {
   const rect = input.getBoundingClientRect();
   p.classList.add('show');
   const pw = p.offsetWidth, ph = p.offsetHeight;
-  let left = rect.left, top = rect.bottom + 6;
-  if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+  // 水平居中，避免超出小屏；垂直优先在输入框下方，空间不足则放上方
+  let left = (window.innerWidth - pw) / 2;
   if (left < 8) left = 8;
+  if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+  let top = rect.bottom + 6;
   if (top + ph > window.innerHeight - 8) top = rect.top - ph - 6;
+  if (top < 8) top = 8;
   p.style.left = left + 'px'; p.style.top = top + 'px';
   setTimeout(() => document.addEventListener('click', dpOutside), 0);
 }
