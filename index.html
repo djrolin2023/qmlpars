@@ -133,7 +133,6 @@
   <!-- 引导弹窗 -->
   <div class="mask" id="guideMask">
     <div class="modal">
-      <button class="close" onclick="closeModal('guideMask')" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
       <h3>欢迎使用乾明车牌识别</h3>
       <p style="margin:0 0 12px;">三种使用方式，按场景选择：</p>
       <div class="chips">
@@ -148,14 +147,15 @@
         <div class="step"><span class="num">3</span><div>无摄像头时手动输入车牌查询；识别记录自动同步后台。</div></div>
         <div class="step"><span class="num">4</span><div>管理员在 PC「管理后台」维护车辆、批量导入与查看日志。</div></div>
       </div>
-      <button class="btn" onclick="closeModal('guideMask')">关闭</button>
+      <div style="text-align:right;margin-top:18px;">
+        <button class="btn" style="margin-top:0" onclick="closeModal('guideMask')">确认</button>
+      </div>
     </div>
   </div>
 
   <!-- 车牌识别 PC 提示弹窗 -->
   <div class="mask" id="plateMask">
     <div class="modal">
-      <button class="close" onclick="closeModal('plateMask')" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
       <h3>请从手机端访问</h3>
       <div class="phone-tip">
         <div class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg></div>
@@ -169,7 +169,9 @@
         <img id="plateQrImg" alt="二维码">
         <div id="plateQrHint">二维码加载中…</div>
       </div>
-      <button class="btn" onclick="closeModal('plateMask')">关闭</button>
+      <div style="text-align:right;margin-top:18px;">
+        <button class="btn" style="margin-top:0" onclick="closeModal('plateMask')">确认</button>
+      </div>
     </div>
   </div>
 
