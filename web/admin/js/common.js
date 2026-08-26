@@ -118,6 +118,26 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+function formatNum(n) {
+  const v = Number(n);
+  if (!isFinite(v)) return String(n);
+  return v.toLocaleString('zh-CN');
+}
+
+function formatBytes(bytes, decimals = 1) {
+  if (bytes == null || isNaN(bytes) || bytes < 0) return '—';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  let i = 0;
+  let v = Number(bytes);
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return v.toFixed(decimals).replace(/\.0$/, '') + ' ' + units[i];
+}
+
+function formatNetRate(v) {
+  if (v == null || isNaN(v) || v < 0) return '—';
+  return formatBytes(v) + '/s';
+}
+
 function renderDepTag(dep) {
   const raw = (dep || '').toString().trim();
   if (!raw) return '<span class="muted">—</span>';
@@ -226,7 +246,9 @@ async function checkAuth() {
   try {
     const data = await api('/api/admin/me');
     const u = (data.data && data.data.user) || (data.user) || '';
+    const role = (data.data && data.data.role) || 'admin';
     setUser(u);
+    localStorage.setItem('qmlpars_admin_role', role);
     const uEl = document.getElementById('nav-user');
     if (uEl) uEl.textContent = '管理员：' + u;
     // 顶部 tb-user 也显示当前登录用户
@@ -260,6 +282,26 @@ function bindLogout() {
   if (btn) btn.onclick = () => { doLogout(); location.href = 'login.html'; };
   const btnTop = document.getElementById('logout-btn-top');
   if (btnTop) btnTop.onclick = () => { doLogout(); location.href = 'login.html'; };
+}
+
+function bindRestart() {
+  const item = document.getElementById('menu-restart');
+  if (!item) return;
+  const role = localStorage.getItem('qmlpars_admin_role') || 'admin';
+  // 仅 admin / manager 可见
+  if (role !== 'admin' && role !== 'manager') { item.style.display = 'none'; return; }
+  item.classList.remove('hidden');
+  item.onclick = async () => {
+    if (!confirm('确定要重启后端服务吗？\n重启期间页面会短暂不可用，systemd 将自动拉起服务。')) return;
+    try {
+      const r = await api('/api/admin/restart', { method: 'POST' });
+      toast(r.message || '服务已重启');
+      // 延迟刷新，等待 systemd 拉起服务
+      setTimeout(() => location.reload(), 3500);
+    } catch (e) {
+      toast(isNetworkError(e) ? '重启请求失败，请检查网络' : '重启失败');
+    }
+  };
 }
 
 function bindMenuToggle() {
@@ -301,12 +343,21 @@ async function loadSiteFooter() {
 
 // 页面公共初始化（每个业务页末尾调用）
 function startClock() {
-  const el = document.getElementById('time-now');
-  if (!el) return;
+  const wrap = document.getElementById('time-now');
+  if (!wrap) return;
+  const elDate = wrap.querySelector('.time-date');
+  const elWeek = wrap.querySelector('.time-week');
+  const elClock = wrap.querySelector('.time-clock');
   const pad = n => String(n).padStart(2, '0');
+  const week = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
   const tick = () => {
     const d = new Date();
-    el.textContent = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    const dateStr = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    const weekStr = week[d.getDay()];
+    const timeStr = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    if (elDate) elDate.textContent = dateStr;
+    if (elWeek) elWeek.textContent = weekStr;
+    if (elClock) elClock.textContent = timeStr;
   };
   tick();
   setInterval(tick, 1000);
@@ -318,6 +369,7 @@ function adminInit() {
   buildCrumb();
   highlightNav();
   bindLogout();
+  bindRestart();
   bindMenuToggle();
   loadSiteFooter();
   startClock();

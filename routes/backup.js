@@ -30,14 +30,148 @@ module.exports = function (ctx) {
     db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(k, v)
   }
 
-  // 生成一次备份（含加密），返回文件信息
+  // 生成一次数据备份（仅数据库，可加密），返回 .bin 文件信息
   function createBackup(password) {
-    const tgz = buildBackupTgz()
+    const bin = makeBinFile(buildDataBin(), password)
     const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
     const binName = `qmlpars-backup-${stamp}.bin`
-    fs.writeFileSync(path.join(BACKUP_DIR, binName), makeBinFile(tgz, password))
+    fs.writeFileSync(path.join(BACKUP_DIR, binName), bin)
     const st = fs.statSync(path.join(BACKUP_DIR, binName))
     return { file: binName, size: st.size, time: st.mtimeMs, encrypted: !!password }
+  }
+
+  // 生成迁移包：数据备份(.bin) + 全部上传图片(uploads) -> .zip（可加密）
+  function createMigrateZip(password) {
+    try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)') } catch (e) { /* WAL 合并失败不阻塞 */ }
+    const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
+    const zipName = `qmlpars-migrate-${stamp}.zip`
+    const zipPath = path.join(BACKUP_DIR, zipName)
+    const work = path.join(BACKUP_DIR, '.migrate-' + process.pid + '-' + Date.now())
+    const dataDir = path.join(work, 'data')
+    const upDir = path.join(work, 'uploads')
+    fs.mkdirSync(dataDir, { recursive: true })
+    fs.mkdirSync(upDir, { recursive: true })
+    // 1) 数据备份（.bin 放入 data/ 目录）
+    const bin = makeBinFile(buildDataBin(), password)
+    fs.writeFileSync(path.join(dataDir, 'backup.bin'), bin)
+    // 2) 复制全部上传图片（车辆照片 + 抓拍快照 + 其它）
+    if (fs.existsSync(ctx.uploadDir)) {
+      try { execFileSync('cp', ['-a', ctx.uploadDir + '/.', upDir + '/'], { stdio: 'pipe' }) } catch (e) {
+        copyDirRecursive(ctx.uploadDir, upDir)
+      }
+    }
+    // 3) 打包成 zip（可加密）—— 优先用系统 zip，缺失时用 Node 内置生成未加密 zip
+    try {
+      const args = ['-r', '-q']
+      if (password) { args.push('-P', password) }
+      args.push(zipPath, '.')
+      execFileSync('zip', args, { cwd: work, stdio: 'pipe' })
+    } catch (e) {
+      buildZipWithNode(path.join(work), zipPath)
+    }
+    fs.rmSync(work, { recursive: true, force: true })
+    const st = fs.statSync(zipPath)
+    return { file: zipName, size: st.size, time: st.mtimeMs, encrypted: !!password }
+  }
+
+  // 纯 Node 实现的简单 zip 打包（存储模式，不压缩；无密码加密能力），仅作系统无 zip 时的兜底
+  function buildZipWithNode(srcDir, zipPath) {
+    const files = []
+    const walk = d => {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const p = path.join(d, e.name)
+        if (e.isDirectory()) walk(p)
+        else if (e.isFile()) files.push(p)
+      }
+    }
+    walk(srcDir)
+    const chunks = []
+    const central = []
+    let offset = 0
+    const enc = s => Buffer.from(s, 'utf8')
+    for (const f of files) {
+      const rel = path.relative(srcDir, f).split(path.sep).join('/')
+      const data = fs.readFileSync(f)
+      const nameBuf = enc(rel)
+      const local = Buffer.concat([
+        Buffer.from([0x50, 0x4b, 0x03, 0x04]), // local file header sig
+        Buffer.from([20, 0]), // version needed
+        Buffer.from([0, 0]), // flags
+        Buffer.from([0, 0]), // method: store
+        Buffer.from([0, 0]), // mod time
+        Buffer.from([0, 0]), // mod date
+        (() => { const b = Buffer.alloc(4); b.writeUInt32LE(crc32(data), 0); return b })(),
+        (() => { const b = Buffer.alloc(4); b.writeUInt32LE(data.length, 0); return b })(),
+        (() => { const b = Buffer.alloc(4); b.writeUInt32LE(data.length, 0); return b })(),
+        (() => { const b = Buffer.alloc(2); b.writeUInt16LE(nameBuf.length, 0); return b })(),
+        Buffer.from([0, 0]),
+        nameBuf, data
+      ])
+      chunks.push(local)
+      const c = Buffer.concat([
+        Buffer.from([0x50, 0x4b, 0x01, 0x02]),
+        Buffer.from([20, 0]), // version made by
+        Buffer.from([20, 0]), // version needed
+        Buffer.from([0, 0]), // flags
+        Buffer.from([0, 0]), // method
+        Buffer.from([0, 0]), // mod time
+        Buffer.from([0, 0]), // mod date
+        (() => { const b = Buffer.alloc(4); b.writeUInt32LE(crc32(data), 0); return b })(),
+        (() => { const b = Buffer.alloc(4); b.writeUInt32LE(data.length, 0); return b })(),
+        (() => { const b = Buffer.alloc(4); b.writeUInt32LE(data.length, 0); return b })(),
+        (() => { const b = Buffer.alloc(2); b.writeUInt16LE(nameBuf.length, 0); return b })(),
+        Buffer.from([0, 0]), // extra len
+        Buffer.from([0, 0]), // comment len
+        Buffer.from([0, 0]), // disk number
+        Buffer.from([0, 0]), // internal attr
+        Buffer.from([0, 0, 0, 0]), // external attr
+        (() => { const b = Buffer.alloc(4); b.writeUInt32LE(offset, 0); return b })(),
+        nameBuf
+      ])
+      central.push(c)
+      offset += local.length
+    }
+    const centralBuf = Buffer.concat(central)
+    const end = Buffer.concat([
+      Buffer.from([0x50, 0x4b, 0x05, 0x06]),
+      Buffer.from([0, 0]), // disk number
+      Buffer.from([0, 0]), // disk with central
+      (() => { const b = Buffer.alloc(2); b.writeUInt16LE(files.length, 0); return b })(),
+      (() => { const b = Buffer.alloc(2); b.writeUInt16LE(files.length, 0); return b })(),
+      (() => { const b = Buffer.alloc(4); b.writeUInt32LE(centralBuf.length, 0); return b })(),
+      (() => { const b = Buffer.alloc(4); b.writeUInt32LE(offset, 0); return b })(),
+      Buffer.from([0, 0]) // comment len
+    ])
+    fs.writeFileSync(zipPath, Buffer.concat([...chunks, centralBuf, end]))
+  }
+
+  // CRC32 计算（用于 zip 兜底）
+  function crc32(buf) {
+    let c = ~0
+    for (let i = 0; i < buf.length; i++) {
+      c ^= buf[i]
+      for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1))
+    }
+    return ~c >>> 0
+  }
+
+  // 生成纯数据备份的 .bin payload（数据库文件）
+  function buildDataBin() {
+    try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)') } catch (e) { /* WAL 合并失败不阻塞 */ }
+    const work = path.join(BACKUP_DIR, '.build-' + process.pid + '-' + Date.now())
+    fs.mkdirSync(work, { recursive: true })
+    const dbCopy = path.join(work, 'vehicles.db')
+    fs.copyFileSync(dbPath, dbCopy)
+    const tgzPath = path.join(work, 'payload.tar.gz')
+    try {
+      execFileSync('tar', ['-czf', tgzPath, '-C', work, 'vehicles.db'], { stdio: 'pipe' })
+      const tgz = fs.readFileSync(tgzPath)
+      fs.rmSync(work, { recursive: true, force: true })
+      return tgz
+    } catch (e) {
+      fs.rmSync(work, { recursive: true, force: true })
+      throw new Error('数据打包失败：' + e.message)
+    }
   }
 
   function copyDirRecursive(src, dest) {
@@ -47,27 +181,6 @@ module.exports = function (ctx) {
       const d = path.join(dest, entry.name)
       if (entry.isDirectory()) copyDirRecursive(s, d)
       else if (entry.isFile()) fs.copyFileSync(s, d)
-    }
-  }
-
-  function buildBackupTgz() {
-    try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)') } catch (e) { /* WAL 合并失败不阻塞 */ }
-    const work = path.join(BACKUP_DIR, '.build-' + process.pid + '-' + Date.now())
-    const buildData = path.join(work, 'data')
-    fs.mkdirSync(path.join(buildData, 'uploads'), { recursive: true })
-    fs.mkdirSync(path.join(buildData, 'assets'), { recursive: true })
-    fs.copyFileSync(dbPath, path.join(buildData, 'vehicles.db'))
-    copyDirRecursive(ctx.uploadDir, path.join(buildData, 'uploads'))
-    copyDirRecursive(ctx.ASSETS_DIR, path.join(buildData, 'assets'))
-    const tgzPath = path.join(work, 'payload.tar.gz')
-    try {
-      execFileSync('tar', ['-czf', tgzPath, '-C', buildData, '.'], { stdio: 'pipe' })
-      const tgz = fs.readFileSync(tgzPath)
-      fs.rmSync(work, { recursive: true, force: true })
-      return tgz
-    } catch (e) {
-      fs.rmSync(work, { recursive: true, force: true })
-      throw new Error('打包失败：' + e.message)
     }
   }
 
@@ -103,10 +216,13 @@ module.exports = function (ctx) {
 
   router.post('/api/admin/backup/create', ...roleGate('admin', 'manager'), (req, res) => {
     try {
-      const password = (req.body && req.body.password) || ''
-      const info = createBackup(password)
-      ctx.addSysLog('创建备份', info.file, password ? '已加密' : '未加密', req.admin.username, req.ip)
-      res.json({ success: true, ...info, message: '备份成功' })
+      const body = req.body || {}
+      const password = body.password || ''
+      const mode = body.mode === 'migrate' ? 'migrate' : 'data'
+      const info = mode === 'migrate' ? createMigrateZip(password) : createBackup(password)
+      const label = mode === 'migrate' ? '打包迁移' : '创建备份'
+      ctx.addSysLog(label, info.file, password ? '已加密' : '未加密', req.admin.username, req.ip)
+      res.json({ success: true, mode, ...info, message: mode === 'migrate' ? '迁移包已生成' : '备份成功' })
     } catch (e) {
       res.status(500).json({ success: false, message: e.message })
     }
@@ -201,10 +317,11 @@ module.exports = function (ctx) {
   router.get('/api/admin/backup/list', ...roleGate('admin', 'manager'), (req, res) => {
     try {
       const list = fs.readdirSync(BACKUP_DIR)
-        .filter(f => f.endsWith('.bin'))
+        .filter(f => f.endsWith('.bin') || f.endsWith('.zip'))
         .map(f => {
           const st = fs.statSync(path.join(BACKUP_DIR, f))
-          return { file: f, size: st.size, time: st.mtimeMs }
+          const isZip = f.endsWith('.zip')
+          return { file: f, kind: isZip ? 'migrate' : 'data', size: st.size, time: st.mtimeMs }
         })
         .sort((a, b) => b.time - a.time)
       res.json({ success: true, list })
@@ -216,14 +333,14 @@ module.exports = function (ctx) {
   router.get('/api/admin/backup/download', ...roleGate('admin', 'manager'), (req, res) => {
     const file = path.basename(req.query.file || '')
     const p = path.join(BACKUP_DIR, file)
-    if (!/\.bin$/.test(file) || !fs.existsSync(p)) return res.status(404).json({ success: false, message: '备份文件不存在' })
+    if (!/(\.bin|\.zip)$/.test(file) || !fs.existsSync(p)) return res.status(404).json({ success: false, message: '备份文件不存在' })
     res.download(p, file)
   })
 
   router.post('/api/admin/backup/delete', ...roleGate('admin', 'manager'), (req, res) => {
     const file = path.basename((req.body && req.body.file) || '')
     const p = path.join(BACKUP_DIR, file)
-    if (!/\.bin$/.test(file) || !fs.existsSync(p)) return res.status(404).json({ success: false, message: '备份文件不存在' })
+    if (!/(\.bin|\.zip)$/.test(file) || !fs.existsSync(p)) return res.status(404).json({ success: false, message: '备份文件不存在' })
     fs.unlinkSync(p)
     ctx.addSysLog('删除备份', file, null, req.admin.username, req.ip)
     res.json({ success: true, message: '已删除' })
@@ -231,6 +348,8 @@ module.exports = function (ctx) {
 
   router.post('/api/admin/backup/upload', ...roleGate('admin', 'manager'), require('multer')({ dest: BACKUP_UPLOAD_DIR }).single('file'), (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, message: '请选择备份文件' })
+    const ok = /(\.bin|\.zip)$/.test(req.file.originalname || '')
+    if (!ok) { try { fs.unlinkSync(req.file.path) } catch (e) {} return res.status(400).json({ success: false, message: '仅支持 .bin 或 .zip 备份文件' }) }
     ctx.addSysLog('上传备份', req.file.originalname || req.file.filename, null, req.admin.username, req.ip)
     res.json({ success: true, file: req.file.filename })
   })

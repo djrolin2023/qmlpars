@@ -1,274 +1,195 @@
-// ===== 数据大屏 =====
-async function initDashboard() {
-  try {
-    const data = await api('/api/admin/stats');
-    const d = data.data || {};
-    document.getElementById('s-vehicles').textContent = d.vehicleTotal || 0;
-    document.getElementById('s-today').textContent = d.todayTotal || 0;
-    document.getElementById('s-internal').textContent = d.internalTotal || 0;
-    document.getElementById('s-external').textContent = d.externalTotal || 0;
-    document.getElementById('s-long').textContent = d.longTermTotal || 0;
-    document.getElementById('s-temp').textContent = d.tempTotal || 0;
-    document.getElementById('s-expired').textContent = d.expiredTotal || 0;
+/* 数据大屏 */
+let categoryModalEl = null;
+let categoryModalBody = null;
 
-    // 趋势柱状图
-    const trend = d.trend || [];
-    const max = Math.max(1, ...trend.map(t => t.count));
-    document.getElementById('trend').innerHTML = trend.map(t =>
-      '<div class="bar-col"><div class="v">' + t.count + '</div>' +
-      '<div class="bar" style="height:' + Math.round(t.count / max * 100) + '%"></div>' +
-      '<div class="d">' + t.date + '</div></div>'
-    ).join('');
-
-    // 渠道占比（APP / H5）—— SVG 环形饼图
-    const appN = d.appTotal || 0, webN = d.webTotal || 0, total = appN + webN;
-    document.getElementById('channel').innerHTML = renderChannelPie(appN, webN, total);
-
-    function renderChannelPie(appN, webN, total) {
-      // 比例都为0时给一个空环占位，避免除零 + 让大屏不空荡
-      const size = 180, cx = size / 2, cy = size / 2, r = 64, stroke = 22;
-      const C = 2 * Math.PI * r;
-      let pie = '';
-      if (total === 0) {
-        // 空数据占位：淡灰整环
-        pie = '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="rgba(120,200,255,.15)" stroke-width="' + stroke + '"/>';
-      } else {
-        // 第一个扇形从 12 点方向开始（rotate -90）
-        const appPct = appN / total, webPct = webN / total;
-        // APP 段（蓝青渐变 → 蓝色调）
-        if (appPct > 0) {
-          pie += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" ' +
-            'stroke="url(#pieApp)" stroke-width="' + stroke + '" stroke-linecap="butt" ' +
-            'stroke-dasharray="' + (appPct * C) + ' ' + C + '" stroke-dashoffset="0" ' +
-            'transform="rotate(-90 ' + cx + ' ' + cy + ')"/>';
-        }
-        // H5 段（青色）
-        if (webPct > 0) {
-          pie += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" ' +
-            'stroke="url(#pieWeb)" stroke-width="' + stroke + '" stroke-linecap="butt" ' +
-            'stroke-dasharray="' + (webPct * C) + ' ' + C + '" ' +
-            'stroke-dashoffset="-' + (appPct * C) + '" ' +
-            'transform="rotate(-90 ' + cx + ' ' + cy + ')"/>';
-        }
-      }
-      const appPctStr = total ? Math.round(appN / total * 100) : 0;
-      const webPctStr = total ? Math.round(webN / total * 100) : 0;
-      return '' +
-        '<div class="pie-wrap">' +
-          '<svg class="pie-svg" viewBox="0 0 ' + size + ' ' + size + '" width="' + size + '" height="' + size + '">' +
-            '<defs>' +
-              '<linearGradient id="pieApp" x1="0" y1="0" x2="1" y2="1">' +
-                '<stop offset="0%" stop-color="#1890FF"/><stop offset="100%" stop-color="#40a9ff"/>' +
-              '</linearGradient>' +
-              '<linearGradient id="pieWeb" x1="0" y1="0" x2="1" y2="1">' +
-                '<stop offset="0%" stop-color="#36CFC9"/><stop offset="100%" stop-color="#5eead4"/>' +
-              '</linearGradient>' +
-              '<filter id="pieGlow" x="-30%" y="-30%" width="160%" height="160%">' +
-                '<feGaussianBlur stdDeviation="3" result="b"/>' +
-                '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>' +
-              '</filter>' +
-            '</defs>' +
-            pie +
-            '<text x="' + cx + '" y="' + (cy - 4) + '" text-anchor="middle" fill="#86909C" font-size="11">总数</text>' +
-            '<text x="' + cx + '" y="' + (cy + 18) + '" text-anchor="middle" fill="#FFFFFF" font-size="22" font-weight="700">' + total + '</text>' +
-          '</svg>' +
-          '<div class="pie-legend">' +
-            '<div class="pie-li"><span class="pie-dot" style="background:linear-gradient(135deg,#1890FF,#40a9ff)"></span>' +
-              '<span class="pill mini">APP</span>' +
-              '<b>' + appN + '</b><span class="muted">(' + appPctStr + '%)</span></div>' +
-            '<div class="pie-li"><span class="pie-dot" style="background:linear-gradient(135deg,#36CFC9,#5eead4)"></span>' +
-              '<span class="pill web">H5</span>' +
-              '<b>' + webN + '</b><span class="muted">(' + webPctStr + '%)</span></div>' +
-          '</div>' +
-        '</div>';
-    }
-
-    // 最近记录
-    const recent = d.recent || [];
-    const fmtResult = r => {
-      if ((r.result || '').includes('命中')) return '<span class="pill ok">内部</span>';
-      if ((r.result || '').includes('失败')) return '<span class="pill no">失败</span>';
-      return '<span class="pill web">外部</span>';
-    };
-    const fmtChan = r => r.channel === 'web' ? '<span class="pill web">H5</span>' : '<span class="pill mini">APP</span>';
-    document.getElementById('recent').innerHTML = recent.length ? recent.map(r =>
-      '<div class="ri"><span class="p">' + escapeHtml(r.plateNo) + '</span>' +
-      '<span class="meta">' + fmtResult(r) + ' ' + fmtChan(r) + ' ' +
-      escapeHtml(r.createdAt || '') + '</span></div>'
-    ).join('') : '<div class="empty">暂无记录</div>';
-  } catch (e) {
-    toast(e.message, 'error');
-  }
+function initDashboard() {
+  loadDashboard().catch((err) => {
+    console.error('[dashboard] load failed', err);
+    toast(isNetworkError(err) ? '无法连接服务器，请检查网络' : '数据大屏加载失败');
+  });
 }
 
-// ===== 长期 / 临时 / 过期 分类卡片点击 → 模态框 =====
-const CAT_LABEL = { long: '长期车辆', temp: '临时车辆', expired: '过期车辆' };
+async function loadDashboard() {
+  const data = await api('/api/admin/stats');
+  if (!data || data.success !== true) throw new Error('bad response');
+  const d = data.data || {};
 
+  // 顶部统计卡
+  setNum('s-vehicles', d.vehicleTotal);
+  setNum('s-long', d.longTermTotal);
+  setNum('s-temp', d.tempTotal);
+  setNum('s-expired', d.expiredTotal);
+  setNum('s-today', d.todayTotal);
+  setNum('s-internal', d.internalTotal);
+  setNum('s-external', d.externalTotal);
+  setNum('s-log', d.logTotal);
+
+  renderTrend(d.trend || []);
+  renderPie({ app: d.appTotal, wechat: d.wechatTotal, h5: d.webTotal });
+  renderRecent(d.recent || []);
+
+  // 系统信息
+  initSysInfo();
+}
+
+function setNum(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = (val == null || val === '') ? '—' : formatNum(val);
+}
+
+/* 最近识别记录 */
+function renderRecent(rows) {
+  const box = document.getElementById('recent');
+  if (!box) return;
+  if (!rows.length) { box.innerHTML = '<div class="empty">暂无识别记录</div>'; return; }
+  box.innerHTML = rows.map(r => {
+    const plate = escapeHtml(r.plateNo || '未知');
+    const ts = r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN', { hour12: false }) : '';
+    const conf = (r.confidence != null) ? Math.round(r.confidence * 100) + '%' : '';
+    const typeCls = r.source === 'exit' ? 'exit' : (r.source === 'entry' ? 'entry' : 'unknown');
+    const typeTxt = r.source === 'exit' ? '出口' : (r.source === 'entry' ? '入口' : '—');
+    const resultCls = r.result === 'internal' ? 'internal' : (r.result === 'external' ? 'external' : 'unknown');
+    const resultTxt = r.result === 'internal' ? '内部' : (r.result === 'external' ? '外部' : '未匹配');
+    return `<div class="recent-row">
+      <span class="r-plate">${plate}</span>
+      <span class="r-type ${typeCls}">${typeTxt}</span>
+      <span class="r-tag ${resultCls}">${resultTxt}</span>
+      ${conf ? `<span class="r-conf">${conf}</span>` : ''}
+      <span class="r-time">${escapeHtml(ts)}</span>
+    </div>`;
+  }).join('');
+}
+
+/* 趋势图（带网格线 + 数值标签） */
+function renderTrend(list) {
+  const box = document.getElementById('trend');
+  if (!box) return;
+  if (!list.length) { box.innerHTML = '<div class="empty">暂无趋势数据</div>'; return; }
+  const max = Math.max(1, ...list.map(d => d.count || 0));
+  const ticks = 4;
+  const grid = [];
+  for (let i = 0; i <= ticks; i++) {
+    const v = Math.round((max * (ticks - i)) / ticks);
+    grid.push(`<div class="trend-grid-line" style="bottom:${(i / ticks) * 100}%"><span>${formatNum(v)}</span></div>`);
+  }
+  box.innerHTML = grid.join('') + list.map(d => {
+    const h = Math.round(((d.count || 0) / max) * 100);
+    const wd = (100 / list.length).toFixed(2);
+    const label = d.date ? String(d.date).slice(5) : '';
+    return `<div class="trend-col" style="width:${wd}%">
+      <div class="trend-val">${formatNum(d.count || 0)}</div>
+      <div class="trend-bar" style="height:${h}%"></div>
+      <div class="trend-x">${escapeHtml(label)}</div>
+    </div>`;
+  }).join('');
+}
+
+/* 渠道饼图 */
+function renderPie(channel) {
+  const pie = document.getElementById('pie');
+  const legend = document.getElementById('pie-legend');
+  if (!pie || !legend) return;
+  const items = [
+    { key: 'app', label: 'APP', color: '#3b82f6' },
+    { key: 'wechat', label: '微信浏览器', color: '#22c55e' },
+    { key: 'h5', label: '手机浏览器', color: '#06b6d4' }
+  ];
+  const total = items.reduce((s, it) => s + (Number(channel[it.key]) || 0), 0) || 1;
+  let acc = 0;
+  const segs = items.map(it => {
+    const v = Number(channel[it.key]) || 0;
+    const start = (acc / total) * 360;
+    acc += v;
+    const end = (acc / total) * 360;
+    return `<div class="pie-seg" style="--start:${start}deg;--end:${end}deg;background:${it.color}"></div>`;
+  }).join('');
+  pie.innerHTML = segs + `<div class="pie-hole"><span class="pie-total">${formatNum(total)}</span><span class="pie-total-lbl">总识别</span></div>`;
+  legend.innerHTML = items.map(it => {
+    const v = Number(channel[it.key]) || 0;
+    const pct = total ? Math.round((v / total) * 100) : 0;
+    return `<div class="pie-legend-item"><span class="dot" style="background:${it.color}"></span><span class="pl-lbl">${it.label}</span><span class="pl-val">${formatNum(v)} · ${pct}%</span></div>`;
+  }).join('');
+}
+
+/* 点击统计卡弹窗 */
 function bindCategoryCards() {
   document.querySelectorAll('.stat-card.clickable').forEach(card => {
     card.addEventListener('click', () => openCategoryModal(card.dataset.cat));
   });
-  document.getElementById('cat-close').addEventListener('click', closeCategoryModal);
-  document.getElementById('cat-cancel').addEventListener('click', closeCategoryModal);
-  document.getElementById('cat-modal').addEventListener('click', e => {
-    if (e.target.id === 'cat-modal') closeCategoryModal();
-  });
 }
 
 function openCategoryModal(cat) {
-  document.getElementById('cat-title').textContent = (CAT_LABEL[cat] || '分类') + '明细';
-  document.getElementById('cat-modal').classList.add('show');
-  loadCategory(cat);
+  if (!categoryModalEl) {
+    categoryModalEl = document.getElementById('category-modal');
+    categoryModalBody = document.getElementById('category-body');
+  }
+  if (!categoryModalEl) return;
+  const countEl = document.getElementById('category-count');
+  if (countEl) countEl.textContent = '';
+  categoryModalBody.innerHTML = '<div class="loading">加载中…</div>';
+  document.getElementById('category-title').textContent =
+    cat === 'long' ? '长期车辆明细' : (cat === 'temp' ? '临时车辆明细' : '过期车辆明细');
+  categoryModalEl.classList.add('open');
+  api(`/api/admin/vehicles?validity=${cat}&pageSize=200`).then(res => {
+    if (!res || res.success !== true) throw new Error('bad');
+    const list = res.data || [];
+    if (countEl) countEl.textContent = `共 ${list.length} 条${cat === 'expired' ? '（已过期）' : ''}`;
+    renderCategoryList(list, cat);
+  }).catch(() => {
+    categoryModalBody.innerHTML = '<div class="empty">加载失败</div>';
+    if (countEl) countEl.textContent = '';
+  });
+}
+
+function renderCategoryList(list, cat) {
+  if (!list.length) { categoryModalBody.innerHTML = '<div class="empty">暂无数据</div>'; return; }
+  const header = '<div class="cat-head"><span class="cat-cell col-plate">车牌号</span><span class="cat-cell col-owner">车主</span><span class="cat-cell col-dept">部门</span><span class="cat-cell col-phone">手机号</span></div>';
+  const rows = list.map(v => `<div class="cat-row"><span class="cat-cell col-plate">${escapeHtml(v.plateNo || '—')}</span><span class="cat-cell col-owner">${escapeHtml(v.owner || '—')}</span><span class="cat-cell col-dept">${escapeHtml(v.department || '—')}</span><span class="cat-cell col-phone">${escapeHtml(v.phone || '—')}</span></div>`).join('');
+  categoryModalBody.innerHTML = header + rows;
 }
 
 function closeCategoryModal() {
-  document.getElementById('cat-modal').classList.remove('show');
+  if (categoryModalEl) categoryModalEl.classList.remove('open');
 }
 
-async function loadCategory(cat) {
-  const list = document.getElementById('cat-list');
-  list.innerHTML = '<div class="empty">加载中…</div>';
-  try {
-    const r = await api('/api/admin/vehicles?validity=' + cat + '&pageSize=100&page=1');
-    const rows = r.data || [];
-    if (!rows.length) { list.innerHTML = '<div class="empty">暂无' + (CAT_LABEL[cat] || '') + '</div>'; return; }
-    list.innerHTML = rows.map(v => {
-      const status = v.valid === null ? '<span class="pill ok">长期</span>'
-        : (v.valid ? '<span class="pill mini">有效</span>' : '<span class="pill no">已过期</span>');
-      const validTxt = v.validUntil ? escapeHtml(v.validUntil) : '长期';
-      const dept = v.department ? escapeHtml(v.department) : '—';
-      return '<div class="cat-modal-row">' +
-        '<div class="cat-modal-plate"><b>' + escapeHtml(v.plateNo || '—') + '</b></div>' +
-        '<div class="cat-modal-meta">' +
-          '<span>' + escapeHtml(v.owner || '—') + '</span>' +
-          '<span class="dot">·</span>' +
-          '<span>' + dept + '</span>' +
-          '<span class="dot">·</span>' +
-          '<span>' + validTxt + ' ' + status + '</span>' +
-        '</div>' +
-        '</div>';
-    }).join('');
-  } catch (e) {
-    list.innerHTML = '<div class="empty">加载失败：' + escapeHtml(e.message) + '</div>';
-  }
+function initSysInfo() {
+  api('/api/admin/sysinfo').then(r => {
+    if (!r || r.success !== true) return;
+    const s = r.data || {};
+    const os = s.os || {};
+    const cpu = s.cpu || {};
+    const mem = s.memory || {};
+    const disk = s.disk || {};
+    const net = s.network || {};
+
+    setText('sys-os', os.name);
+    setText('sys-arch', os.arch);
+    setText('sys-cpu', cpu.usage != null ? cpu.usage + '%' : null);
+    setText('sys-cpu-model', cpu.model);
+    setText('sys-mem', mem.total ? `${formatBytes(mem.used || 0)} / ${formatBytes(mem.total)}` : null);
+    setBar('sys-mem-bar', mem.usage);
+    setText('sys-disk', disk.total ? `${formatBytes(disk.used || 0)} / ${formatBytes(disk.total)}` : null);
+    setBar('sys-disk-bar', disk.usage);
+    setText('sys-net', (net.rxRate != null || net.txRate != null) ? `↓${formatNetRate(net.rxRate)} / ↑${formatNetRate(net.txRate)}` : null);
+    setText('sys-net-detail', net.rxBytes != null ? `累计 ↓${formatBytes(net.rxBytes)} ↑${formatBytes(net.txBytes)}` : '');
+    setText('sys-ver', s.version);
+    setText('sys-uptime', '');
+    setText('sys-node', os.nodeVersion ? 'Node.js ' + os.nodeVersion : null);
+    setText('sys-uptime-detail', os.uptime);
+  }).catch((err) => {
+    console.error('[sysinfo] failed', err);
+  });
 }
 
-// ===== 系统信息大屏 =====
-function fmtBytes(n) {
-  if (n == null || isNaN(n)) return '—'
-  const u = ['B', 'KB', 'MB', 'GB', 'TB']
-  let i = 0
-  let v = Number(n)
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
-  return v.toFixed(i === 0 ? 0 : 1) + ' ' + u[i]
+function setText(id, v) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = (v == null || v === '') ? '—' : v;
 }
-function fmtRate(n) { return fmtBytes(n) + '/s' }
-
-function detectBrowser() {
-  const ua = navigator.userAgent
-  let name = '未知浏览器', ver = ''
-  const map = [
-    ['Edg', 'Edge'], ['OPR', 'Opera'], ['Firefox', 'Firefox'],
-    ['Chrome', 'Chrome'], ['Safari', 'Safari']
-  ]
-  for (const [t, n] of map) {
-    const m = ua.match(new RegExp(t + '\\/([\\d.]+)'))
-    if (m) { name = n; ver = m[1]; break }
-  }
-  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua)
-  return { name: name + (ver ? ' ' + ver : ''), mobile: isMobile }
-}
-
-function renderSysInfo(d, version) {
-  if (!d) return
-  const os = d.os || {}
-  const cpu = d.cpu || {}
-  const mem = d.memory || {}
-  const net = d.network || null
-
-  const elOs = document.getElementById('sys-os')
-  if (elOs) elOs.textContent = (os.name || os.platform || '未知') + (os.release ? ' (' + os.release + ')' : '')
-  const elArch = document.getElementById('sys-arch')
-  if (elArch) elArch.textContent = [os.arch, '主机 ' + (os.hostname || '—'), os.nodeVersion ? 'Node ' + os.nodeVersion : ''].filter(Boolean).join(' · ')
-
-  const elCpu = document.getElementById('sys-cpu')
-  if (elCpu) elCpu.textContent = (cpu.cores || '—') + ' 核' + (cpu.usage != null ? ' · 负载 ' + cpu.usage + '%' : '')
-  const elCpuModel = document.getElementById('sys-cpu-model')
-  if (elCpuModel) elCpuModel.textContent = cpu.model || ''
-
-  const elMem = document.getElementById('sys-mem')
-  if (elMem) elMem.textContent = fmtBytes(mem.used) + ' / ' + fmtBytes(mem.total) + (mem.usage != null ? ' (' + mem.usage + '%)' : '')
-  const elMemBar = document.getElementById('sys-mem-bar')
-  if (elMemBar) {
-    elMemBar.firstElementChild.style.width = (mem.usage != null ? Math.min(100, mem.usage) : 0) + '%'
-    elMemBar.style.background = 'rgba(120,200,255,.12)'
-    elMemBar.firstElementChild.style.background = (mem.usage >= 85) ? 'linear-gradient(90deg,#ff7875,#ff4d4f)' : 'linear-gradient(90deg,#36CFC9,#1890FF)'
-  }
-
-  const disk = d.disk
-  const elDisk = document.getElementById('sys-disk')
-  if (elDisk) elDisk.textContent = disk ? (fmtBytes(disk.used) + ' / ' + fmtBytes(disk.total) + ' (' + disk.usage + '%)') : '不支持'
-  const elDiskBar = document.getElementById('sys-disk-bar')
-  if (elDiskBar) {
-    elDiskBar.firstElementChild.style.width = (disk && disk.usage != null ? Math.min(100, disk.usage) : 0) + '%'
-    elDiskBar.style.background = 'rgba(120,200,255,.12)'
-    elDiskBar.firstElementChild.style.background = (disk && disk.usage >= 85) ? 'linear-gradient(90deg,#ff7875,#ff4d4f)' : 'linear-gradient(90deg,#36CFC9,#1890FF)'
-  }
-
-  const elNet = document.getElementById('sys-net')
-  if (elNet) elNet.textContent = net ? ('↓ ' + fmtRate(net.rxRate) + ' ↑ ' + fmtRate(net.txRate)) : '不支持'
-  const elNetDetail = document.getElementById('sys-net-detail')
-  if (elNetDetail && net) elNetDetail.textContent = '累计 ↓ ' + fmtBytes(net.rxBytes) + ' ↑ ' + fmtBytes(net.txBytes)
-
-  const elVer = document.getElementById('sys-ver')
-  if (elVer) elVer.textContent = version || '未知'
-  const elUp = document.getElementById('sys-uptime')
-  if (elUp) elUp.textContent = os.uptime ? '已运行 ' + os.uptime : ''
-
-  const b = detectBrowser()
-  const elBrowser = document.getElementById('sys-browser')
-  if (elBrowser) elBrowser.textContent = b.name + (b.mobile ? ' · 移动端' : ' · 桌面端')
-  const elScreen = document.getElementById('sys-screen')
-  if (elScreen) elScreen.textContent = window.screen.width + ' × ' + window.screen.height + ' · ' + navigator.language
-}
-
-async function fetchWithRetry(url, opts = {}, retries = 2) {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const r = await fetch(url, opts);
-      if (!r.ok) return null;
-      return await r.json();
-    } catch (e) {
-      if (i < retries && typeof isNetworkError === 'function' && isNetworkError(e)) {
-        await new Promise(res => setTimeout(res, 600));
-        continue;
-      }
-      return null;
-    }
-  }
-  return null;
-}
-
-async function initSysInfo() {
-  // 浏览器与屏幕尺寸是前端信息，立即渲染
-  const b = detectBrowser()
-  const elBrowser = document.getElementById('sys-browser')
-  if (elBrowser) elBrowser.textContent = b.name + (b.mobile ? ' · 移动端' : ' · 桌面端')
-  const elScreen = document.getElementById('sys-screen')
-  if (elScreen) elScreen.textContent = window.screen.width + ' × ' + window.screen.height + ' · ' + navigator.language
-
-  async function refresh() {
-    try {
-      const [infoR, verR] = await Promise.all([
-        api('/api/admin/sysinfo'),
-        fetchWithRetry('/version.json', { cache: 'no-store' })
-      ])
-      const info = (infoR && infoR.success && infoR.data) ? infoR.data : null
-      const ver = verR && verR.version ? verR.version : null
-      renderSysInfo(info, ver)
-    } catch (e) { /* 静默，下次轮询重试 */ }
-  }
-  refresh()
-  // 每 3 秒刷新（CPU 使用率 / 流量速率需两次采样差值）
-  setInterval(refresh, 3000)
+function setBar(id, pct) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const span = el.querySelector('span');
+  const p = Math.max(0, Math.min(100, Number(pct) || 0));
+  if (span) span.style.width = p + '%';
+  el.title = p + '%';
 }

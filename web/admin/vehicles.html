@@ -48,7 +48,9 @@
             <div class="photo-col">
               <label>车辆照片（点击 / 拖拽 / 粘贴上传，自动识别车牌）</label>
               <div class="photo-box" id="v-photo-box">
-                <input type="file" id="v-photo-file" accept="image/*" hidden>
+                <!-- iOS Safari 对 hidden/display:none 的 file input 调用 .click() 不弹相机，故用无障碍隐藏样式 -->
+                <input type="file" id="v-photo-file" accept="image/*" capture="environment"
+                       style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">
                 <div class="photo-placeholder" id="v-photo-empty">
                   <div class="photo-plus">+</div>
                   <div class="photo-tip">点击或拖拽图片上传<br>支持 Ctrl+V 直接粘贴</div>
@@ -61,22 +63,24 @@
               </div>
             </div>
             <div class="plate-col">
-              <label><span class="req">*</span>车牌号（上传照片后可自动识别）</label>
-              <input id="f-plate" placeholder="如 粤B12345" maxlength="10" autocomplete="off">
-              <div class="plate-area-row">
-                <span class="plate-area-hint" id="plate-area"></span>
-                <span class="plate-dup-hint" id="plate-dup" style="display:none"></span>
+              <div class="plate-field">
+                <label><span class="req">*</span>车牌号（上传照片后可自动识别）</label>
+                <input id="f-plate" placeholder="如 粤B12345" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" lang="en" inputmode="text">
+                <div class="plate-area-row">
+                  <span class="plate-area-hint" id="plate-area"></span>
+                  <span class="plate-dup-hint" id="plate-dup" style="display:none"></span>
+                </div>
               </div>
-            </div>
-          </div>
-          <div class="form-row row3">
-            <div>
-              <label><span class="req">*</span>车主</label>
-              <input id="f-owner" placeholder="车主姓名">
-            </div>
-            <div>
-              <label>手机号</label>
-              <input id="f-phone" placeholder="联系电话">
+              <div class="owner-row">
+                <div class="owner-field">
+                  <label><span class="req">*</span>车主</label>
+                  <input id="f-owner" placeholder="车主姓名">
+                </div>
+                <div class="phone-field">
+                  <label>手机号</label>
+                  <input id="f-phone" placeholder="联系电话">
+                </div>
+              </div>
             </div>
           </div>
           <div class="form-row">
@@ -147,7 +151,6 @@
             <select id="batch-conflict" style="padding:6px 10px;border-radius:8px;background:rgba(15,20,25,.6);color:inherit;border:1px solid rgba(120,200,255,.2)">
               <option value="skip">跳过（保留原记录）</option>
               <option value="update">覆盖更新（按本批数据更新已有记录）</option>
-              <option value="force">仍新增（允许重复）</option>
             </select>
           </div>
           <div class="batch-rows" id="batch-rows"></div>

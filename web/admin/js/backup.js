@@ -15,26 +15,34 @@ function fmtTime(t) {
 }
 
 async function loadBackupList() {
-  const tbody = document.getElementById('bk-tbody');
-  const empty = document.getElementById('bk-empty');
   try {
     const r = await api('/api/admin/backup/list');
     const list = r.list || [];
+    const tbody = document.getElementById('bk-tbody');
+    const empty = document.getElementById('bk-empty');
     empty.style.display = list.length ? 'none' : '';
-    tbody.innerHTML = list.map(b => `
-      <tr>
-        <td class="mono">${esc(b.file)}</td>
-        <td>${fmtSize(b.size)}</td>
-        <td>${fmtTime(b.time)}</td>
-        <td>
-          <span class="op-link" data-act="dl" data-file="${esc(b.file)}">下载</span>
-          <span class="op-link danger" data-act="rs" data-file="${esc(b.file)}">恢复</span>
-          <span class="op-link danger" data-act="del" data-file="${esc(b.file)}">删除</span>
-        </td>
-      </tr>`).join('');
+    if (tbody) tbody.innerHTML = renderBackupRows(list);
   } catch (e) {
     toast('加载备份列表失败：' + e.message, 'error');
   }
+}
+
+function renderBackupRows(list) {
+  return list.map(b => {
+    const isMigrate = b.kind === 'migrate';
+    const tag = isMigrate ? '<span class="tag migrate">迁移包</span>' : '<span class="tag data">数据</span>';
+    // 迁移包仅提供下载/删除（用 install.sh 部署后手动拷回，不支持在线恢复）
+    const ops = isMigrate
+      ? `<span class="op-link" data-act="dl" data-file="${esc(b.file)}">下载</span><span class="op-link danger" data-act="del" data-file="${esc(b.file)}">删除</span>`
+      : `<span class="op-link" data-act="dl" data-file="${esc(b.file)}">下载</span><span class="op-link danger" data-act="rs" data-file="${esc(b.file)}">恢复</span><span class="op-link danger" data-act="del" data-file="${esc(b.file)}">删除</span>`;
+    return `<tr>
+      <td class="mono">${esc(b.file)}</td>
+      <td>${tag}</td>
+      <td>${fmtSize(b.size)}</td>
+      <td>${fmtTime(b.time)}</td>
+      <td>${ops}</td>
+    </tr>`;
+  }).join('');
 }
 
 function downloadBackup(file) {
@@ -55,12 +63,13 @@ function downloadBackup(file) {
   }
 }
 
-async function createBackup(pwd) {
+async function createBackup(pwd, mode) {
   const btn = document.getElementById('bk-confirm-ok');
   btn.disabled = true;
   try {
-    const r = await api('/api/admin/backup/create', { method: 'POST', body: JSON.stringify({ password: pwd }) });
-    toast('备份成功' + (r.encrypted ? '（已加密）' : '') + '：' + r.file, 'success');
+    const r = await api('/api/admin/backup/create', { method: 'POST', body: JSON.stringify({ password: pwd, mode: mode || 'data' }) });
+    const kind = r.mode === 'migrate' ? '迁移包' : '备份';
+    toast(kind + '已生成' + (r.encrypted ? '（已加密）' : '') + '：' + r.file, 'success');
     loadBackupList();
   } catch (e) {
     toast(e.message, 'error');
@@ -137,6 +146,7 @@ async function loadAutoBackup() {
     document.getElementById('ab-enabled').checked = !!c.enabled;
     document.getElementById('ab-period').value = c.period || 'daily';
     document.getElementById('ab-pwd').value = ''; // 出于安全不回显密码
+    document.getElementById('ab-advanced').style.display = c.enabled ? '' : 'none';
     const info = document.getElementById('ab-info');
     if (c.enabled) {
       let txt = '已启用自动备份（' + ({ daily: '每天', weekly: '每星期', monthly: '每月' }[c.period] || c.period) + (c.password ? '，已加密' : '，未加密') + '）';
@@ -165,6 +175,7 @@ async function saveAutoBackup() {
     });
     toast(r.message || '已保存', 'success');
     loadAutoBackup();
+    closeModal('auto-backup-modal');
   } catch (e) {
     toast(e.message, 'error');
   } finally {
@@ -185,17 +196,28 @@ function initBackup() {
     m.querySelectorAll('[data-close]').forEach(x => x.addEventListener('click', () => closeModal(x.dataset.close)));
   });
 
-  // 生成备份：弹模态框确认（含密码与加密提示）
+  // 数据备份：弹模态框确认（含密码与加密提示）
   document.getElementById('btn-create').addEventListener('click', () => {
+    document.getElementById('bk-confirm-title').textContent = '生成数据备份';
+    document.getElementById('bk-confirm-pwd-label').textContent = '备份密码（可选）';
     const pwdEl = document.getElementById('bk-pwd');
     pwdEl.value = '';
     const warn = document.getElementById('bk-confirm-warn');
-    warn.innerHTML = '请设置备份密码（可选）。<br><strong>若设置密码，备份将使用密码加密，请牢记该密码（忘记将无法恢复）。</strong><br>留空则备份文件不加密，任何拿到文件的人都能直接恢复。';
+    warn.innerHTML = '仅备份后台数据（不含上传图片）。<br>请设置备份密码（可选）。<br><strong>若设置密码，备份将使用密码加密，请牢记该密码（忘记将无法恢复）。</strong><br>留空则备份文件不加密，任何拿到文件的人都能直接恢复。';
     openModal('bk-confirm-modal');
+    document.getElementById('bk-confirm-ok').onclick = () => createBackup(pwdEl.value, 'data');
   });
-  document.getElementById('bk-confirm-ok').addEventListener('click', () => {
-    const pwd = document.getElementById('bk-pwd').value;
-    createBackup(pwd);
+
+  // 打包迁移：弹模态框确认（含密码与加密提示）
+  document.getElementById('btn-migrate').addEventListener('click', () => {
+    document.getElementById('bk-confirm-title').textContent = '生成迁移包';
+    document.getElementById('bk-confirm-pwd-label').textContent = '迁移包密码（可选，加密 zip）';
+    const pwdEl = document.getElementById('bk-pwd');
+    pwdEl.value = '';
+    const warn = document.getElementById('bk-confirm-warn');
+    warn.innerHTML = '将打包：数据备份(.bin) + 全部上传图片（车辆照片 + 识别抓拍快照）。<br>请设置迁移包密码（可选）。<br><strong>若设置密码，zip 将使用密码加密；忘记密码无法解包。</strong><br>新机用 install.sh 部署系统后，将 zip 内图片与 backup.bin 拷回即可完成迁移。';
+    openModal('bk-confirm-modal');
+    document.getElementById('bk-confirm-ok').onclick = () => createBackup(pwdEl.value, 'migrate');
   });
 
   // 恢复：上传文件方式
@@ -211,8 +233,16 @@ function initBackup() {
     }
   });
 
-  // 历史备份操作：下载 / 恢复 / 删除
-  document.getElementById('bk-tbody').addEventListener('click', async (ev) => {
+  // 自动备份设置：打开模态框；启用开关联动显示周期/密码
+  const btnAutoBackup = document.getElementById('btn-auto-backup');
+  if (btnAutoBackup) btnAutoBackup.addEventListener('click', () => { openModal('auto-backup-modal'); });
+  const abEnabled = document.getElementById('ab-enabled');
+  if (abEnabled) abEnabled.addEventListener('change', () => {
+    document.getElementById('ab-advanced').style.display = abEnabled.checked ? '' : 'none';
+  });
+
+  // 历史备份操作（底部面板）：下载 / 恢复 / 删除
+  const onHistoryClick = async (ev) => {
     const el = ev.target.closest('.op-link');
     if (!el) return;
     const file = el.dataset.file;
@@ -230,8 +260,10 @@ function initBackup() {
     if (act === 'rs') {
       showRestoreModal(file);
     }
-  });
+  };
+  const tbody = document.getElementById('bk-tbody');
+  if (tbody) tbody.addEventListener('click', onHistoryClick);
 
-  // 自动备份设置
+  // 自动备份设置保存
   document.getElementById('ab-save').addEventListener('click', saveAutoBackup);
 }

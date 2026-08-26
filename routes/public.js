@@ -157,9 +157,10 @@ module.exports = function (ctx) {
       if (!req.file && !req.body.imageBase64 && !req.body.imageUrl) {
         return res.status(400).json({ success: false, message: '缺少图片数据' })
       }
-      // 来源渠道：原生 APP 传 'qmlpars_APP'，H5 网页传 'h5'/'web'；缺省兜底为 h5
+      // 来源渠道：原生 APP 传 'qmlpars_APP'，微信内置浏览器传 'wechat'，H5 网页传 'h5'/'web'；缺省兜底为 h5
       const rawChannel = (req.body.channel || 'h5')
       const channel = (rawChannel === 'qmlpars_APP') ? 'qmlpars_APP'
+                    : (rawChannel === 'wechat') ? 'wechat'
                     : (rawChannel === 'web' || rawChannel === 'h5') ? 'h5'
                     : 'h5'
       let imageBase64 = null, imageUrl = null

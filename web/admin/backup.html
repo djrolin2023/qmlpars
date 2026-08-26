@@ -20,6 +20,13 @@
     .op-link:hover { text-decoration: underline; }
     .op-link.danger { color: #f87171; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; line-height: 18px; }
+    .tag.data { background: rgba(96,165,250,.16); color: #93c5fd; }
+    .tag.migrate { background: rgba(34,197,94,.16); color: #86efac; }
+    .btn-row { display: flex; align-items: center; justify-content: flex-end; gap: 14px; margin-top: 12px; }
+    .btn-row .op-link { margin-right: 0; }
+    .full-width { grid-column: 1 / -1; }
+    #auto-backup-modal .form-row { margin-bottom: 14px; }
   </style>
 </head>
 <body class="embed">
@@ -31,55 +38,41 @@
         <div class="bk-box">
           <h3>
             <svg class="ic" viewBox="0 0 24 24"><path d="M12 3v3m0 0 2-2m-2 2-2-2M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5M7 8h10M7 8a2 2 0 0 1 0 4h10a2 2 0 0 1 0-4M7 8a4 4 0 0 0-1.9 7.5M17 8a4 4 0 0 1 1.9 7.5"/></svg>
-            立即备份
+            数据备份
           </h3>
-          <p class="hint">备份内容：全部车辆档案、识别记录、系统配置（含 OCR 密钥）与上传图片。<br>备份文件为 .bin 格式，可设置密码加密（AES-256-GCM）。</p>
-          <button class="btn primary right" id="btn-create" style="margin-top:12px">生成备份</button>
+          <p class="hint">仅备份后台填写的数据：车辆档案、识别记录、系统配置（含 OCR 密钥）。<strong>不含任何上传图片</strong>，体积小、轻量。<br>文件为 .bin 格式，可设密码加密（AES-256-GCM）。</p>
+          <div class="btn-row">
+            <button class="btn primary" id="btn-create">生成备份</button>
+            <span class="op-link" id="btn-auto-backup">自动备份设置</span>
+          </div>
         </div>
 
         <div class="bk-box">
           <h3>
-            <svg class="ic" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/><path d="M12 7v5l3 2"/></svg>
+            <svg class="ic" viewBox="0 0 24 24"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/></svg>
             恢复备份
           </h3>
-          <p class="hint">选择 .bin 备份文件并输入其密码（若有）。恢复会<strong style="color:#f87171">覆盖当前全部数据</strong>，系统会先把现有数据暂存到 backup/trash-* 目录，出问题可手动找回。</p>
+          <p class="hint">选择 .bin 数据备份文件并输入其密码（若有）。恢复会<strong style="color:#f87171">覆盖当前全部数据</strong>，系统会先把现有数据暂存到 backup/trash-* 目录，出问题可手动找回。</p>
           <button class="btn danger right" id="btn-restore" style="margin-top:12px">恢复数据</button>
         </div>
       </div>
 
-      <div class="bk-box" style="margin-top:16px">
-        <h3>
-          <svg class="ic" viewBox="0 0 24 24"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/></svg>
-          自动备份
-        </h3>
-        <p class="hint">开启后系统按设定周期（每天 / 每周一 / 每月 1 日 凌晨 3 点）自动生成加密备份，无需人工操作。</p>
-        <div class="form-row row2" style="margin-top:12px">
-          <div>
-            <label>启用自动备份</label>
-            <label class="switch"><input type="checkbox" id="ab-enabled"><span class="slider"></span></label>
-          </div>
-          <div>
-            <label>备份周期</label>
-            <select id="ab-period">
-              <option value="daily">每天</option>
-              <option value="weekly">每星期（周一）</option>
-              <option value="monthly">每月（1 日）</option>
-            </select>
-          </div>
+      <div class="bk-grid" style="margin-top:16px">
+        <div class="bk-box full-width">
+          <h3>
+            <svg class="ic" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/><path d="M12 7v5l3 2"/></svg>
+            打包迁移
+          </h3>
+          <p class="hint">用于整机迁移到新服务器。打包内容 = <strong>数据备份(.bin) + 全部上传图片</strong>（车辆照片 + 识别抓拍快照）。<br>生成 .zip（可加密），新机用 install.sh 部署系统后，将 zip 内的图片与数据拷回即可。</p>
+          <button class="btn primary right" id="btn-migrate" style="margin-top:12px">生成迁移包</button>
         </div>
-        <div class="form-row">
-          <label>自动备份密码（加密用，建议与管理密码不同）</label>
-          <input id="ab-pwd" type="password" placeholder="留空则不加密" autocomplete="new-password">
-        </div>
-        <div class="hint" id="ab-info" style="margin:6px 0 12px"></div>
-        <button class="btn primary right" id="ab-save">保存自动备份设置</button>
       </div>
 
       <div class="panel" style="margin-top:16px">
         <h3>历史备份</h3>
         <table class="bk-list">
           <thead>
-            <tr><th style="width:60%">文件名</th><th>大小</th><th>时间</th><th>操作</th></tr>
+            <tr><th style="width:46%">文件名</th><th style="width:14%">类型</th><th>大小</th><th>时间</th><th>操作</th></tr>
           </thead>
           <tbody id="bk-tbody"></tbody>
         </table>
@@ -92,17 +85,50 @@
   <!-- 生成备份确认模态框 -->
   <div class="modal-mask" id="bk-confirm-modal">
     <div class="modal">
-      <div class="modal-head"><span>生成备份</span><span class="x" data-close="bk-confirm-modal">×</span></div>
+      <div class="modal-head"><span id="bk-confirm-title">生成备份</span><span class="x" data-close="bk-confirm-modal">×</span></div>
       <div class="modal-body">
         <div id="bk-confirm-warn" class="warn" style="margin-bottom:12px"></div>
         <div class="form-row">
-          <label>备份密码（可选）</label>
+          <label id="bk-confirm-pwd-label">备份密码（可选）</label>
           <input id="bk-pwd" type="password" placeholder="留空则不加密，建议设置密码" autocomplete="new-password">
         </div>
       </div>
       <div class="modal-foot">
         <button class="btn" data-close="bk-confirm-modal">取消</button>
-        <button class="btn primary" id="bk-confirm-ok">确认备份</button>
+        <button class="btn primary" id="bk-confirm-ok">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 自动备份设置模态框 -->
+  <div class="modal-mask" id="auto-backup-modal">
+    <div class="modal" style="max-width:460px">
+      <div class="modal-head"><span>自动备份设置</span><span class="x" data-close="auto-backup-modal">×</span></div>
+      <div class="modal-body">
+        <p class="hint" style="margin-bottom:16px">开启后系统按设定周期自动生成<strong>数据备份</strong>（仅数据，不含图片），无需人工操作。</p>
+        <div class="form-row">
+          <label>启用自动备份</label>
+          <label class="switch"><input type="checkbox" id="ab-enabled"><span class="slider"></span></label>
+        </div>
+        <div id="ab-advanced" style="display:none">
+          <div class="form-row">
+            <label>备份周期</label>
+            <select id="ab-period">
+              <option value="daily">每天</option>
+              <option value="weekly">每星期（周一）</option>
+              <option value="monthly">每月（1 日）</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>自动备份密码（加密用，建议与管理密码不同）</label>
+            <input id="ab-pwd" type="password" placeholder="留空则不加密" autocomplete="new-password">
+          </div>
+        </div>
+        <div class="hint" id="ab-info" style="margin:6px 0 12px"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" data-close="auto-backup-modal">取消</button>
+        <button class="btn primary" id="ab-save">保存设置</button>
       </div>
     </div>
   </div>

@@ -11,7 +11,18 @@
     <div class="content">
       <nav class="crumb" id="crumb"></nav>
 
-      <div class="chart-box" style="margin-bottom:16px">
+      <div class="stat-grid">
+        <div class="stat-card accent"><div class="stat-ic" data-icon="car"></div><div class="stat-main"><div class="num" id="s-vehicles">—</div><div class="lbl">登记车辆总数</div></div></div>
+        <div class="stat-card green clickable" data-cat="long"><div class="stat-ic" data-icon="shield"></div><div class="stat-main"><div class="num" id="s-long">—</div><div class="lbl">长期车辆</div></div></div>
+        <div class="stat-card orange clickable" data-cat="temp"><div class="stat-ic" data-icon="clock"></div><div class="stat-main"><div class="num" id="s-temp">—</div><div class="lbl">临时车辆</div></div></div>
+        <div class="stat-card purple clickable" data-cat="expired"><div class="stat-ic" data-icon="alert"></div><div class="stat-main"><div class="num" id="s-expired">—</div><div class="lbl">过期车辆</div></div></div>
+        <div class="stat-card cyan"><div class="stat-ic" data-icon="scan"></div><div class="stat-main"><div class="num" id="s-today">—</div><div class="lbl">今日识别次数</div></div></div>
+        <div class="stat-card blue"><div class="stat-ic" data-icon="check"></div><div class="stat-main"><div class="num" id="s-internal">—</div><div class="lbl">内部车辆识别</div></div></div>
+        <div class="stat-card pink"><div class="stat-ic" data-icon="external"></div><div class="stat-main"><div class="num" id="s-external">—</div><div class="lbl">外部车辆识别</div></div></div>
+        <div class="stat-card neutral"><div class="stat-ic" data-icon="log"></div><div class="stat-main"><div class="num" id="s-log">—</div><div class="lbl">累计识别日志</div></div></div>
+      </div>
+
+      <div class="chart-box sysinfo-box" style="margin:16px 0">
         <h3>系统信息</h3>
         <div class="sysinfo-grid">
           <div class="sys-card"><div class="sys-ic" data-icon="os"></div><div class="sys-body"><div class="sys-lbl">操作系统</div><div class="sys-val" id="sys-os">—</div><div class="sys-sub" id="sys-arch"></div></div></div>
@@ -20,45 +31,37 @@
           <div class="sys-card"><div class="sys-ic" data-icon="disk"></div><div class="sys-body"><div class="sys-lbl">磁盘容量</div><div class="sys-val" id="sys-disk">—</div><div class="sys-sub" id="sys-disk-bar"><span></span></div></div></div>
           <div class="sys-card"><div class="sys-ic" data-icon="net"></div><div class="sys-body"><div class="sys-lbl">网络流量</div><div class="sys-val" id="sys-net">—</div><div class="sys-sub" id="sys-net-detail"></div></div></div>
           <div class="sys-card"><div class="sys-ic" data-icon="version"></div><div class="sys-body"><div class="sys-lbl">系统版本</div><div class="sys-val" id="sys-ver">—</div><div class="sys-sub" id="sys-uptime"></div></div></div>
-          <div class="sys-card"><div class="sys-ic" data-icon="browser"></div><div class="sys-body"><div class="sys-lbl">浏览器 / 客户端</div><div class="sys-val" id="sys-browser">—</div><div class="sys-sub" id="sys-screen"></div></div></div>
+          <div class="sys-card"><div class="sys-ic" data-icon="version"></div><div class="sys-body"><div class="sys-lbl">运行环境</div><div class="sys-val" id="sys-node">—</div><div class="sys-sub" id="sys-uptime-detail"></div></div></div>
         </div>
       </div>
 
-      <div class="dash">
-        <div class="stat-card"><div class="num" id="s-vehicles">—</div><div class="lbl">登记车辆总数</div></div>
-        <div class="stat-card clickable" data-cat="long"><div class="num" id="s-long">—</div><div class="lbl">长期车辆</div></div>
-        <div class="stat-card orange clickable" data-cat="temp"><div class="num" id="s-temp">—</div><div class="lbl">临时车辆</div></div>
-        <div class="stat-card purple clickable" data-cat="expired"><div class="num" id="s-expired">—</div><div class="lbl">过期车辆</div></div>
-        <div class="stat-card green"><div class="num" id="s-today">—</div><div class="lbl">今日识别次数</div></div>
-        <div class="stat-card orange"><div class="num" id="s-internal">—</div><div class="lbl">内部车辆识别</div></div>
-        <div class="stat-card purple"><div class="num" id="s-external">—</div><div class="lbl">外部车辆识别</div></div>
-      </div>
-
-      <div class="modal-mask" id="cat-modal">
+      <div class="modal-mask" id="category-modal">
         <div class="modal">
-          <div class="modal-head"><span id="cat-title">分类明细</span><span class="x" id="cat-close">×</span></div>
+          <div class="modal-head"><span id="category-title">分类明细</span><span class="modal-close" id="category-close">×</span></div>
           <div class="modal-body">
-            <div class="cat-modal-list" id="cat-list"></div>
+            <div id="category-body"></div>
           </div>
           <div class="modal-foot">
-            <button class="btn" id="cat-cancel">关闭</button>
+            <span class="cat-count" id="category-count"></span>
+            <button class="btn" id="category-cancel">关闭</button>
           </div>
         </div>
       </div>
 
       <div class="dash-row">
         <div class="chart-box">
-          <h3>近 7 天识别趋势</h3>
-          <div class="bars" id="trend"></div>
+          <h3>识别趋势（近 7 日）</h3>
+          <div class="trend" id="trend"></div>
         </div>
         <div class="chart-box">
-          <h3>识别渠道占比</h3>
-          <div id="channel" style="padding:8px 0"></div>
+          <h3>识别渠道分布</h3>
+          <div class="pie-wrap"><div class="pie" id="pie"></div><div class="pie-legend" id="pie-legend"></div></div>
         </div>
-        <div class="chart-box">
-          <h3>最近识别记录</h3>
-          <div class="recent-list" id="recent"></div>
-        </div>
+      </div>
+
+      <div class="chart-box" style="margin-top:16px">
+        <div class="mod-head"><span class="mod-title">最近识别记录</span><a class="mod-more" href="/admin/recognitions">查看全部 ›</a></div>
+        <div class="recent" id="recent"></div>
       </div>
     </div>
     <div class="page-footer one-line" id="site-footer-text"></div>
@@ -74,6 +77,11 @@
       initDashboard();
       bindCategoryCards();
       initSysInfo();
+      document.getElementById('category-close').addEventListener('click', closeCategoryModal);
+      document.getElementById('category-cancel').addEventListener('click', closeCategoryModal);
+      document.getElementById('category-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'category-modal') closeCategoryModal();
+      });
     })();
   </script>
 </body>

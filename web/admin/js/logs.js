@@ -42,10 +42,11 @@ async function loadLogs() {
     } else {
       document.getElementById('empty').style.display = 'none';
       tbody.innerHTML = list.map(r => {
-        // 渠道：qmlpars_APP/H5/mini（兼容旧数据 app/web）
+        // 渠道：qmlpars_APP/微信/手机浏览器/mini（兼容旧数据 app/web）
         let chan;
         if (r.channel === 'qmlpars_APP' || r.channel === 'app') chan = '<span class="pill app">APP</span>';
-        else if (r.channel === 'h5' || r.channel === 'web') chan = '<span class="pill web">H5</span>';
+        else if (r.channel === 'wechat') chan = '<span class="pill web">微信浏览器</span>';
+        else if (r.channel === 'h5' || r.channel === 'web') chan = '<span class="pill web">手机浏览器</span>';
         else chan = '<span class="pill mini">小程序</span>';
         let res;
         if ((r.result || '').includes('成功')) res = '<span class="pill ok">成功</span>';

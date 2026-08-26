@@ -41,7 +41,10 @@
   position: sticky; top: 0; z-index: 50;
 }
 .topbar .tb-right { margin-left: auto; display: flex; align-items: center; gap: 16px; font-size: 13px; font-weight: 400; }
-.topbar .tb-right .time-now { color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: .3px; }
+.topbar .tb-right .time-now { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: .3px; white-space: nowrap; }
+.topbar .tb-right .time-now .time-date { min-width: 88px; text-align: right; }
+.topbar .tb-right .time-now .time-week { min-width: 48px; text-align: center; }
+.topbar .tb-right .time-now .time-clock { min-width: 72px; text-align: right; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 .topbar .tb-right .tb-user { color: #86909C; }
 /* 顶栏用户下拉 */
 .user-dropdown { position: relative; }

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <script src="./app-config.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#1d2733">
+  <title>车牌识别系统</title>
+  <link rel="stylesheet" href="css/base.css">
+  <style>
+    html,body{ margin:0; height:100%; background:var(--bg,#0f1620); color:var(--text,#e8edf2); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+    body:not(.authed) .app-shell{ display:none; }
+    .h5-header{ position:sticky; top:0; z-index:50; display:flex; align-items:center; gap:10px; padding:max(10px,env(safe-area-inset-top)) 14px 10px; background:rgba(29,39,51,.72); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border-bottom:1px solid rgba(255,255,255,.06); }
+    .h5-header .brand-logo.header-logo{ flex:0 0 auto; display:flex; align-items:center; }
+    .h5-header .brand-logo.header-logo .brand-logo-img{ max-height:36px; max-width:36px; }
+    .org-headline{ display:flex; flex-direction:column; line-height:1.15; }
+    .org-title{ font-weight:700; font-size:14px; color:#fff; }
+    .org-sub{ font-size:11px; color:var(--muted,#9fb0c0); margin-left:0; }
+    .h5-header .spacer{ flex:1; }
+    .channel-tag{ font-size:12px; color:var(--muted,#9fb0c0); background:rgba(255,255,255,.06); padding:3px 8px; border-radius:999px; }
+    .channel-tag .dot{ display:inline-block; width:7px; height:7px; border-radius:50%; background:#3ec46d; margin-right:5px; vertical-align:middle; }
+    .channel-tag.off .dot{ background:#e0533d; }
+    .top-user-area{ display:flex; align-items:center; }
+    .top-user-area .user-dropdown-toggle{ background:rgba(255,255,255,.06); border:none; color:var(--text,#e8edf2); padding:6px 10px; border-radius:999px; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px; }
+
+    .app-shell{ display:flex; flex-direction:column; height:100vh; }
+    .app-main{ flex:1; position:relative; overflow:hidden; }
+    .frame{ position:absolute; inset:0; width:100%; height:100%; border:none; background:var(--bg,#0f1620); }
+    .frame[hidden]{ display:none; }
+
+    /* 底部固定 Tab（单页切换：iframe 加载两个子页） */
+    .h5-tabbar{ position:fixed; left:0; right:0; bottom:0; z-index:60; height:calc(64px + env(safe-area-inset-bottom)); padding:6px 8px calc(6px + env(safe-area-inset-bottom)); display:flex; gap:6px; background:rgba(20,28,38,.78); backdrop-filter:blur(18px) saturate(180%); -webkit-backdrop-filter:blur(18px) saturate(180%); border-top:1px solid rgba(255,255,255,.06); box-shadow:0 -8px 24px rgba(0,0,0,.25); }
+    .h5-tabbar .tab{ flex:1; background:transparent; border:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:rgba(159,176,192,.85); font-size:12px; font-weight:500; letter-spacing:.3px; cursor:pointer; border-radius:14px; padding:6px 4px; transition:background .2s ease, color .2s ease, transform .12s ease; -webkit-tap-highlight-color:transparent; }
+    .h5-tabbar .tab:active{ transform:scale(.96); }
+    .h5-tabbar .tab .bt-icon{ font-size:22px; line-height:1; display:inline-flex; }
+    .h5-tabbar .tab .bt-icon svg{ width:22px; height:22px; display:block; }
+    .h5-tabbar .tab.active{ color:#fff; background:linear-gradient(180deg, rgba(58,122,254,.22), rgba(58,122,254,.10)); box-shadow:inset 0 0 0 1px rgba(58,122,254,.35), 0 2px 10px rgba(58,122,254,.18); }
+    .h5-tabbar .tab.active .bt-icon{ color:#5b8dff; }
+  </style>
+</head>
+<body>
+  <div id="auth-loading" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg,#0f1620);z-index:999;color:var(--muted,#9fb0c0);font-size:14px">正在校验登录…</div>
+
+  <div class="app-shell">
+    <!-- 固定页头 -->
+    <header class="h5-header">
+      <div id="orgLogo" class="brand-logo header-logo"></div>
+      <div class="org-headline"><span class="org-title" id="orgName" data-site>乾明工作室</span><span class="org-sub">车牌识别系统</span></div>
+      <div class="spacer"></div>
+      <span id="topUser" class="top-user-area"></span>
+    </header>
+
+    <main class="app-main">
+      <iframe id="frame-plate" class="frame" src="h5-plate.html?v=20260826g"></iframe>
+      <iframe id="frame-vehicles" class="frame" src="h5-vehicles.html?v=20260826g" hidden></iframe>
+    </main>
+
+    <!-- 底部固定 Tab -->
+    <nav class="h5-tabbar">
+      <button class="tab active" data-view="plate" onclick="switchView('plate')">
+        <span class="bt-icon" data-icon="ocr"></span><span>车牌识别</span>
+      </button>
+      <button class="tab" data-view="vehicles" onclick="switchView('vehicles')">
+        <span class="bt-icon" data-icon="vehicle"></span><span>车辆管理</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- 修改密码弹窗（id 与 h5/js/common.js 的 bindChangePwdEvents 对齐） -->
+  <div class="modal-mask" id="pwdModal">
+    <div class="modal">
+      <div class="modal-head"><span>修改密码</span><span class="x" id="pwdModalX">×</span></div>
+      <div class="modal-body">
+        <div class="form-row"><label>当前密码</label><input type="password" id="pwdOld" style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit"></div>
+        <div class="form-row" style="margin-top:10px"><label>新密码（至少 6 位）</label><input type="password" id="pwdNew" style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit"></div>
+        <div class="form-row" style="margin-top:10px"><label>确认新密码</label><input type="password" id="pwdNew2" style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit"></div>
+        <div id="pwdErr" style="color:#ff9a8a;font-size:13px;min-height:16px;margin-top:8px"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="pwdCancel">取消</button>
+        <button class="btn primary" id="pwdOk">确定修改</button>
+      </div>
+    </div>
+  </div>
+
+  <script defer src="/admin/js/icons.js"></script>
+  <script defer src="js/common.js?v=20260826g"></script>
+  <script>
+  document.addEventListener('DOMContentLoaded', function(){
+    var authEl = document.getElementById('auth-loading');
+    // 兜底：任何异常导致校验卡死时，最多 10s 强制跳登录，绝不停留在“正在校验登录”
+    var guardTimer = setTimeout(function(){
+      if(authEl) authEl.remove();
+      location.replace('login.html?redirect=' + encodeURIComponent('./'));
+    }, 10000);
+
+    (async function(){
+      try {
+        // PC 端访问提示：车牌识别仅支持微信 / 手机端
+        if(!/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|MicroMessenger|Mobile/i.test(navigator.userAgent)){
+          clearTimeout(guardTimer);
+          if(authEl){
+            authEl.innerHTML = '<div style="text-align:center;padding:40px 20px;max-width:340px;margin:0 auto;">'
+              + '<svg viewBox="0 0 24 24" fill="none" stroke="#36cfc9" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:48px;height:48px;margin-bottom:14px;"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg>'
+              + '<div style="font-size:17px;font-weight:700;margin-bottom:10px;">请从微信端 / 手机端访问</div>'
+              + '<div style="color:#94a3b8;font-size:14px;line-height:1.6;">车牌识别依赖手机摄像头与触摸操作，'
+              + '请在手机微信或手机浏览器中打开本系统。<br>如需管理车辆，请使用 PC 访问管理后台。</div>'
+              + '</div>';
+          }
+          return;
+        }
+        if(!(await checkLogin())){
+          clearTimeout(guardTimer);
+          location.replace('login.html?redirect=' + encodeURIComponent('./'));
+          return;
+        }
+        clearTimeout(guardTimer);
+        document.body.classList.add('authed');
+        if(authEl) authEl.remove();
+
+        applySiteName && applySiteName();
+        renderUserArea && renderUserArea();
+        applyBrandLogo && applyBrandLogo(document.getElementById('orgLogo'), 'icon');
+        bindChangePwdEvents && bindChangePwdEvents();
+
+        pingChannel();
+      } catch(err){
+        clearTimeout(guardTimer);
+        var msg = err && err.message ? err.message : ('' + err);
+        if(authEl){
+          authEl.innerHTML = '<div style="text-align:center;padding:40px 20px;max-width:340px;margin:0 auto;">'
+            + '<div style="font-size:16px;font-weight:700;color:#ff7875;margin-bottom:10px;">页面初始化失败</div>'
+            + '<div style="color:#94a3b8;font-size:13px;line-height:1.6;word-break:break-all;">' + msg + '</div>'
+            + '<div style="margin-top:16px;"><a href="login.html?redirect=' + encodeURIComponent('./') + '" style="color:#36cfc9;">前往登录</a></div>'
+            + '</div>';
+        }
+      }
+    })();
+  });
+
+  // 探测识别通道是否可达（public 接口）
+  function pingChannel(){
+    const tag = document.getElementById('channelTag');
+    const txt = document.getElementById('channelText');
+    if(!tag || !txt) return;
+    fetch(API + '/api/settings/public').then(function(r){ return r.ok; }).then(function(ok){
+      if(ok){ tag.classList.remove('off'); txt.textContent = '通道正常'; }
+      else { tag.classList.add('off'); txt.textContent = '通道异常'; }
+    }).catch(function(){ tag.classList.add('off'); txt.textContent = '通道异常'; });
+  }
+
+  /* 单页切换：显示对应 iframe，postMessage 控制子页摄像头 */
+  function switchView(name){
+    var fp = document.getElementById('frame-plate');
+    var fv = document.getElementById('frame-vehicles');
+    var tabs = document.querySelectorAll('.h5-tabbar .tab');
+
+    if(name === 'vehicles'){
+      fp.hidden = true; fv.hidden = false;
+      postCam(fp, 'stop');              // 切走：停车牌页摄像头
+    } else {
+      fv.hidden = true; fp.hidden = false;
+      postCam(fp, 'start');             // 切回：启车牌页摄像头
+    }
+    tabs.forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-view') === name); });
+  }
+
+  function postCam(frame, action){
+    try { frame.contentWindow.postMessage({ type:'cam', action:action }, location.origin); } catch(e){}
+  }
+
+  // iframe 子页就绪后回报，父窗口再下发摄像头指令（避免时序丢失）
+  var plateReady = false;
+  window.addEventListener('message', function(e){
+    if(e.data && e.data.type === 'cam-ready'){
+      plateReady = true;
+      postCam(document.getElementById('frame-plate'), 'start');
+    }
+  });
+  // 兜底：load 后若子页已就绪则直接下发
+  window.addEventListener('load', function(){ if(plateReady) postCam(document.getElementById('frame-plate'), 'start'); });
+  </script>
+</body>
+</html>

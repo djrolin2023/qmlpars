@@ -6,6 +6,7 @@
   <title>乾明车牌识别系统 - 管理后台</title>
   <link rel="icon" href="/static/images/logo.png">
   <link rel="stylesheet" href="css/base.css">
+  <style>.hidden { display: none !important; }</style>
 </head>
 <body style="overflow:hidden">
   <div class="app-shell">
@@ -37,11 +38,16 @@
         <button class="menu-toggle" id="menu-toggle" aria-label="菜单">☰</button>
         <span id="page-title">数据大屏</span>
         <div class="tb-right">
-          <span class="time-now" id="time-now">--</span>
+          <span class="time-now" id="time-now">
+            <span class="time-date">--</span>
+            <span class="time-week">--</span>
+            <span class="time-clock">--:--:--</span>
+          </span>
           <div class="user-dropdown" id="user-dd">
             <button class="tb-user" id="tb-user">管理员</button>
             <div class="user-menu" id="user-menu">
               <a id="menu-chg-pass">修改密码</a>
+              <a id="menu-restart" class="restart-item hidden" title="重启后将由 systemd 自动拉起服务">重启服务</a>
               <a id="menu-logout">退出登录</a>
             </div>
           </div>

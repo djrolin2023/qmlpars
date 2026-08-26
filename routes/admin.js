@@ -133,6 +133,15 @@ module.exports = function (ctx) {
     res.json({ success: true, data: { user: req.admin.username || 'admin', role: req.admin.role || 'admin', name: req.admin.name || req.admin.username } })
   })
 
+  // 管理员重启服务：依赖 systemd Restart=always 自动拉起
+  router.post('/api/admin/restart', ...roleGate('admin', 'manager'), (req, res) => {
+    try {
+      ctx.addSysLog('重启服务', null, '管理员手动重启后端服务', req.admin.username, req.ip)
+    } catch (e) {}
+    res.json({ success: true, message: '服务将在 2 秒后重启，请稍候' })
+    setTimeout(() => process.exit(0), 1800)
+  })
+
   // 3.1 系统操作日志
   router.get('/api/admin/sys-logs', authMiddleware, (req, res) => {
     const action = req.query.action
@@ -169,6 +178,7 @@ module.exports = function (ctx) {
     const wheres = []
     const params = []
     if (channel === 'qmlpars_APP' || channel === 'mini') { wheres.push('channel IN (?,?)'); params.push('qmlpars_APP', 'mini') }
+    else if (channel === 'wechat') { wheres.push('channel = ?'); params.push('wechat') }
     else if (channel === 'web' || channel === 'h5') { wheres.push('channel IN (?,?)'); params.push('web', 'h5') }
     if (start) { wheres.push('createdAt >= ?'); params.push(start + ' 00:00:00') }
     if (end) { wheres.push('createdAt <= ?'); params.push(end + ' 23:59:59') }
@@ -258,7 +268,14 @@ module.exports = function (ctx) {
             rxRate: net.rate ? Number(net.rate.rxRate.toFixed(0)) : null,
             txRate: net.rate ? Number(net.rate.txRate.toFixed(0)) : null
           } : null,
-          disk: disk
+          disk: disk,
+          version: (() => {
+            try {
+              const raw = fs.readFileSync(path.join(__dirname, '..', 'version.json'), 'utf8')
+              const obj = JSON.parse(raw)
+              return obj.version || 'dev'
+            } catch (e) { return 'dev' }
+          })()
         }
       })
     } catch (e) {
@@ -282,6 +299,7 @@ module.exports = function (ctx) {
       const validTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE result LIKE '%命中%'").get().c) || 0
       const appTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE channel IN ('qmlpars_APP','mini')").get().c) || 0
       const webTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE channel IN ('web','h5')").get().c) || 0
+      const wechatTotal = (db.prepare("SELECT COUNT(*) AS c FROM recognition_logs WHERE channel = 'wechat'").get().c) || 0
       const trendRows = db.prepare(`
         WITH RECURSIVE days(d) AS (
           SELECT date('now','localtime','-6 days')
@@ -295,14 +313,14 @@ module.exports = function (ctx) {
       `).all()
       const trend = trendRows.map(r => ({ date: r.day.slice(5), count: r.c || 0 }))
       const recent = db.prepare('SELECT id, plateNo, source, channel, confidence, result, image, userId, userName, username, CAST(createdAt AS TEXT) AS createdAt FROM recognition_logs ORDER BY id DESC LIMIT 10').all()
-        .map(r => ({ plateNo: r.plateNo || '—', result: r.result, channel: r.channel, confidence: r.confidence, createdAt: r.createdAt }))
+        .map(r => ({ plateNo: r.plateNo || '—', source: r.source, result: r.result, channel: r.channel, confidence: r.confidence, createdAt: r.createdAt }))
       res.json({
         success: true,
         data: {
           vehicleTotal, logTotal, todayTotal,
           internalTotal, externalTotal, validTotal,
           longTermTotal, tempTotal, expiredTotal,
-          appTotal, webTotal, trend, recent
+          appTotal, webTotal, wechatTotal, trend, recent
         }
       })
     } catch (e) {
@@ -344,6 +362,7 @@ module.exports = function (ctx) {
     const params = []
     if (body.all) {
       if (channel === 'qmlpars_APP' || channel === 'mini') { wheres.push('channel IN (?,?)'); params.push('qmlpars_APP', 'mini') }
+      else if (channel === 'wechat') { wheres.push('channel = ?'); params.push('wechat') }
       else if (channel === 'web' || channel === 'h5') { wheres.push('channel IN (?,?)'); params.push('web', 'h5') }
       if (start) { wheres.push('createdAt >= ?'); params.push(start + ' 00:00:00') }
       if (end) { wheres.push('createdAt <= ?'); params.push(end + ' 23:59:59') }
@@ -489,11 +508,11 @@ module.exports = function (ctx) {
     res.json({ success: true, message: '保存成功' })
   })
   // 6.0 批量新增车辆（多行表单 / 批量输入，后端仅接收已解析的数组）
-  // conflict 策略：skip(默认，跳过已存在) / update(覆盖已存在) / force(强制新增重复记录)
+  // conflict 策略：skip(默认，跳过已存在) / update(覆盖已存在)；车牌不允许重复
   router.post('/api/admin/vehicles/batch-create', ...roleGate('admin', 'manager', 'user'), (req, res) => {
     const body = req.body || {}
     let items = body.items
-    const conflict = (body.conflict === 'update' || body.conflict === 'force') ? body.conflict : 'skip'
+    const conflict = body.conflict === 'update' ? 'update' : 'skip'
     if (!Array.isArray(items)) return res.status(400).json({ success: false, message: '数据格式错误' })
     items = items.slice(0, 1000)
     if (!items.length) return res.status(400).json({ success: false, message: '未解析到任何车辆数据' })

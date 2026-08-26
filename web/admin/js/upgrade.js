@@ -21,10 +21,10 @@
   }
 
   const MODAL_HTML = `
-  <div class="modal-mask" id="upgrade-modal" style="position:fixed;inset:0;align-items:center;justify-content:center;z-index:9999;">
-    <div class="modal" style="margin:auto;">
+  <div class="modal-mask" id="upgrade-modal" style="position:fixed;inset:0;align-items:center;justify-content:center;z-index:9999;overflow:hidden;">
+    <div class="modal" style="margin:auto;max-height:86vh;display:flex;flex-direction:column;overflow:hidden;">
       <div class="modal-head"><span>版本更新</span><span class="x" data-close="upgrade-modal">×</span></div>
-      <div class="modal-body">
+      <div class="modal-body" style="overflow-y:auto;flex:1 1 auto;min-height:0;">
         <div class="up-row"><span class="up-label">当前版本</span><span id="up-current" class="up-val">—</span></div>
         <div id="upgrade-loading" class="hint" style="display:none;padding:6px 0">正在检查更新…</div>
         <div class="warn" id="upgrade-tip" style="display:none;margin-bottom:10px">检测到可用更新。<strong>升级前建议先到「备份恢复」导出数据备份</strong>（系统也会自动生成数据库快照兜底）。升级会拉取最新代码并重启服务。</div>

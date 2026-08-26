@@ -255,11 +255,17 @@ export default config;
   }
 
   // 改写 AndroidManifest 包名无关，主要是 application 标签；包名改 gradle namespace
-  async function writeGradleAppId(appId) {
+  async function writeGradleConfig(appId, version) {
     const gradle = path.join(APP_DIR, 'android', 'app', 'build.gradle')
     let s = await fsp.readFile(gradle, 'utf8')
     s = s.replace(/namespace\s+["'][^"']+["']/, `namespace "${appId}"`)
     s = s.replace(/applicationId\s+["'][^"']+["']/, `applicationId "${appId}"`)
+    // 把传入的版本号写入 gradle，避免系统安装页/APP 内始终显示 1.0
+    const versionName = version || readVersion() || '1.0.0'
+    const [major = 1, minor = 0, patch = 0] = String(versionName).split('.').map(n => parseInt(n, 10) || 0)
+    const versionCode = Math.min(2147483647, major * 10000 + minor * 100 + patch)
+    s = s.replace(/versionCode\s+\d+/, `versionCode ${versionCode}`)
+    s = s.replace(/versionName\s+["'][^"']*["']/, `versionName "${versionName}"`)
     await fsp.writeFile(gradle, s)
   }
 
@@ -394,7 +400,7 @@ export default config;
     // 持久化打包配置（供前端源码视图/下次构建复用）
     try {
       await fsp.writeFile(BUILD_CONFIG, JSON.stringify({
-        appName, appId, serverUrl,
+        appName, appId, version, serverUrl,
         splash: { bg: splashBg, duration: splashDuration },
         orientation, immersive, permissions,
         signing: { useUploadedKeystore, keyAlias },
@@ -513,7 +519,7 @@ export default config;
 
         log('写入工程配置...')
         await writeCapacitorConfig(appName, appId, { bg: splashBg, duration: splashDuration })
-        await writeGradleAppId(appId)
+        await writeGradleConfig(appId, version)
         await writeManifest(permissions, orientation, immersive)
         log('工程配置已写入')
         setProgress(55)

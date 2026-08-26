@@ -192,11 +192,16 @@
 }
 
 /* ============ 图片上传（对齐 demo：点击/拖拽/粘贴） ============ */
-.photo-row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
-.photo-col { flex: 0 0 auto; }
+.photo-row { display: flex; gap: 20px; align-items: stretch; flex-wrap: wrap; }
+.photo-col { flex: 0 0 200px; width: 200px; display: flex; flex-direction: column; }
 .photo-col > label { display: block; font-size: 13px; margin-bottom: 6px; color: var(--muted); }
-.plate-col { flex: 1 1 240px; min-width: 220px; }
+.plate-col { flex: 1 1 300px; min-width: 260px; display: flex; flex-direction: column; }
 .plate-col > label { display: block; font-size: 13px; margin-bottom: 6px; color: var(--muted); }
+.plate-field { margin-bottom: 16px; }
+.plate-field > label { display: block; font-size: 13px; margin-bottom: 6px; color: var(--muted); }
+.owner-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.owner-field, .phone-field { min-width: 0; }
+.owner-field > label, .phone-field > label { display: block; font-size: 13px; margin-bottom: 6px; color: var(--muted); }
 .req { color: #F76560; margin-right: 2px; font-weight: 700; }
 .plate-area-hint { font-size: 13px; margin-top: 8px; min-height: 16px; color: #1890FF; font-weight: 500; }
 .plate-area-hint.err { color: #F76560; }
