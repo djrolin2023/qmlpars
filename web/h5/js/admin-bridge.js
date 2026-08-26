@@ -156,5 +156,5 @@ function h5Relogin() {
   try { localStorage.removeItem('qmlpars_user_token'); } catch (_) {}
   setToken('');
   localStorage.removeItem('qmlpars_admin_user');
-  location.href = '/cpsb/login.html';
+  location.href = 'login.html';
 }

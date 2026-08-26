@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#1d2733">
   <title>车牌识别系统</title>
-  <link rel="stylesheet" href="/cpsb/css/base.css">
+  <link rel="stylesheet" href="css/base.css">
   <style>
     html,body{ margin:0; height:100%; background:var(--bg,#0f1620); color:var(--text,#e8edf2); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
     body:not(.authed) .app-shell{ display:none; }
@@ -50,8 +50,8 @@
     </header>
 
     <main class="app-main">
-      <iframe id="frame-plate" class="frame" src="/cpsb/h5-plate.html?v=20260826g"></iframe>
-      <iframe id="frame-vehicles" class="frame" src="/cpsb/h5-vehicles.html?v=20260826g" hidden></iframe>
+      <iframe id="frame-plate" class="frame" src="h5-plate.html?v=20260826g"></iframe>
+      <iframe id="frame-vehicles" class="frame" src="h5-vehicles.html?v=20260826g" hidden></iframe>
     </main>
 
     <!-- 底部固定 Tab -->
@@ -83,14 +83,14 @@
   </div>
 
   <script defer src="/admin/js/icons.js"></script>
-  <script defer src="/cpsb/js/common.js?v=20260826g"></script>
+  <script defer src="js/common.js?v=20260826g"></script>
   <script>
   document.addEventListener('DOMContentLoaded', function(){
     var authEl = document.getElementById('auth-loading');
     // 兜底：任何异常导致校验卡死时，最多 10s 强制跳登录，绝不停留在“正在校验登录”
     var guardTimer = setTimeout(function(){
       if(authEl) authEl.remove();
-      location.replace('login.html?redirect=' + encodeURIComponent('/cpsb/'));
+      location.replace('login.html?redirect=' + encodeURIComponent('./'));
     }, 10000);
 
     (async function(){
@@ -110,7 +110,7 @@
         }
         if(!(await checkLogin())){
           clearTimeout(guardTimer);
-          location.replace('login.html?redirect=' + encodeURIComponent('/cpsb/'));
+          location.replace('login.html?redirect=' + encodeURIComponent('./'));
           return;
         }
         clearTimeout(guardTimer);
@@ -130,7 +130,7 @@
           authEl.innerHTML = '<div style="text-align:center;padding:40px 20px;max-width:340px;margin:0 auto;">'
             + '<div style="font-size:16px;font-weight:700;color:#ff7875;margin-bottom:10px;">页面初始化失败</div>'
             + '<div style="color:#94a3b8;font-size:13px;line-height:1.6;word-break:break-all;">' + msg + '</div>'
-            + '<div style="margin-top:16px;"><a href="login.html?redirect=' + encodeURIComponent('/cpsb/') + '" style="color:#36cfc9;">前往登录</a></div>'
+            + '<div style="margin-top:16px;"><a href="login.html?redirect=' + encodeURIComponent('./') + '" style="color:#36cfc9;">前往登录</a></div>'
             + '</div>';
         }
       }

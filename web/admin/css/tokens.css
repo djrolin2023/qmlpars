@@ -1,0 +1,46 @@
+/* ============ 基础令牌与全局重置 ============ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --sidebar-w: 220px;
+  --bg: #0F1419;
+  --card: #1D2733;
+  --border: #2E3A4B;
+  --sidebar: #1D2733;
+  --primary: #1890FF;
+  --primary-d: #40a9ff;
+  --neon: #00D4FF;
+  --danger: #F76560;
+  --success: #36CFC9;
+  --text: #FFFFFF;
+  --muted: #86909C;
+  /* 玻璃拟态令牌 */
+  --glass: rgba(29, 39, 51, .55);
+  --glass-strong: rgba(29, 39, 51, .72);
+  --glass-border: rgba(120, 200, 255, .18);
+  --glow: 0 0 0 1px rgba(80, 180, 255, .12), 0 8px 28px rgba(0, 130, 200, .18);
+  /* 批量录入 / OCR 等模块约定的警示色 */
+  --no: #F76560;
+}
+html, body { height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  /* 智慧科技感：深色底 + 淡蓝网格 + 角落光晕 */
+  background-color: #0B1118;
+  background-image:
+    radial-gradient(900px 600px at 12% -8%, rgba(0, 180, 255, .16), transparent 60%),
+    radial-gradient(800px 600px at 100% 0%, rgba(54, 207, 201, .12), transparent 55%),
+    radial-gradient(700px 700px at 85% 110%, rgba(0, 120, 255, .12), transparent 60%),
+    linear-gradient(rgba(120, 200, 255, .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 200, 255, .05) 1px, transparent 1px);
+  background-size: auto, auto, auto, 32px 32px, 32px 32px;
+  background-attachment: fixed;
+}
+a { color: var(--primary-d); text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+input, select, textarea { color-scheme: dark; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #3a4d63; border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }

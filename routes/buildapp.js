@@ -203,8 +203,8 @@ module.exports = function (ctx) {
     const url = (serverUrl || '').replace(/\/+$/, '')
     const js = 'window.__API_BASE__=' + JSON.stringify(url) + ';\n'
       + 'window.APP_CONFIG=' + JSON.stringify({ serverUrl: url, buildAt: new Date().toISOString() }) + ';\n'
-    // web/h5 页面引用 ./app-config.js，即 www/cpsb/app-config.js（与拷贝目录一致）
-    await fsp.writeFile(path.join(WWW_DIR, 'cpsb', 'app-config.js'), js)
+    // web/h5 页面引用 ./app-config.js，即 www/app-config.js（与拷贝目录一致，已扁平化去掉 cpsb 层）
+    await fsp.writeFile(path.join(WWW_DIR, 'app-config.js'), js)
   }
 
   // 在 HTML 的 <head> 最前插入 app-config.js，使 js/common.js 运行前 __API_BASE__ 已就绪
@@ -216,23 +216,23 @@ module.exports = function (ctx) {
     await fsp.writeFile(htmlPath, s)
   }
 
-  // APP 内页面运行在 https://localhost/cpsb/ 下，login.html 的 fallback 相对路径 'index.html'
-  // 在该上下文会被解析成 cpsb/index.html，叠加场景会变成 cpsb/cpsb/index.html（报 ERR）。
-  // 这里只对打包副本（www/cpsb/js/common.js）做修正，不动 web/h5 源文件：
-  // 把 redirect 的默认回退从相对路径 'index.html' 改为绝对路径 '/cpsb/index.html'。
+  // APP 内页面运行在 https://localhost/ 下（已扁平化去掉 /cpsb 层），login.html 的 fallback
+  // 相对路径 'index.html' 在该上下文会被解析成 /login/index.html（报 ERR）。
+  // 这里只对打包副本（www/js/common.js）做修正，不动 web/h5 源文件：
+  // 把 redirect 的默认回退从相对路径 'index.html' 改为绝对路径 '/index.html'。
   async function fixCpsbRedirect() {
-    const jsPath = path.join(WWW_DIR, 'cpsb', 'js', 'common.js')
+    const jsPath = path.join(WWW_DIR, 'js', 'common.js')
     if (!fs.existsSync(jsPath)) return
     let s = await fsp.readFile(jsPath, 'utf8')
-    // 1) doLogin 返回：getQuery('redirect') || 'index.html'  → '/cpsb/index.html'
+    // 1) doLogin 返回：getQuery('redirect') || 'index.html'  → '/index.html'
     s = s.replace(
       /return \{ok:true, redirect: getQuery\('redirect'\) \|\| 'index\.html'\};/,
-      "return {ok:true, redirect: getQuery('redirect') || '/cpsb/index.html'};"
+      "return {ok:true, redirect: getQuery('redirect') || '/index.html'};"
     )
-    // 2) 自动登录分支：params.get('redirect')||'index.html'  → '/cpsb/index.html'
+    // 2) 自动登录分支：params.get('redirect')||'index.html'  → '/index.html'
     s = s.replace(
       /const redirect=params\.get\('redirect'\)\|\|'index\.html';/,
-      "let redirect=params.get('redirect')||'/cpsb/index.html';"
+      "let redirect=params.get('redirect')||'/index.html';"
     )
     await fsp.writeFile(jsPath, s)
   }
@@ -448,23 +448,23 @@ export default config;
         log('开始准备 H5 资源...')
         await fsp.rm(WWW_DIR, { recursive: true, force: true })
         await fsp.mkdir(WWW_DIR, { recursive: true })
-        // APP 界面与 WEB 端完全一致：直接打包 web/h5 整目录到 www/cpsb（含 css/js/html），
-        // 目录名用 cpsb 以匹配页面内 /cpsb/... 绝对路径（express 的 /cpsb 路由即映射 web/h5）。
+        // APP 界面与 WEB 端完全一致：直接打包 web/h5 整目录到 www（扁平化，不再嵌 cpsb 层），
+        // h5 页面内已统一使用相对路径（./css、./js 等），WEB 端 /cpsb 路由与 APP 端 / 根均可正确解析。
         // 仅额外注入 app-config.js 提供服务器地址，并把 /static 资源带进来（离线不 404）。
-        await copyDir(path.join(ROOT, 'web', 'h5'), path.join(WWW_DIR, 'cpsb'))
+        await copyDir(path.join(ROOT, 'web', 'h5'), WWW_DIR)
         if (fs.existsSync(path.join(ROOT, 'static', 'images'))) {
           await copyDir(path.join(ROOT, 'static', 'images'), path.join(WWW_DIR, 'static', 'images'))
         }
         // 在入口页与登录页的 <head> 最前注入 app-config.js，确保 js/common.js 读取 __API_BASE__ 前已就绪
-        await injectAppConfig(path.join(WWW_DIR, 'cpsb', 'index.html'))
-        await injectAppConfig(path.join(WWW_DIR, 'cpsb', 'login.html'))
-        await injectAppConfig(path.join(WWW_DIR, 'cpsb', 'logout.html'))
-        // 仅修正打包副本：把 login 回退相对路径改为 /cpsb/index.html（不影响 web/h5 源）
+        await injectAppConfig(path.join(WWW_DIR, 'index.html'))
+        await injectAppConfig(path.join(WWW_DIR, 'login.html'))
+        await injectAppConfig(path.join(WWW_DIR, 'logout.html'))
+        // 仅修正打包副本：把 login 回退相对路径改为 /index.html（APP 端根，不影响 web/h5 源）
         await fixCpsbRedirect()
-        // 引导首页（buildIndexHtml 内部跳转 cpsb/index.html，与目录名一致）
+        // 引导首页（buildIndexHtml 内部跳转 index.html，扁平化后页面直接在根）
         await fsp.writeFile(path.join(WWW_DIR, 'index.html'), buildIndexHtml(appName))
         await writeAppConfig(serverUrl)
-        log('H5 资源已拷贝（web/h5 → www/cpsb，与 WEB 端一致）')
+        log('H5 资源已拷贝（web/h5 → www，已扁平化去掉 cpsb 层，与 WEB 端一致）')
         // 复制包源位于 web/android；Capacitor 仍读取 android-app/www，这里同步过去
         const CAP_WWW = path.join(APP_DIR, 'www')
         await fsp.rm(CAP_WWW, { recursive: true, force: true })
@@ -817,8 +817,8 @@ export default config;
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${appName}</title>
-<meta http-equiv="refresh" content="0;url=cpsb/index.html">
-<script>location.href='cpsb/index.html';</script>
+<meta http-equiv="refresh" content="0;url=index.html">
+<script>location.href='index.html';</script>
 </head>
 <body></body>
 </html>`
