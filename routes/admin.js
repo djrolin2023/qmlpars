@@ -472,14 +472,14 @@ module.exports = function (ctx) {
       const old = db.prepare('SELECT * FROM vehicles WHERE id = ?').get(editId)
       if (!old) return res.status(404).json({ success: false, message: '车辆不存在，无法编辑' })
       if (existing && existing.id !== editId) {
-        return res.status(409).json({ success: false, message: '该车牌已存在，请勿重复添加' })
+        return res.status(409).json({ success: false, message: '该车牌已存在，请勿重复添加', data: { owner: existing.owner || '', plateNo: existing.plateNo || plateNo } })
       }
       const finalPhoto = req.file ? photo : (b.photo !== undefined ? b.photo : (old.photo || null))
       db.prepare(`UPDATE vehicles SET plateNo=?, plateKey=?, owner=?, phone=?, department=?, remark=?, photo=?, validUntil=?, updatedAt=? WHERE id=?`)
         .run(plateNo, plateKey, b.owner || '', b.phone || '', department, b.remark || '', finalPhoto, validUntil, nowLocal(), editId)
     } else {
       if (existing) {
-        return res.status(409).json({ success: false, message: '该车牌已存在，请勿重复添加' })
+        return res.status(409).json({ success: false, message: '该车牌已存在，请勿重复添加', data: { owner: existing.owner || '', plateNo: existing.plateNo || plateNo } })
       }
       db.prepare(`INSERT INTO vehicles (plateNo, plateKey, owner, phone, department, remark, photo, validUntil, createdAt, updatedAt)
         VALUES (?,?,?,?,?,?,?,?,?,?)`)

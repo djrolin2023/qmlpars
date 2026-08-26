@@ -40,6 +40,41 @@ function withToken(url) {
   const sep = url.includes('?') ? '&' : '?';
   return url + sep + 'token=' + encodeURIComponent(token);
 }
+
+// 前端压缩图片：用于 OCR 识别，避免直接上传手机原图（通常 2-4MB）导致上传慢、云识别慢。
+function compressImage(file, opts) {
+  opts = opts || {};
+  const maxSide = opts.maxSide || 1280;
+  const quality = typeof opts.quality === 'number' ? opts.quality : 0.85;
+  const type = opts.type || 'image/jpeg';
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type || file.type.indexOf('image/') !== 0) return resolve(file);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      if (Math.max(w, h) > maxSide) {
+        const ratio = maxSide / Math.max(w, h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => {
+        if (!blob) return resolve(file);
+        const out = new File([blob], file.name || 'snap.jpg', { type: type, lastModified: Date.now() });
+        resolve(out);
+      }, type, quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
 let plateAreas = {};       // 全国车牌地区映射（省份简称 -> {province, cities}）
 
 // 加载全国车牌归属地映射
@@ -77,24 +112,33 @@ function updatePlateArea(plate) {
 
 // 实时查重：输入车牌时提示库中是否已存在（新增车辆场景）
 let _dupTimer = null;
+function showPlateDup(text) {
+  const dup = document.getElementById('plate-dup');
+  if (!dup) return;
+  dup.textContent = text ? '⚠ ' + text : '';
+  dup.style.display = text ? 'inline-block' : 'none';
+}
+function hidePlateDup() {
+  const dup = document.getElementById('plate-dup');
+  if (dup) dup.style.display = 'none';
+}
 function checkPlateDuplicate(plate) {
   const dup = document.getElementById('plate-dup');
   plate = unformatPlate(plate || '');
   clearTimeout(_dupTimer);
-  if (!plate || !PLATE_RE.test(plate)) { if (dup) dup.style.display = 'none'; return; }
+  if (!plate || !PLATE_RE.test(plate)) { hidePlateDup(); return; }
   _dupTimer = setTimeout(() => {
     api('/api/admin/vehicles/check?plate=' + encodeURIComponent(plate), { noLogout: true })
       .then(r => {
         if (!dup) return;
         if (r && r.success && r.exists) {
           const d = r.data || {};
-          dup.textContent = '⚠ 库中已有' + (d.owner ? '（车主：' + d.owner + '）' : '');
-          dup.style.display = 'inline-block';
+          showPlateDup('库中已有' + (d.owner ? '（车主：' + d.owner + '）' : ''));
         } else {
-          dup.style.display = 'none';
+          hidePlateDup();
         }
       })
-      .catch(() => { if (dup) dup.style.display = 'none'; });
+      .catch(() => { hidePlateDup(); });
   }, 350);
 }
 
@@ -578,8 +622,13 @@ async function saveVehicle() {
     const r = await api('/api/admin/vehicles', { method: 'POST', body: JSON.stringify(body) });
     if (!r.success) {
       // 后端按车牌去重，返回 409 表示已存在
-      if (r.message && /已存在|重复/.test(r.message)) toast('车牌号已存在，请勿重复添加');
-      else toast(r.message || '保存失败');
+      if (r.message && /已存在|重复/.test(r.message)) {
+        const dupOwner = (r.data && r.data.owner) || '';
+        showPlateDup(dupOwner ? '该车牌已存在（车主：' + dupOwner + '）' : '车牌号已存在，请勿重复添加');
+        toast('车牌号已存在，请勿重复添加' + (dupOwner ? '（车主：' + dupOwner + '）' : ''));
+      } else {
+        toast(r.message || '保存失败');
+      }
       return;
     }
     toast(r.message || '保存成功');
@@ -718,8 +767,8 @@ function pickPhoto(f) {
   const fd = new FormData();
   fd.append('photo', f);
   showPhotoLoading();
-  // 上传与识别并行发起：用同一文件对象直接识别，省去“下载回传”的一次往返
-  const ocrP = recognizePlate(f);
+  // 上传用原图（存储），OCR 用压缩图（提速）
+  const ocrP = compressImage(f).then(cf => recognizePlate(cf));
   api('/api/admin/vehicles/photo', { method: 'POST', body: fd, noJson: true, noLogout: true })
     .then(r => {
       if (!r.success) throw new Error(r.message || '上传失败');
@@ -744,6 +793,8 @@ function recognizePlate(file) {
       if (plate && !document.getElementById('f-plate').value) {
         document.getElementById('f-plate').value = formatPlate(plate);
         updatePlateArea(plate);
+        // 自动识别回填后立刻查重，提示库中是否已有该车及车主名
+        checkPlateDuplicate(formatPlate(plate));
       }
     })
     .catch(e => { toast('车牌识别失败：' + (e && e.message || '请求异常')); });
