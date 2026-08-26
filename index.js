@@ -238,9 +238,9 @@ app.use('/cpsb', express.static(cpsbDir, {
 app.get(['/cpsb', '/cpsb/'], (req, res) => res.sendFile(path.join(cpsbDir, 'index.html')))
 
 // 已构建 APK 下载目录（项目内相对路径，避免暴露系统根 /App）
-const appOutDir = path.join(__dirname, 'app-out')
+const appOutDir = path.join(__dirname, 'app', 'downloads')
 fs.mkdirSync(appOutDir, { recursive: true })
-app.use('/App', express.static(appOutDir, { setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') }))
+app.use('/app/downloads', express.static(appOutDir, { setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') }))
 
 // APP 下载页（公开）
 const appPageDir = path.join(__dirname, 'app')

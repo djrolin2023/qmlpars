@@ -327,7 +327,7 @@
         document.getElementById('latestDateTag').textContent = fmtDate(d.builtAt);
         // 同步更新 APP 图标（用户上传过则用 app-icon.png，否则 app.png）
         if (d.iconUrl) document.getElementById('appIcon').src = d.iconUrl;
-        var dlUrl = location.origin + '/App/' + encodeURIComponent(d.outName);
+        var dlUrl = location.origin + '/app/downloads/' + encodeURIComponent(d.outName);
         dlBtn.href = dlUrl;
         dlBtn.setAttribute('download', d.outName);
         document.getElementById('qrUrl').textContent = dlUrl;
@@ -359,7 +359,7 @@
           '<td>' + a.name + '</td>' +
           '<td class="muted">' + formatSize(a.size) + '</td>' +
           '<td class="muted">' + fmtDateTime(a.builtAt) + '</td>' +
-          '<td style="text-align:right;"><a class="dl" href="/App/' + encodeURIComponent(a.name) + '" download="' + a.name + '">下载 ↓</a></td>' +
+          '<td style="text-align:right;"><a class="dl" href="/app/downloads/' + encodeURIComponent(a.name) + '" download="' + a.name + '">下载 ↓</a></td>' +
         '</tr>').join('') + '</tbody></table>';
     } catch (e) {
       box.innerHTML = '<div class="empty">加载失败：' + e.message + '</div>';

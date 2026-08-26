@@ -30,8 +30,8 @@ backup/.restore-*/
 web/backup/        # 后台导出的数据备份（含敏感数据，禁止提交）
 
 # APP 打包产物（体积大，本地生成，不提交）
-app-out/
-web/android/          # buildapp.js 自动从 web/h5 生成（www/cpsb），无需手工维护/提交
+app/downloads/
+web/android/          # buildapp.js 自动从 web/h5 生成（扁平 www），无需手工维护/提交
 android-app/www/      # Capacitor 打包目录，由 buildapp.js 从 web/android 同步生成
 
 # 系统 / 编辑器

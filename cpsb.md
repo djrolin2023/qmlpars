@@ -26,7 +26,7 @@
 | `app/` | **APP 打包前端源**（拷贝进安卓工程） |
 | `android-app/` | Capacitor 安卓工程（gradle / manifest / res） |
 | `static/` | 静态素材（logo.png 图标、logo3.png 开屏、提示音等） |
-| `app-out/` | 打包产物 APK 输出目录 |
+| `app/downloads/` | 打包产物 APK 输出目录 |
 | `buildapp.config.json` | 打包配置落盘（每次打包写入） |
 | `version.json` | 前端版本号（构建页读取展示） |
 | `start.sh` | 启动/守护脚本（依赖 pm2，应用名 `qmlpars`） |

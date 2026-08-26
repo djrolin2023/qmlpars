@@ -1,7 +1,7 @@
 // APP 离线打包构建接口（管理员）
 // 流程：接收 应用名 / 服务器地址 / 图标 / 开屏图 → 拷贝 H5 资源 → 写 app-config.js
 //       → sharp 生成各密度图标与 splash → 生成/复用 keystore → 改写 capacitor 配置与原生清单
-//       → 执行 cap sync + gradle assembleRelease → 输出 /App/cn.qmlpars.com.v<版本>.apk
+//       → 执行 cap sync + gradle assembleRelease → 输出 app/downloads/cn.qmlpars.com.v<版本>.apk
 module.exports = function (ctx) {
   const express = require('express')
   const fs = require('fs')
@@ -13,7 +13,7 @@ module.exports = function (ctx) {
   const ROOT = ctx.root
   const APP_DIR = path.join(ROOT, 'android-app')
   const WWW_DIR = path.join(ROOT, 'web', 'android')
-  const APP_OUT_DIR = path.join(ROOT, 'app-out')
+  const APP_OUT_DIR = path.join(ROOT, 'app', 'downloads')
   const KEYSTORE = path.join(APP_DIR, 'qianming.keystore')
   const VERSION_FILE = path.join(ROOT, 'version.json')
   const BUILD_CONFIG = path.join(ROOT, 'buildapp.config.json')
@@ -709,7 +709,7 @@ export default config;
     res.download(lastBuild.outPath, lastBuild.outName)
   })
 
-  // 历史安装包列表（仅管理员）：返回 app-out 目录下所有 APK
+  // 历史安装包列表（仅管理员）：返回 app/downloads 目录下所有 APK
   router.get('/api/admin/buildapp/apks', authMiddleware, (req, res) => {
     try {
       if (!fs.existsSync(APP_OUT_DIR)) return res.json({ success: true, data: [] })
