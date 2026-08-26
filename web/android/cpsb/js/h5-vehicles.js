@@ -739,23 +739,6 @@ function initPhotoBox() {
   box.addEventListener('click', () => { if (document.getElementById('v-photo-done').style.display === 'none') file.click(); });
   file.onchange = () => { if (file.files && file.files[0]) pickPhoto(file.files[0]); file.value = ''; };
 
-  // 拖拽
-  ['dragenter', 'dragover'].forEach(ev => box.addEventListener(ev, e => { e.preventDefault(); box.classList.add('drag'); }));
-  ['dragleave', 'drop'].forEach(ev => box.addEventListener(ev, e => { e.preventDefault(); box.classList.remove('drag'); }));
-  box.addEventListener('drop', e => {
-    const f = e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) pickPhoto(f);
-  });
-
-  // 粘贴
-  document.addEventListener('paste', e => {
-    if (!document.getElementById('modal').classList.contains('show')) return;
-    const items = e.clipboardData && e.clipboardData.items;
-    for (const it of items || []) {
-      if (it.type.indexOf('image/') === 0) { pickPhoto(it.getAsFile()); break; }
-    }
-  });
-
   document.getElementById('v-photo-remove').onclick = e => {
     e.stopPropagation(); photoUrl = ''; photoRemoteUrl = ''; photoUploaded = true; showPhotoEmpty();
   };

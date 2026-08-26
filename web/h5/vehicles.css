@@ -79,11 +79,11 @@
 .form-row textarea{ resize:vertical; }
 .photo-row{ display:flex; gap:14px; align-items:stretch; }
 .photo-col{ flex:0 0 38%; max-width:220px; display:flex; flex-direction:column; }
-.photo-col > label{ margin-bottom:6px; }
+.photo-col > label{ display:block; font-size:13px; color:var(--muted,#9fb0c0); margin-bottom:6px; }
 .photo-box{ position:relative; border:1.5px dashed rgba(255,255,255,.18); border-radius:10px; min-height:120px; flex:1; display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; background:rgba(255,255,255,.03); }
 .photo-box.dragover{ border-color:#3a7afe; background:rgba(58,122,254,.08); }
 .photo-plus{ font-size:30px; color:var(--muted,#9fb0c0); }
-.photo-tip{ font-size:12px; color:var(--muted,#9fb0c0); text-align:center; margin-top:6px; line-height:1.5; }
+.photo-tip{ font-size:13px; color:var(--muted,#9fb0c0); text-align:center; margin-top:6px; line-height:1.5; }
 .photo-loading{ color:var(--muted,#9fb0c0); }
 .photo-done{ position:relative; width:100%; height:100%; }
 .photo-done img{ width:100%; height:100%; object-fit:cover; display:block; }

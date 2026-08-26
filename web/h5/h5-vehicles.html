@@ -82,12 +82,12 @@
           <div class="batch-single" id="batch-single">
           <div class="form-row photo-row">
             <div class="photo-col">
-              <label>车辆照片（点击 / 拖拽 / 粘贴上传，自动识别车牌）</label>
+              <label>车辆照片</label>
               <div class="photo-box" id="v-photo-box">
-                <input type="file" id="v-photo-file" accept="image/*" hidden>
+                <input type="file" id="v-photo-file" accept="image/*" capture="environment" hidden>
                 <div class="photo-placeholder" id="v-photo-empty">
                   <div class="photo-plus">+</div>
-                  <div class="photo-tip">点击或拖拽图片上传<br>支持 Ctrl+V 直接粘贴</div>
+                  <div class="photo-tip">点击拍照或从相册选择图片</div>
                 </div>
                 <div class="photo-loading" id="v-photo-loading" style="display:none">上传中…</div>
                 <div class="photo-done" id="v-photo-done" style="display:none">
