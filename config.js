@@ -11,10 +11,14 @@ const buildCore = require('./config/core')
 const buildOcr = require('./config/ocr')
 
 // 从数据库 settings 表读取一个配置值
+// 注意：数据库中存在该 key 但值为空串('')时，也应回退到 fallback，
+// 否则调用方写的默认值（如 TENCENT_REGION 的 'ap-guangzhou'）会失效，
+// 导致字段被清空后配置整体失效。
 function dbGet(key, fallback) {
   try {
     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key)
-    return row ? row.value : fallback
+    if (!row) return fallback
+    return (row.value === '' || row.value == null) ? fallback : row.value
   } catch (e) {
     return fallback
   }

@@ -1,7 +1,16 @@
 {
-  "version": "1.1.13",
+  "version": "1.1.14",
   "updatedAt": "2026-08-27",
   "changelog": [
+    {
+      "version": "1.1.14",
+      "date": "2026-08-27",
+      "changes": [
+        "修复：强制重启后 502——image.js 导出名拼写错误（hasTransparent→hasTransparency）导致服务启动崩溃",
+        "修复：TENCENT_REGION 等 OCR 配置在数据库为空串时默认值不生效，导致腾讯 OCR 通道失败；dbGet 现对空值回退默认值",
+        "OCR 通道并行竞速（腾讯优先、百度兜底）已验证稳定可用"
+      ]
+    },
     {
       "version": "1.1.13",
       "date": "2026-08-27",

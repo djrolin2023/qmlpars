@@ -16,7 +16,7 @@ module.exports = function (ctx) {
 
   const BACKUP_DIR = path.join(__dirname, '..', 'web', 'backup')
   const BACKUP_UPLOAD_DIR = path.join(BACKUP_DIR, '.upload')
-  const dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'vehicles.db')
+  const { DB_PATH: dbPath } = require('./common')
   fs.mkdirSync(BACKUP_DIR, { recursive: true })
   fs.mkdirSync(BACKUP_UPLOAD_DIR, { recursive: true })
   const BACKUP_MAGIC = Buffer.from('QMBK01', 'ascii')
@@ -306,6 +306,8 @@ module.exports = function (ctx) {
         console.log('[自动备份] 已生成：', info.file)
       } catch (e) {
         console.error('[自动备份] 失败：', e.message)
+        // 记录失败到系统日志，便于管理员排查（之前静默失败导致不知情）
+        try { ctx.addSysLog('自动备份失败', String(e.message || e), cfg.period, 'system', '内部调度') } catch (_) {}
       }
     }
   }
@@ -384,7 +386,8 @@ module.exports = function (ctx) {
       } catch (e) {
         throw new Error('备份数据库校验失败：' + e.message)
       }
-      const trash = path.join(BACKUP_DIR, 'trash-' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14))
+      // 使用 pid + 随机串，避免同秒并发恢复时 trash 目录重名覆盖导致旧数据被误删
+      const trash = path.join(BACKUP_DIR, 'trash-' + process.pid + '-' + crypto.randomBytes(6).toString('hex'))
       fs.mkdirSync(trash, { recursive: true })
       for (const suffix of ['', '-wal', '-shm']) {
         const src = dbPath + suffix

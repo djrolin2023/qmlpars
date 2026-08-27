@@ -284,7 +284,16 @@ async function doLogin(username, password, autoLogin){
         if(el){ el.textContent = '本次登录来源 IP：' + j.data.loginIp; el.style.display='block'; }
       } catch(_){}
     }
-    return {ok:true, redirect: getQuery('redirect') || 'index.html'};
+    // —— redirect 安全过滤：拒绝跨协议 / 跨域跳转（防御开放重定向钓鱼）
+    const rawRedirect = getQuery('redirect') || 'index.html';
+    let safeRedirect = 'index.html';
+    try {
+      const u = new URL(rawRedirect, location.origin);
+      if (u.origin === location.origin) safeRedirect = u.toString();
+    } catch (_) {}
+    if (/^\/(?!\/)[\w\u4e00-\u9fa5./?&=%#-]*$/.test(rawRedirect)) safeRedirect = rawRedirect;
+    else if (/^[\w\u4e00-\u9fa5./?&=%#-]+\.html(\?.*)?(#.*)?$/i.test(rawRedirect)) safeRedirect = rawRedirect;
+    return {ok:true, redirect: safeRedirect};
   }
   return {ok:false, msg:j.message||'登录失败'};
 }
@@ -307,11 +316,24 @@ function bindCpsbLogin(){
     if(auto){
       checkLogin().then(ok=>{
         if(ok){
-          const params=getQuery();
-          const redirect=params.get('redirect')||'index.html';
+          // —— getQuery(name) 为单参数函数，此处不能无参调用（否则返回 undefined 引发 TypeError）
+          const rawRedirect = getQuery('redirect') || 'index.html';
+          // 开放重定向防护：仅允许站内相对路径 / 同域绝对路径，拒绝带协议或 // 的外部跳转
+          let redirect = 'index.html';
+          try {
+            const u = new URL(rawRedirect, location.origin);
+            if (u.origin === location.origin) redirect = u.toString();
+          } catch (_) { /* 非法 URL 走默认 */ }
+          if (/^\/(?!\/)[\w\u4e00-\u9fa5./?&=%#-]*$/.test(rawRedirect)) {
+            // 合法站内相对路径（开头单个 /，后不接 //，避免 //evil.com 这种协议相对 URL）
+            redirect = rawRedirect;
+          } else if (/^[\w\u4e00-\u9fa5./?&=%#-]+\.html(\?.*)?(#.*)?$/i.test(rawRedirect)) {
+            // 合法同目录 html 跳转（如 index.html?foo=bar）
+            redirect = rawRedirect;
+          }
           location.replace(redirect);
         }
-      });
+      }).catch(()=>{ /* checkLogin 网络异常时不阻断页面，让用户手动登录 */ });
     }
     const uEl=document.getElementById('loginUser');
     const aEl=document.getElementById('autoLogin');

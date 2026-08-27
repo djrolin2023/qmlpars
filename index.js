@@ -11,17 +11,19 @@ const app = express()
 // 信任反向代理，确保 req.ip 能正确解析 X-Forwarded-For 中的真实客户端 IP
 app.set('trust proxy', true)
 // CORS：APP（Capacitor androidScheme='https'）的源是 https://localhost，
-// 浏览器请求也是跨源（同源策略）。后端需返回 CORS 头才能让 fetch 跨域成功。
-// 限制来源：APP 用 https://localhost；Web 端用配置的 ORIGIN（默认 *，可通过 env CORS_ORIGIN 指定）。
-// 轻量自实现：不依赖 cors 包，避免装包/重启问题
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*'
+// 浏览器同源请求 origin 为空，无需 CORS 头。
+// 默认仅允许 APP 源（https://localhost）与同源（无 origin）；如需跨域 Web 访问，
+// 显式设置 CORS_ORIGIN（逗号分隔的可信源）；设置 CORS_ORIGIN=* 才放开全部。
+const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://localhost'
 app.use((req, res, next) => {
   const origin = req.headers.origin
-  if (CORS_ORIGIN === '*') {
-    res.setHeader('Access-Control-Allow-Origin', '*')
+  // 同源（无 origin 头，如浏览器直接访问本站）或显式放开的源才返回 CORS 头
+  if (!origin || origin === CORS_ORIGIN || (CORS_ORIGIN === '*')) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*')
+    res.setHeader('Vary', 'Origin')
   } else {
     const allowList = CORS_ORIGIN.split(',').map(s => s.trim())
-    if (origin && allowList.includes(origin)) {
+    if (allowList.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin)
       res.setHeader('Vary', 'Origin')
       res.setHeader('Access-Control-Allow-Credentials', 'true')
@@ -50,10 +52,10 @@ app.get('/uploads/*', authMiddleware, (req, res) => {
   if (!f.startsWith(uploadDir) || !fs.existsSync(f)) return res.status(404).json({ success: false, message: '文件不存在' })
   res.sendFile(f)
 })
-app.get('/uploads/snapshots/:file', (req, res) => {
+// 抓拍快照含人脸/车牌隐私信息，必须鉴权（同时支持 ?token= 便于前端 <img> 展示）
+app.get('/uploads/snapshots/:file', authMiddleware, (req, res) => {
   const f = path.join(SNAP_DIR, path.basename(req.params.file))
   if (!fs.existsSync(f)) return res.status(404).json({ success: false, message: '文件不存在' })
-  // 允许 ?token= 直接访问，便于前端 <img> 展示已识别抓拍
   res.sendFile(f)
 })
 
@@ -284,4 +286,12 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`[qmlpars] 服务已启动: http://0.0.0.0:${PORT} (IPv4)`)
   console.log(`[qmlpars] 百度 OCR: ${config.BAIDU_ENABLED ? '已启用' : '未配置'}`)
   console.log(`[qmlpars] 腾讯 OCR: ${config.TENCENT_ENABLED ? '已启用' : '未配置'}`)
+  // .env 权限告警：含管理员初始密码/密钥，若组或其他用户可读存在泄露风险
+  try {
+    const envPath = path.join(ROOT, '.env')
+    if (fs.existsSync(envPath)) {
+      const mode = fs.statSync(envPath).mode & 0o077
+      if (mode !== 0) console.warn('[安全告警] .env 文件权限过宽（应为 0600），建议执行: chmod 600 .env')
+    }
+  } catch (_) {}
 })

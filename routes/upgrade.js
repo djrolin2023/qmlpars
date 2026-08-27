@@ -8,11 +8,11 @@ module.exports = function (ctx) {
   const path = require('path')
   const { execFileSync } = require('child_process')
   const { router, authMiddleware } = ctx
+  const { DB_PATH } = require('./common')
 
   const ROOT = __dirname.replace(/[/\\]routes$/, '')
   const VERSION_FILE = path.join(ROOT, 'version.json')
   const BACKUP_DIR = path.join(ROOT, 'web', 'backup')
-  const DB_PATH = process.env.DB_PATH || path.join(ROOT, 'data', 'vehicles.db')
 
   // 升级前自动做一次数据库快照（仅兜底，不加密），存放到 backup/auto-<时间戳>/
   function autoBackupDb() {

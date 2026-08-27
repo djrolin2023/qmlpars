@@ -39,4 +39,22 @@ async function flattenIfTransparent(filePath) {
   }
 }
 
-module.exports = { flattenIfTransparent, hasTransparency }
+// 为 OCR 压缩图片：最长边缩至 maxEdge，转 JPEG，返回 base64。
+// 车牌识别对分辨率不敏感，压缩可显著降低 base64 体积（减少内存与请求体）。
+async function compressForOcr(filePath, maxEdge = 1600, quality = 80) {
+  try {
+    const img = sharp(filePath)
+    const meta = await img.metadata()
+    const long = Math.max(meta.width || 0, meta.height || 0)
+    if (long > maxEdge) {
+      const buf = await img.resize({ width: maxEdge, height: maxEdge, fit: 'inside', withoutEnlargement: true }).jpeg({ quality }).toBuffer()
+      return buf.toString('base64')
+    }
+    return img.jpeg({ quality }).toBuffer().then(b => b.toString('base64'))
+  } catch (e) {
+    console.error('[image] OCR 压缩失败，回退原图:', e.message)
+    try { return require('fs').readFileSync(filePath).toString('base64') } catch (_) { return null }
+  }
+}
+
+module.exports = { flattenIfTransparent, hasTransparency, compressForOcr }

@@ -8,6 +8,7 @@ module.exports = function (ctx) {
   const { normalizePlate, toPlateKey } = require('../plate')
   const { hashPassword, verifyPassword } = require('../auth')
   const { flattenIfTransparent } = require('../image')
+  const { isVehicleValid } = require('./common')
 
   function nowLocal() {
     const d = new Date()
@@ -413,13 +414,6 @@ module.exports = function (ctx) {
   })
 
   // 4. 车辆列表
-  function isVehicleValid(v) {
-    if (!v.validUntil) return null
-    const endStr = v.validUntil.includes('~') ? v.validUntil.split('~')[1] : v.validUntil
-    const end = new Date(String(endStr).replace(/-/g, '/') + ' 23:59:59').getTime()
-    if (isNaN(end)) return null
-    return Date.now() <= end
-  }
   router.get('/api/admin/vehicles', authMiddleware, (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1)
     const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 10))

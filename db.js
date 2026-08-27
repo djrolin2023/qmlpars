@@ -7,7 +7,7 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'vehicles.db
 // 确保 data 目录存在
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true })
 
-// node:sqlite 使用同步 API，与 better-sqlite3 用法几乎一致
+// node:sqlite（Node 内置 SQLite 模块，需 Node >= 22.5）使用同步 API
 const db = new DatabaseSync(DB_PATH)
 db.exec('PRAGMA journal_mode = WAL')
 db.exec('PRAGMA foreign_keys = ON')
@@ -168,5 +168,16 @@ try {
 } catch (e) {
   // 忽略
 }
+
+// 高频查询列索引（表结构稳定后追加，提升识别/查询性能）
+db.exec(`
+CREATE INDEX IF NOT EXISTS idx_vehicles_plateKey ON vehicles(plateKey);
+CREATE INDEX IF NOT EXISTS idx_vehicles_plateNo ON vehicles(plateNo);
+CREATE INDEX IF NOT EXISTS idx_recognition_logs_plateNo ON recognition_logs(plateNo);
+CREATE INDEX IF NOT EXISTS idx_recognition_logs_createdAt ON recognition_logs(createdAt);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_userId ON user_sessions(userId);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_username ON login_attempts(username);
+CREATE INDEX IF NOT EXISTS idx_sys_logs_createdAt ON sys_logs(createdAt);
+`)
 
 module.exports = db

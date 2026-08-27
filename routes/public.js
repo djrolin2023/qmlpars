@@ -9,6 +9,18 @@ module.exports = function (ctx) {
   const { hashPassword, verifyPassword } = require('../auth')
   const { normalizePlate, toPlateKey } = require('../plate')
   const { recognizeByBaidu, recognizeByTencent, recognizeByAliyun, recognizeByHuawei, recognizeByCustom } = require('../ocr')
+  const { compressForOcr } = require('../image')
+  const { isVehicleValid } = require('./common')
+
+  // 并发去重锁：同一张图（按 base64/url 指纹）正在识别时复用同一 Promise，
+  // 避免同一请求内多 OCR 通道并行触发各家限速/配额竞态、以及高并发下重复识别。
+  const _ocrLocks = new Map()
+  function withOcrLock(key, task) {
+    if (_ocrLocks.has(key)) return _ocrLocks.get(key)
+    const p = task().finally(() => _ocrLocks.delete(key))
+    _ocrLocks.set(key, p)
+    return p
+  }
 
   // 限制同一账号同时在线设备数：先清理过期会话，若仍超出上限则删除「最早登录」的设备会话
   function enforceDeviceLimit(userId, req) {
@@ -142,14 +154,6 @@ module.exports = function (ctx) {
     const key = String(c).trim().toLowerCase()
     return COLOR_CN[key] || COLOR_CN[c.trim()] || (String(c).includes('牌') ? c.trim() : c.trim() + '牌')
   }
-  function isVehicleValid(v) {
-    if (!v.validUntil) return null
-    const endStr = v.validUntil.includes('~') ? v.validUntil.split('~')[1] : v.validUntil
-    const end = new Date(String(endStr).replace(/-/g, '/') + ' 23:59:59').getTime()
-    if (isNaN(end)) return null
-    return Date.now() <= end
-  }
-
   // 1. 车牌识别
   router.post('/api/recognize', userAuthMiddleware, upload.single('image'), async (req, res) => {
     const _t0 = Date.now()
@@ -189,16 +193,27 @@ module.exports = function (ctx) {
         if (req.file && fs.existsSync(req.file.path)) { try { fs.unlinkSync(req.file.path) } catch (e) {} }
         return res.status(500).json({ success: false, message: '未配置任何 OCR 通道（请到系统设置填写百度或腾讯 OCR 密钥）' })
       }
-      // 并行竞速：同时发起所有已启用通道，取第一个成功结果，避免串行等待首通道超时
-      const settled = await Promise.allSettled(channels.map(([name, fn]) => fn(imageBase64, imageUrl).then(r => ({ name, r }))))
-      for (const s of settled) {
-        if (s.status === 'fulfilled' && s.value && s.value.r) {
-          result = s.value.r; source = s.value.name; break
-        } else if (s.status === 'rejected') {
-          lastErr = s.reason
-        }
+      // 先压缩图片 base64（减小体积与内存），失败则回退原图；url 场景不做压缩
+      let ocrB64 = imageBase64
+      if (req.file && imageBase64) {
+        try { const c = await compressForOcr(req.file.path); if (c) ocrB64 = c } catch (_) {}
       }
-      if (!result) {
+      // 并发去重：同一张图指纹（base64/url）复用一次识别，避免多通道并行触发各家限速竞态
+      const ocrKey = ocrB64 || imageUrl || ('rand' + Date.now() + Math.random())
+      result = await withOcrLock(ocrKey, async () => {
+        // 并行竞速：同时发起所有已启用通道，取第一个成功结果，避免串行等待首通道超时
+        const settled = await Promise.allSettled(channels.map(([name, fn]) => fn(ocrB64, imageUrl).then(r => ({ name, r }))))
+        for (const s of settled) {
+          if (s.status === 'fulfilled' && s.value && s.value.r) {
+            return { result: s.value.r, source: s.value.name }
+          } else if (s.status === 'rejected') {
+            lastErr = s.reason
+          }
+        }
+        return null
+      })
+      if (result) { result = result.result; source = result.source }
+      if (!result || !result.plateNo) {
         console.log('[OCR] 所有通道失败: lastErr=%s', lastErr && lastErr.stack ? lastErr.stack : lastErr)
         if (req.file && fs.existsSync(req.file.path)) { try { fs.unlinkSync(req.file.path) } catch (e) {} }
         return res.status(500).json({ success: false, message: '所有识别通道均失败:' + (lastErr && lastErr.message || '') })

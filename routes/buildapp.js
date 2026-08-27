@@ -50,6 +50,12 @@ module.exports = function (ctx) {
       return j.version || '0.0.0'
     } catch (e) { return '0.0.0' }
   }
+  // 将 SemVer 版本号转为整数 versionCode（主*10000 + 次*100 + 修订），供 gradle 注入
+  function versionToCode(v) {
+    const parts = String(v || '0.0.0').split('.').map(n => parseInt(n, 10) || 0)
+    while (parts.length < 3) parts.push(0)
+    return (parts[0] * 10000 + parts[1] * 100 + parts[2]) || 1
+  }
   // 写 version.json（构建任务采用前端传入的版本号时同步更新）
   async function writeVersion(v) {
     try {
@@ -92,7 +98,13 @@ module.exports = function (ctx) {
         '-storepass', password, '-keypass', password,
         '-dname', 'CN=Qianming, OU=Qianming, O=Qianming, L=CN, S=CN, C=CN']
       execFile('keytool', args, (err) => {
-        if (err) return reject(new Error('生成 keystore 失败: ' + err.message))
+        if (err) {
+          // 友好提示：常见于 JDK 未安装 / JAVA_HOME 未设置
+          const hint = (err.code === 'ENOENT')
+            ? '（未找到 keytool，请先安装 JDK 并配置 JAVA_HOME 后重试）'
+            : '（请确认已安装 JDK 且 JAVA_HOME 配置正确）'
+          return reject(new Error('生成 keystore 失败: ' + err.message + ' ' + hint))
+        }
         resolve(KEYSTORE)
       })
     })
@@ -326,7 +338,7 @@ export default config;
     }
   })
 
-  // 保存打包配置（仅持久化填写内容，不触发构建）。用于“下次打开自动回填”
+  // 保存打包配置（仅持久化填写内容，不触发构建）。用于"下次打开自动回填"
   router.post('/api/admin/buildapp/config', authMiddleware, ctx.upload.none(), async (req, res) => {
     try {
       const c = req.body || {}
@@ -407,9 +419,21 @@ export default config;
         updatedAt: new Date().toISOString()
       }, null, 2) + '\n')
     } catch (_) {}
-    // 自动生成证书使用更强且固定的默认密码（已入库可复用；用户下载证书时一并提示）
-    const AUTO_KEYSTORE_PASS = 'Qm@2026!Sign#K3y'
-    const keyPass = useUploadedKeystore ? keystoreStorePass : (ctx.config.dbGet('BUILD_KEYSTORE_PASS') || AUTO_KEYSTORE_PASS)
+    // 自签证书密码：不硬编码默认值，未配置时随机生成并入库（避免开源泄露固定口令）
+    let signStorePass = keystoreStorePass
+    let signKeyPass = keystoreKeyPass
+    if (!useUploadedKeystore) {
+      const existing = ctx.config.dbGet('BUILD_KEYSTORE_PASS')
+      if (existing) {
+        signStorePass = existing
+        signKeyPass = existing
+      } else {
+        const generated = require('crypto').randomBytes(12).toString('base64')
+        ctx.config.dbSet('BUILD_KEYSTORE_PASS', generated)
+        signStorePass = generated
+        signKeyPass = generated
+      }
+    }
 
     building = true
     lastBuild = { status: 'running', appName, serverUrl, version, logs: [], startedAt: new Date().toISOString(), builtAt: new Date().toISOString(), iconUrl: getIconUrl() }
@@ -490,7 +514,7 @@ export default config;
         }
         if (!splashBuf) {
           // 开屏缺失：优先使用专门的开屏图（splash.png），其次 logo3.png、logo.png；
-          // 都不能用时才回退到图标本身，避免“图标被当成开屏”导致图标/开屏混淆。
+          // 都不能用时才回退到图标本身，避免"图标被当成开屏"导致图标/开屏混淆。
           for (const name of ['splash.png', 'logo3.png', 'logo.png']) {
             const p = path.join(ROOT, 'static', 'images', name)
             if (fs.existsSync(p)) { splashBuf = await fsp.readFile(p); break }
@@ -511,9 +535,8 @@ export default config;
         } catch (e) { log('保存 app-icon.png 失败：' + e.message) }
 
         log('准备签名证书...')
-        await ensureKeystore(keyPass, useUploadedKeystore ? uploadedKeystore.path : null)
-        // 自有 keystore 的密码由本次表单提供，不入库；自动生成的才持久化以便复用
-        if (!useUploadedKeystore) ctx.config.dbSet('BUILD_KEYSTORE_PASS', keyPass)
+        await ensureKeystore(signStorePass, useUploadedKeystore ? uploadedKeystore.path : null)
+        // 自有 keystore 的密码由本次表单提供，不入库；自动生成的已在上文生成时入库
         log('keystore 就绪' + (useUploadedKeystore ? '（自有证书）' : '（自动生成）'))
         setProgress(45)
 
@@ -538,10 +561,12 @@ export default config;
         startSmoothProgress(62, 99, 2, 1500)
         await run(gradleCmd, ['assembleRelease',
           '--gradle-user-home=' + gradleHome,
+          '-PVERSION_CODE=' + versionToCode(version),
+          '-PVERSION_NAME=' + version,
           '-Pandroid.injected.signing.store.file=' + KEYSTORE,
-          '-Pandroid.injected.signing.store.password=' + keyPass,
+          '-Pandroid.injected.signing.store.password=' + signStorePass,
           '-Pandroid.injected.signing.key.alias=' + keyAlias,
-          '-Pandroid.injected.signing.key.password=' + keyPass
+          '-Pandroid.injected.signing.key.password=' + signKeyPass
         ], path.join(APP_DIR, 'android'), log)
         stopSmoothProgress()
         log('gradle 打包完成')
@@ -786,11 +811,12 @@ export default config;
     }
   })
 
-  // 一键生成自签名证书（仅管理员）。可指定别名/密码，默认 qianming / Qm@2026!Sign#K3y
+  // 一键生成自签名证书（仅管理员）。可指定别名/密码；未提供密码时随机生成（不再使用固定默认值）
   router.post('/api/admin/buildapp/keystore/generate', authMiddleware, async (req, res) => {
     try {
       const alias = (req.body.alias || 'qianming').trim()
-      const storePass = (req.body.storePass || '').trim() || 'Qm@2026!Sign#K3y'
+      // 不回退到固定明文密码：未提供则随机生成，避免开源仓库泄露可复用口令
+      const storePass = (req.body.storePass || '').trim() || require('crypto').randomBytes(12).toString('base64')
       const keyPass = (req.body.keyPass || '').trim() || storePass
       if (!/^[A-Za-z0-9_-]+$/.test(alias)) {
         return res.status(400).json({ success: false, message: '别名只能包含字母/数字/下划线/连字符' })
@@ -809,7 +835,7 @@ export default config;
       })
       ctx.config.dbSet('BUILD_KEYSTORE_PASS', storePass)
       ctx.config.dbSet('BUILD_KEYSTORE_ALIAS', alias)
-      res.json({ success: true, alias, storePass, keyPass, message: '签名证书已生成，可点击“下载当前证书”备份' })
+      res.json({ success: true, alias, storePass, keyPass, message: '签名证书已生成，请务必立即下载备份并妥善保存密码' })
     } catch (e) {
       res.status(500).json({ success: false, message: '生成失败：' + e.message })
     }
