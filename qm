@@ -178,6 +178,161 @@ show_status() {
   echo "------------------------------------------------------------"
 }
 
+# ---------- 6. 查看服务日志 ----------
+view_logs() {
+  local n="${1:-50}"
+  if command -v journalctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "${SERVICE_NAME}.service"; then
+    info "最近 $n 行日志（journalctl -u ${SERVICE_NAME}）："
+    journalctl -u ${SERVICE_NAME} --no-pager -n "$n"
+  elif [ -f "$QMLPARS_HOME/server.log" ]; then
+    info "最近 $n 行日志（$QMLPARS_HOME/server.log）："
+    tail -n "$n" "$QMLPARS_HOME/server.log"
+  else
+    err "未找到日志来源（无 systemd 也无 server.log）"
+  fi
+}
+
+# ---------- 7. 系统体检 ----------
+doctor() {
+  echo "------------------------------------------------------------"
+  echo " qmlpars 系统体检"
+  echo "------------------------------------------------------------"
+  local port p
+  port="$(read_env PORT 7081)"
+  # 端口监听
+  if (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | grep -q ":$port "; then
+    echo -e " [✓] 端口 $port 监听中"
+  else
+    echo -e " ${RED}[✗] 端口 $port 未监听（服务可能未启动）${NC}"
+  fi
+  # 服务进程
+  if pgrep -f "node $QMLPARS_HOME/index.js" >/dev/null 2>&1 || (systemctl is-active --quiet ${SERVICE_NAME} 2>/dev/null); then
+    echo -e " [✓] 后端进程/服务运行中"
+  else
+    echo -e " ${RED}[✗] 后端进程未运行${NC}"
+  fi
+  # 数据库
+  if [ -f "$QMLPARS_HOME/data/vehicles.db" ]; then
+    echo -e " [✓] 数据库 vehicles.db 存在"
+  else
+    echo -e " ${RED}[✗] 数据库 vehicles.db 缺失${NC}"
+  fi
+  # OCR 通道
+  info "OCR 通道启用情况（来自 .env / settings）："
+  for ch in BAIDU TENCENT ALIYUN HUAWEI; do
+    local k="${ch}_ENABLED"
+    if [ "$(read_env $k 0)" = "1" ] || [ "$(read_env $k false)" = "true" ]; then
+      echo -e "   - $ch：${GREEN}已启用${NC}"
+    else
+      echo "   - $ch：未启用"
+    fi
+  done
+  # 磁盘
+  echo " [i] 磁盘占用：$(df -h "$QMLPARS_HOME" 2>/dev/null | awk 'NR==2{print $5" 已用 ("$4" 可用)"}')"
+  echo "------------------------------------------------------------"
+}
+
+# ---------- 8. 一键备份 ----------
+backup() {
+  local ts bdir dest
+  ts="$(date +%Y%m%d_%H%M%S)"
+  bdir="$QMLPARS_HOME/backups"
+  mkdir -p "$bdir"
+  dest="$bdir/qmlpars_backup_${ts}.tar.gz"
+  info "开始备份到 $dest ..."
+  tar -czf "$dest" -C "$QMLPARS_HOME" \
+    --exclude='./node_modules' --exclude='./backups' --exclude='./.git' \
+    data uploads web/admin/js/plate-areas.json .env version.json 2>/dev/null || \
+  tar -czf "$dest" -C "$QMLPARS_HOME" data uploads .env version.json 2>/dev/null
+  if [ -f "$dest" ]; then
+    info "备份完成：$(du -h "$dest" | awk '{print $1}')"
+    ls -lh "$bdir" | tail -5
+  else
+    err "备份失败"
+  fi
+}
+
+# ---------- 9. 从备份恢复 ----------
+restore() {
+  local bdir f
+  bdir="$QMLPARS_HOME/backups"
+  if [ ! -d "$bdir" ]; then err "未找到备份目录 $bdir"; return; fi
+  echo "可用备份："
+  local i=1; local files=()
+  for f in "$bdir"/*.tar.gz; do [ -f "$f" ] || continue; echo "  $i) $(basename "$f")"; files+=("$f"); i=$((i+1)); done
+  [ ${#files[@]} -eq 0 ] && { err "无可用备份"; return; }
+  read -rp "请选择要恢复的备份编号： " sel
+  if ! [[ "$sel" =~ ^[0-9]+$ ]] || [ "$sel" -lt 1 ] || [ "$sel" -gt ${#files[@]} ]; then err "无效选择"; return; fi
+  local chosen="${files[$((sel-1))]}"
+  warn "恢复将覆盖当前 data/ 与 uploads/，是否继续？(y/N)"
+  read -rp "确认： " ok
+  [ "$ok" = "y" ] || [ "$ok" = "Y" ] || { info "已取消"; return; }
+  tar -xzf "$chosen" -C "$QMLPARS_HOME"
+  info "恢复完成，正在重启服务..."
+  restart_all
+}
+
+# ---------- 10. 配置 OCR 通道 ----------
+ocr_set() {
+  echo "可用的 OCR 通道： baidu / tencent / aliyun / huawei"
+  read -rp "要配置的通道（小写）： " ch
+  ch="$(echo "$ch" | tr '[:lower:]' '[:upper:]')"
+  case "$ch" in
+    BAIDU|TENCENT|ALIYUN|HUAWEI) ;;
+    *) err "未知通道"; return ;;
+  esac
+  echo "当前 ${ch} 启用状态：$(read_env ${ch}_ENABLED 0)"
+  read -rp "是否启用该通道 (1/0)： " en
+  write_env "${ch}_ENABLED" "$en"
+  case "$ch" in
+    BAIDU)
+      read -rp "BAIDU_API_KEY [回车跳过保留]： " v; [ -n "$v" ] && write_env BAIDU_API_KEY "$v"
+      read -rp "BAIDU_SECRET_KEY [回车跳过保留]： " v; [ -n "$v" ] && write_env BAIDU_SECRET_KEY "$v"
+      ;;
+    TENCENT)
+      read -rp "TENCENT_SECRET_ID [回车跳过保留]： " v; [ -n "$v" ] && write_env TENCENT_SECRET_ID "$v"
+      read -rp "TENCENT_SECRET_KEY [回车跳过保留]： " v; [ -n "$v" ] && write_env TENCENT_SECRET_KEY "$v"
+      read -rp "TENCENT_REGION [默认 ap-guangzhou，回车跳过]： " v; [ -n "$v" ] && write_env TENCENT_REGION "$v"
+      ;;
+    ALIYUN)
+      read -rp "ALIYUN_ACCESS_KEY_ID [回车跳过保留]： " v; [ -n "$v" ] && write_env ALIYUN_ACCESS_KEY_ID "$v"
+      read -rp "ALIYUN_ACCESS_KEY_SECRET [回车跳过保留]： " v; [ -n "$v" ] && write_env ALIYUN_ACCESS_KEY_SECRET "$v"
+      read -rp "ALIYUN_REGION [默认 cn-hangzhou，回车跳过]： " v; [ -n "$v" ] && write_env ALIYUN_REGION "$v"
+      ;;
+    HUAWEI)
+      read -rp "HUAWEI_AK [回车跳过保留]： " v; [ -n "$v" ] && write_env HUAWEI_AK "$v"
+      read -rp "HUAWEI_SK [回车跳过保留]： " v; [ -n "$v" ] && write_env HUAWEI_SK "$v"
+      read -rp "HUAWEI_PROJECT_ID [回车跳过保留]： " v; [ -n "$v" ] && write_env HUAWEI_PROJECT_ID "$v"
+      ;;
+  esac
+  info "OCR 配置已更新，重启服务后生效"
+  restart_all
+}
+
+# ---------- 11. Android 构建环境检查 ----------
+build_check() {
+  echo "------------------------------------------------------------"
+  echo " Android 构建环境检查"
+  echo "------------------------------------------------------------"
+  local sdk="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+  [ -z "$sdk" ] && sdk="$(read_env ANDROID_SDK_ROOT '')"
+  if [ -n "$sdk" ] && [ -d "$sdk" ]; then
+    echo -e " [✓] ANDROID_SDK_ROOT=$sdk"
+  else
+    echo -e " ${RED}[✗] ANDROID_SDK_ROOT 未设置或目录不存在${NC}"
+  fi
+  for t in java gradle node npm; do
+    if command -v $t >/dev/null 2>&1; then echo -e " [✓] $t: $($t -version 2>&1 | head -1)"; else echo -e " ${RED}[✗] $t 未安装${NC}"; fi
+  done
+  if [ -d "$sdk" ]; then
+    local need=( "platform-tools" )
+    for p in "${need[@]}"; do
+      [ -d "$sdk/$p" ] && echo -e " [✓] $p 已安装" || echo -e " ${YELLOW}[!] $p 缺失（sdkmanager 安装）${NC}"
+    done
+  fi
+  echo "------------------------------------------------------------"
+}
+
 # ---------- 主菜单 ----------
 while true; do
   echo ""
@@ -187,15 +342,27 @@ while true; do
   echo "  3) 修改域名 / IP"
   echo "  4) 重启服务"
   echo "  5) 查看运行状态"
+  echo "  6) 查看服务日志"
+  echo "  7) 系统体检"
+  echo "  8) 一键备份（DB+uploads）"
+  echo "  9) 从备份恢复"
+  echo " 10) 配置 OCR 通道密钥"
+  echo " 11) Android 构建环境检查"
   echo "  0) 退出"
   echo "======================================"
-  read -rp "请选择 [0-5]： " choice
+  read -rp "请选择 [0-11]： " choice
   case "$choice" in
     1) change_password ;;
     2) change_port ;;
     3) change_domain ;;
     4) do_restart ;;
     5) show_status ;;
+    6) view_logs ;;
+    7) doctor ;;
+    8) backup ;;
+    9) restore ;;
+    10) ocr_set ;;
+    11) build_check ;;
     0|q|Q) info "再见"; exit 0 ;;
     *) warn "无效选择，请重新输入" ;;
   esac

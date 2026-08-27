@@ -140,9 +140,10 @@ inject_android_env_into_systemd() {
     echo "WARN: systemd 单元未使用 env -i 启动，跳过环境注入"
     return 0
   fi
-  # 1) 删除旧注入（幂等）
-  sed -i -E 's# (ANDROID_HOME=[^ ]* ANDROID_SDK_ROOT=[^ ]* JAVA_HOME=[^ ]*)##g' "$UNIT"
-  # 2) 在 env -i 的 HOME=... 之后插入新变量
+  # 1) 删除旧注入（幂等）：先逐个清除行内任意顺序/任意次数的 ANDROID_HOME/ANDROID_SDK_ROOT/JAVA_HOME 片段，
+  #    避免用户手动改过顺序导致正则匹配不到、叠加产生重复变量（IS-8）
+  sed -i -E 's# (ANDROID_HOME|ANDROID_SDK_ROOT|JAVA_HOME)=[^ ]*##g' "$UNIT"
+  # 2) 整行重写 ExecStart，在 env -i 的 HOME=... 之后统一插入新变量（不再依赖精确拼接）
   if sed -i -E "s#^(ExecStart=/usr/bin/env -i PATH=[^ ]* HOME=[^ ]*) #\1 ANDROID_HOME=${sdk_root} ANDROID_SDK_ROOT=${sdk_root} JAVA_HOME=${java_home} #" "$UNIT"; then
     systemctl daemon-reload
     if systemctl is-active --quiet qmlpars 2>/dev/null; then
@@ -236,9 +237,11 @@ install_android_chain() {
   # JDK 17（Gradle / Android Gradle Plugin 要求）
   NEED_JDK17=1
   if command -v java >/dev/null 2>&1; then
-    JAVA_VER="$(java -version 2>&1 | head -1 | grep -oE '"[0-9]+' | tr -d '"' | head -1)"
+    # IS-13：先处理 "1.8.0_391" 这种 Oracle JDK 旧式输出 → 取主版本 8；
+    # 再处理现代 "17.0.4" / "21.0.4" → 取主版本 17/21。避免误把 1.8 判成 1。
+    JAVA_VER="$(java -version 2>&1 | head -1 | grep -oE '1\.[0-9]+' | head -1 | sed 's/1\.//')"
     if [ -z "$JAVA_VER" ]; then
-      JAVA_VER="$(java -version 2>&1 | head -1 | grep -oE '1\.[0-9]+' | sed 's/1\.//' | head -1)"
+      JAVA_VER="$(java -version 2>&1 | head -1 | grep -oE '"[0-9]+' | tr -d '"' | head -1)"
     fi
     if [ "$JAVA_VER" = "17" ]; then
       echo "==> JDK17 已存在（$JAVA_VER），跳过安装"
@@ -434,8 +437,27 @@ configure_mirror() {
       if [ ! -f /etc/apt/sources.list.bak ]; then
         cp /etc/apt/sources.list /etc/apt/sources.list.bak 2>/dev/null || true
       fi
-      # 清华源（Ubuntu/Debian 通用）
       if [ -f /etc/os-release ]; then . /etc/os-release; fi
+      # IS-6：Ubuntu 24.04+ / Debian 13 默认使用 DEB822 格式（/etc/apt/sources.list.d/*.sources），
+      # 此时传统 /etc/apt/sources.list 为空或不存在，仅改 sources.list 会导致换源不生效。
+      if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+        cat > /etc/apt/sources.list.d/ubuntu.sources <<EOF
+Types: deb
+URIs: https://mirrors.tuna.tsinghua.edu.cn/ubuntu/
+Suites: ${VERSION_CODENAME:-$(. /etc/os-release; echo $VERSION_CODENAME)} ${VERSION_CODENAME:-$(. /etc/os-release; echo $VERSION_CODENAME)}-updates ${VERSION_CODENAME:-$(. /etc/os-release; echo $VERSION_CODENAME)}-backports
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+Types: deb
+URIs: https://mirrors.tuna.tsinghua.edu.cn/ubuntu/
+Suites: ${VERSION_CODENAME:-$(. /etc/os-release; echo $VERSION_CODENAME)}-security
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+EOF
+        $PKG_UPDATE
+        return
+      fi
+      # 清华源（Ubuntu/Debian 通用，传统 sources.list 格式）
       case "$ID" in
         ubuntu)
           cat > /etc/apt/sources.list <<EOF
@@ -845,8 +867,12 @@ step_done "设置管理员密码"
 ###########################################################
 step_start "安装 qm 命令行控制面板"
 echo "==> 安装 qm 命令行控制面板 ..."
-if [ -f "$SRC_DIR/qm" ]; then
-  install -m 755 "$SRC_DIR/qm" /usr/local/bin/qm
+# IS-11：管道 bash <(curl) 执行时 $SRC_DIR/qm 可能尚未就位，需回退到脚本同目录或 HOME_DIR
+QM_SRC="$SRC_DIR/qm"
+if [ ! -f "$QM_SRC" ] && [ -f "$SCRIPT_DIR/qm" ]; then QM_SRC="$SCRIPT_DIR/qm"; fi
+if [ ! -f "$QM_SRC" ] && [ -f "$HOME_DIR/qm" ]; then QM_SRC="$HOME_DIR/qm"; fi
+if [ -f "$QM_SRC" ]; then
+  install -m 755 "$QM_SRC" /usr/local/bin/qm
   # 让 qm 知道安装目录
   sed -i "s#^QMLPARS_HOME=.*#QMLPARS_HOME=\"$SRC_DIR\"#" /usr/local/bin/qm 2>/dev/null || true
   echo "==> qm 命令已安装，终端输入 qm 即可管理本系统"

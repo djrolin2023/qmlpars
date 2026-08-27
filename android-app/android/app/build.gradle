@@ -17,12 +17,32 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Bug#9：显式声明签名配置，避免全部依赖 -Pandroid.injected.* 命令行参数（缺失即 UNSIGNED）
+    signingConfigs {
+        release {
+            // 优先读取命令行注入的密钥路径/密码，缺失则留空（构建为 UNSIGNED，仅警告不中断）
+            def ksFile = project.findProperty('KEYSTORE_FILE') ?: System.getenv('KEYSTORE_FILE')
+            def ksPass = project.findProperty('KEYSTORE_PASSWORD') ?: System.getenv('KEYSTORE_PASSWORD')
+            def keyAlias = project.findProperty('KEY_ALIAS') ?: System.getenv('KEY_ALIAS')
+            def keyPass = project.findProperty('KEY_PASSWORD') ?: System.getenv('KEY_PASSWORD')
+            if (ksFile && new File(ksFile).exists()) {
+                storeFile file(ksFile)
+                storePassword ksPass ?: ''
+                keyAlias keyAlias ?: ''
+                keyPassword keyPass ?: ''
+            } else {
+                logger.warn("⚠️ 未找到签名密钥（KEYSTORE_FILE），将构建 UNSIGNED APK，仅用于调试/内部分发")
+            }
+        }
+    }
     buildTypes {
         release {
             // 开启代码混淆与资源压缩，减小包体、提升逆向门槛
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // 显式绑定 release 签名（密钥缺失时 signingConfigs.release 内部降级，不会中断构建）
+            signingConfig signingConfigs.release
         }
     }
 }

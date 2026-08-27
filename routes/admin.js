@@ -512,35 +512,39 @@ module.exports = function (ctx) {
     if (!items.length) return res.status(400).json({ success: false, message: '未解析到任何车辆数据' })
     const added = [], skipped = [], updated = [], errors = [], conflictPlates = []
     const seenKeys = new Set()
-    for (const it of items) {
-      const plateNo = normalizePlate(it.plateNo || it.车牌号 || it.车牌 || '')
-      if (!plateNo) { errors.push('车牌号为空，已跳过'); continue }
-      const plateKey = toPlateKey(plateNo)
-      if (seenKeys.has(plateKey)) { skipped.push(plateNo); continue }   // 本次批量内重复
-      const existing = db.prepare('SELECT id FROM vehicles WHERE plateKey = ?').get(plateKey)
-      if (existing) {
-        conflictPlates.push(plateNo)
-        if (conflict === 'skip') { skipped.push(plateNo); continue }    // 命中数据库已有数据
+    // Bug#5：整批写入用事务包裹，任一条失败则整批回滚，避免产生脏数据
+    const txn = db.transaction(() => {
+      for (const it of items) {
+        const plateNo = normalizePlate(it.plateNo || it.车牌号 || it.车牌 || '')
+        if (!plateNo) { errors.push('车牌号为空，已跳过'); continue }
+        const plateKey = toPlateKey(plateNo)
+        if (seenKeys.has(plateKey)) { skipped.push(plateNo); continue }   // 本次批量内重复
+        const existing = db.prepare('SELECT id FROM vehicles WHERE plateKey = ?').get(plateKey)
+        if (existing) {
+          conflictPlates.push(plateNo)
+          if (conflict === 'skip') { skipped.push(plateNo); continue }    // 命中数据库已有数据
+          const department = String(it.department || it.部门 || '').split(/[,，]/).map(s => s.trim()).filter(Boolean).join(',')
+          const validUntil = String(it.validUntil || it.有效期 || '').trim() || null
+          if (conflict === 'update') {
+            // 覆盖更新已有记录（保留原照片）
+            db.prepare(`UPDATE vehicles SET owner=?, phone=?, department=?, remark=?, validUntil=?, updatedAt=? WHERE id=?`)
+              .run(String(it.owner || it.车主 || '').trim(), String(it.phone || it.手机号 || '').trim(),
+                department, String(it.remark || it.备注 || '').trim(), validUntil, nowLocal(), existing.id)
+            updated.push(plateNo); seenKeys.add(plateKey); continue
+          }
+          // force：允许重复插入
+        }
         const department = String(it.department || it.部门 || '').split(/[,，]/).map(s => s.trim()).filter(Boolean).join(',')
         const validUntil = String(it.validUntil || it.有效期 || '').trim() || null
-        if (conflict === 'update') {
-          // 覆盖更新已有记录（保留原照片）
-          db.prepare(`UPDATE vehicles SET owner=?, phone=?, department=?, remark=?, validUntil=?, updatedAt=? WHERE id=?`)
-            .run(String(it.owner || it.车主 || '').trim(), String(it.phone || it.手机号 || '').trim(),
-              department, String(it.remark || it.备注 || '').trim(), validUntil, nowLocal(), existing.id)
-          updated.push(plateNo); seenKeys.add(plateKey); continue
-        }
-        // force：允许重复插入
+        db.prepare(`INSERT INTO vehicles (plateNo, plateKey, owner, phone, department, remark, photo, validUntil, createdAt, updatedAt)
+          VALUES (?,?,?,?,?,?,?,?,?,?)`)
+          .run(plateNo, plateKey, String(it.owner || it.车主 || '').trim(), String(it.phone || it.手机号 || '').trim(),
+            department, String(it.remark || it.备注 || '').trim(), null, validUntil, nowLocal(), nowLocal())
+        seenKeys.add(plateKey)
+        added.push(plateNo)
       }
-      const department = String(it.department || it.部门 || '').split(/[,，]/).map(s => s.trim()).filter(Boolean).join(',')
-      const validUntil = String(it.validUntil || it.有效期 || '').trim() || null
-      db.prepare(`INSERT INTO vehicles (plateNo, plateKey, owner, phone, department, remark, photo, validUntil, createdAt, updatedAt)
-        VALUES (?,?,?,?,?,?,?,?,?,?)`)
-        .run(plateNo, plateKey, String(it.owner || it.车主 || '').trim(), String(it.phone || it.手机号 || '').trim(),
-          department, String(it.remark || it.备注 || '').trim(), null, validUntil, nowLocal(), nowLocal())
-      seenKeys.add(plateKey)
-      added.push(plateNo)
-    }
+    })
+    txn()
     const op = (req.admin && req.admin.username) || (req.user && req.user.username) || '未知'
     ctx.addSysLog('批量新增车辆', null,
       `新增 ${added.length} 条` + (updated.length ? `，更新 ${updated.length} 条` : '') + (skipped.length ? `，跳过 ${skipped.length} 条` : '') + (errors.length ? `，忽略无效 ${errors.length} 条` : ''),
@@ -579,7 +583,11 @@ module.exports = function (ctx) {
         if (fs.existsSync(f)) { try { fs.unlinkSync(f) } catch (e) {} }
       }
     }
-    db.prepare(`DELETE FROM vehicles WHERE id IN (${placeholders})`).run(...ids)
+    // Bug#5：删除数据库记录整体包裹事务，保证原子性（文件已先删除，DB 失败则回滚避免数据悬挂）
+    const delTxn = db.transaction(() => {
+      db.prepare(`DELETE FROM vehicles WHERE id IN (${placeholders})`).run(...ids)
+    })
+    delTxn()
     ctx.addSysLog('批量删除车辆', null, `删除 ${rows.length} 辆：${rows.map(r => r.plateNo).join('、')}`, req.admin.username, req.ip)
     res.json({ success: true, message: `已删除 ${rows.length} 辆车` })
   })
