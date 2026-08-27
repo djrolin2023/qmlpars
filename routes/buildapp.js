@@ -496,8 +496,8 @@ export default config;
         await injectAppConfig(path.join(WWW_DIR, 'logout.html'))
         // 仅修正打包副本：把 login 回退相对路径改为 /index.html（APP 端根，不影响 web/h5 源）
         await fixCpsbRedirect()
-        // 引导首页（buildIndexHtml 内部跳转 index.html，扁平化后页面直接在根）
-        await fsp.writeFile(path.join(WWW_DIR, 'index.html'), buildIndexHtml(appName))
+        // 注意：不要再用 buildIndexHtml() 覆盖 index.html —— 它会生成空白跳板（location.href='index.html' 自身），
+        // 导致 APP 打开白屏。web/Android/index.html 本身就是真实首页，直接保留。
         await writeAppConfig(serverUrl)
         log('安卓 H5 资源已拷贝（web/android → www，已扁平化去掉 cpsb 层，渠道标记为 android）')
         // 源为 web/android；Capacitor 仍读取 android-app/www，这里同步过去

@@ -1,6 +1,6 @@
 // ===== H5 车辆页专用桥接：复用 H5 common.js 的 API 常量，补齐 admin 体系所需函数 =====
 // 注意：本文件不含 const API（由 /cpsb/js/common.js 提供），避免与 admin/common.js 重名冲突。
-// 本文件为 /cpsb/h5-vehicles.html 单独使用，不污染其他 H5 页面。
+// 本文件为 /android-vehicles.html 单独使用，不污染其他 H5 页面。
 const TOKEN_KEY = 'qmlpars_admin_token';
 
 function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
