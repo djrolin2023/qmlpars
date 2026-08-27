@@ -41,8 +41,12 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // 显式绑定 release 签名（密钥缺失时 signingConfigs.release 内部降级，不会中断构建）
-            signingConfig signingConfigs.release
+            // 仅当提供了有效密钥时才绑定签名；否则保持默认（AGP 打出 UNSIGNED APK，不会因空 storeFile 报错）
+            if (signingConfigs.release.storeFile != null) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn("⚠️ 未配置签名密钥，release 将以 UNSIGNED 方式打包（仅用于调试/内部分发）")
+            }
         }
     }
 }
