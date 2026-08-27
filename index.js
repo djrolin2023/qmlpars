@@ -46,16 +46,17 @@ fs.mkdirSync(uploadDir, { recursive: true })
 // 识别抓拍存储目录（独立于车辆照片 uploads：识别成功的帧保留作证据，失败删除）
 const SNAP_DIR = path.join(uploadDir, 'snapshots')
 fs.mkdirSync(SNAP_DIR, { recursive: true })
+// 抓拍快照含人脸/车牌隐私信息，必须鉴权（同时支持 ?token= 便于前端 <img> 展示）
+// 注意：必须在通配路由 /uploads/* 之前注册，否则会被通配短路、本路由永不生效
+app.get('/uploads/snapshots/:file', authMiddleware, (req, res) => {
+  const f = path.join(SNAP_DIR, path.basename(req.params.file))
+  if (!fs.existsSync(f)) return res.status(404).json({ success: false, message: '文件不存在' })
+  res.sendFile(f)
+})
 app.get('/uploads/*', authMiddleware, (req, res) => {
   const rel = req.params[0]
   const f = path.resolve(uploadDir, rel)
   if (!f.startsWith(uploadDir) || !fs.existsSync(f)) return res.status(404).json({ success: false, message: '文件不存在' })
-  res.sendFile(f)
-})
-// 抓拍快照含人脸/车牌隐私信息，必须鉴权（同时支持 ?token= 便于前端 <img> 展示）
-app.get('/uploads/snapshots/:file', authMiddleware, (req, res) => {
-  const f = path.join(SNAP_DIR, path.basename(req.params.file))
-  if (!fs.existsSync(f)) return res.status(404).json({ success: false, message: '文件不存在' })
   res.sendFile(f)
 })
 
