@@ -272,6 +272,127 @@ restore() {
   restart_all
 }
 
+# ---------- 8. 生成诊断包（发给开发者排查） ----------
+diag_report() {
+  local ts dest tmp
+  ts="$(date +%Y%m%d_%H%M%S)"
+  tmp="$(mktemp -d)"
+  dest="$QMLPARS_HOME/backups/qmlpars-diag-${ts}.tar.gz"
+  mkdir -p "$QMLPARS_HOME/backups"
+  info "正在收集诊断信息..."
+  # 系统信息
+  {
+    echo "=== uname ==="; uname -a
+    echo "=== node ==="; node -v 2>/dev/null; npm -v 2>/dev/null
+    echo "=== disk ==="; df -h "$QMLPARS_HOME" 2>/dev/null
+    echo "=== mem ==="; free -h 2>/dev/null || cat /proc/meminfo | head -3
+  } > "$tmp/system.txt" 2>&1
+  # 服务状态
+  if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "${SERVICE_NAME}.service"; then
+    systemctl status ${SERVICE_NAME} --no-pager > "$tmp/service.txt" 2>&1
+    journalctl -u ${SERVICE_NAME} --no-pager -n 200 > "$tmp/journal.log" 2>&1
+  fi
+  # nginx 配置
+  [ -f "$NGINX_CONF" ] && cp "$NGINX_CONF" "$tmp/nginx.conf" 2>/dev/null
+  # 配置脱敏（隐藏密钥/密码）
+  if [ -f "$ENV_FILE" ]; then
+    grep -vE 'SECRET|PASSWORD|KEY|TOKEN|AK|SK|ID' "$ENV_FILE" > "$tmp/env.safe" 2>/dev/null || true
+  fi
+  # DB 表清单 + 行数 + 识别记录最近 50 条（脱敏车牌）
+  if [ -f "$QMLPARS_HOME/data/vehicles.db" ]; then
+    sqlite3 "$QMLPARS_HOME/data/vehicles.db" ".tables" > "$tmp/db_tables.txt" 2>/dev/null || true
+  fi
+  tar -czf "$dest" -C "$tmp" . 2>/dev/null
+  rm -rf "$tmp"
+  if [ -f "$dest" ]; then
+    info "诊断包已生成：$dest ($(du -h "$dest" | awk '{print $1}'))"
+    info "可将该文件发给开发者排查（不含任何密钥/车牌明文）"
+  else
+    err "诊断包生成失败"
+  fi
+}
+
+# ---------- 9. 备份 / 恢复 二级菜单 ----------
+submenu_backup() {
+  local bdir="$QMLPARS_HOME/backups"
+  while true; do
+    echo ""
+    echo "===== 备份 / 恢复 ====="
+    echo "  1) 立即备份（DB + uploads）"
+    echo "  2) 列出已有备份"
+    echo "  3) 从备份恢复"
+    echo "  4) 删除 30 天前的旧备份"
+    echo "  0) 返回主菜单"
+    read -rp "请选择 [0-4]： " p
+    case "$p" in
+      1) backup ;;
+      2)
+        [ -d "$bdir" ] || { err "无备份目录"; continue; }
+        for f in "$bdir"/*.tar.gz; do [ -f "$f" ] || continue;
+          printf "  %s  %s\n" "$(date -r "$f" '+%Y-%m-%d %H:%M' 2>/dev/null)" "$(basename "$f")"; done
+        ;;
+      3) restore ;;
+      4)
+        local cnt=0
+        for f in "$bdir"/qmlpars_backup_*.tar.gz; do
+          [ -f "$f" ] || continue
+          if [ "$(( $(date +%s) - $(stat -c %Y "$f") ))" -gt 2592000 ]; then rm -f "$f" && cnt=$((cnt+1)); fi
+        done
+        info "已清理 $cnt 个 30 天前的旧备份"
+        ;;
+      0|q|Q) return 0 ;;
+      *) warn "无效选择" ;;
+    esac
+  done
+}
+
+# ---------- 10. 清理抓拍图（prune） ----------
+prune_snapshots() {
+  local snap="$QMLPARS_HOME/uploads/snapshots" days
+  [ -d "$snap" ] || { err "未找到抓拍目录 $snap"; return; }
+  echo "清理策略："
+  echo "  1) 删除 7 天前的抓拍"
+  echo "  2) 删除 30 天前的抓拍"
+  echo "  3) 删除全部抓拍（保留空目录）"
+  read -rp "请选择 [1-3]： " s
+  case "$s" in
+    1) days=7 ;;
+    2) days=30 ;;
+    3) days=0 ;;
+    *) warn "无效选择"; return ;;
+  esac
+  local before after
+  before="$(find "$snap" -type f | wc -l)"
+  if [ "$days" -eq 0 ]; then
+    find "$snap" -type f -delete
+  else
+    find "$snap" -type f -mtime +"$days" -delete
+  fi
+  after="$(find "$snap" -type f | wc -l)"
+  info "清理完成：原 $before 个文件，现 $after 个（释放 $(( (before-after) )) 个）"
+}
+
+# ---------- 11. 导出识别月报 CSV ----------
+export_report() {
+  local db="$QMLPARS_HOME/data/vehicles.db" out
+  [ -f "$db" ] || { err "未找到数据库 $db"; return; }
+  out="$QMLPARS_HOME/backups/recognition_report_$(date +%Y%m).csv"
+  mkdir -p "$QMLPARS_HOME/backups"
+  info "正在导出识别记录..."
+  sqlite3 -header -csv "$db" \
+    "SELECT strftime('%Y-%m', createdAt) AS 月份, COUNT(*) AS 识别次数,
+            SUM(CASE WHEN result='成功' THEN 1 ELSE 0 END) AS 成功数,
+            SUM(CASE WHEN result<>'成功' THEN 1 ELSE 0 END) AS 失败数
+     FROM recognition_logs GROUP BY strftime('%Y-%m', createdAt) ORDER BY 月份 DESC;" \
+    > "$out" 2>/dev/null
+  if [ -s "$out" ]; then
+    info "月报已导出：$out"
+    cat "$out"
+  else
+    warn "无识别记录可导出"
+  fi
+}
+
 # ---------- 10. 配置 OCR 通道 ----------
 ocr_set() {
   echo "可用的 OCR 通道： baidu / tencent / aliyun / huawei"
@@ -333,6 +454,107 @@ build_check() {
   echo "------------------------------------------------------------"
 }
 
+# ---------- 16. 管理员密码重置（无旧密码，root 专用） ----------
+reset_admin_password() {
+  warn "此操作将直接覆盖管理员密码（无需旧密码），仅限本机 root 紧急处理"
+  local new1 new2
+  new1="$(read_password '请输入新密码（至少6位）： ')"
+  while [ ${#new1} -lt 6 ]; do new1="$(read_password '密码至少 6 位，请重新输入： ')"; done
+  new2="$(read_password '再次确认新密码： ')"
+  while [ "$new1" != "$new2" ]; do
+    warn "两次输入不一致"; new1="$(read_password '请输入新密码（至少6位）： ')"; new2="$(read_password '再次确认新密码： ')"
+  done
+  local res
+  res="$(cd "$QMLPARS_HOME" && node -e "
+    const {hashPassword} = require('./auth');
+    const config = require('./config');
+    config.dbSet('ADMIN_PASSWORD_HASH', hashPassword(process.argv[1]));
+    config.dbSet('ADMIN_PASSWORD', '');
+    console.log('OK');
+  " "$new1" 2>&1)"
+  if echo "$res" | grep -q 'OK'; then info "管理员密码已重置，请重新登录 /admin"; else err "重置失败：$res"; fi
+}
+
+# ---------- 17. H5 用户管理（二级菜单） ----------
+submenu_users() {
+  while true; do
+    echo ""
+    echo "===== H5 用户管理 ====="
+    echo "  1) 列出用户"
+    echo "  2) 新增用户"
+    echo "  3) 重置用户密码"
+    echo "  4) 删除用户"
+    echo "  0) 返回主菜单"
+    read -rp "请选择 [0-4]： " p
+    case "$p" in
+      1)
+        cd "$QMLPARS_HOME" && node -e "
+          const config=require('./config');
+          const rows=config.dbAll('SELECT id,username,department,role,createdAt,lastLogin FROM users ORDER BY id');
+          if(!rows.length){console.log('（无用户）');process.exit(0);}
+          console.log('ID  用户名          部门        角色    创建时间');
+          rows.forEach(r=>console.log(String(r.id).padEnd(4), (r.username||'').padEnd(14), (r.department||'').padEnd(10), (r.role||'').padEnd(6), r.createdAt||''));
+        " 2>&1
+        ;;
+      2)
+        read -rp "用户名： " u; [ -z "$u" ] && { warn "用户名不能为空"; continue; }
+        local pw; pw="$(read_password '初始密码（至少6位）： ')"; while [ ${#pw} -lt 6 ]; do pw="$(read_password '密码至少6位： ')"; done
+        read -rp "部门（可选）： " dept
+        cd "$QMLPARS_HOME" && node -e "
+          const {hashPassword}=require('./auth'); const config=require('./config');
+          const u=process.argv[1], pw=process.argv[2], dept=process.argv[3]||'';
+          const ex=config.dbGetOne('SELECT id FROM users WHERE username=?',[u]);
+          if(ex){console.log('EXIST');process.exit(0);}
+          config.dbRun('INSERT INTO users(username,passwordHash,department,role,createdAt) VALUES(?,?,?,?,?)',
+            [u,hashPassword(pw),dept,'user',new Date().toISOString()]);
+          console.log('OK');
+        " "$u" "$pw" "$dept" 2>&1 | sed 's/^/  /'
+        ;;
+      3)
+        read -rp "要重置的用户名： " u; [ -z "$u" ] && continue
+        local np; np="$(read_password '新密码（至少6位）： ')"; while [ ${#np} -lt 6 ]; do np="$(read_password '密码至少6位： ')"; done
+        cd "$QMLPARS_HOME" && node -e "
+          const {hashPassword}=require('./auth'); const config=require('./config');
+          const r=config.dbRun('UPDATE users SET passwordHash=? WHERE username=?',[hashPassword(process.argv[2]),process.argv[1]]);
+          console.log(r.changes? 'OK':'NOTFOUND');
+        " "$u" "$np" 2>&1 | sed 's/^/  /'
+        ;;
+      4)
+        read -rp "要删除的用户名： " u; [ -z "$u" ] && continue
+        cd "$QMLPARS_HOME" && node -e "
+          const config=require('./config');
+          const r=config.dbRun('DELETE FROM users WHERE username=? AND role<>"admin"',[process.argv[1]]);
+          console.log(r.changes? 'OK':'NOTFOUND');
+        " "$u" 2>&1 | sed 's/^/  /'
+        ;;
+      0|q|Q) return 0 ;;
+      *) warn "无效选择" ;;
+    esac
+  done
+}
+
+# ---------- 18. 一键升级系统（保守） ----------
+upgrade_me() {
+  warn "升级将执行：git pull（若本地无改动） + npm install + 重启服务"
+  read -rp "确认升级？(y/N) " ok
+  [ "$ok" = "y" ] || [ "$ok" = "Y" ] || { info "已取消"; return; }
+  cd "$QMLPARS_HOME"
+  if [ -d .git ]; then
+    if git diff --quiet 2>/dev/null; then
+      git pull --ff-only 2>&1 | tail -5 && info "代码已更新" || warn "git pull 失败，请手动处理"
+    else
+      warn "本地有未提交改动，跳过 git pull（避免覆盖）。请手动 merge。"
+    fi
+  else
+    warn "非 git 仓库，跳过拉取"
+  fi
+  if [ -f package.json ]; then
+    npm install --omit=dev --no-audit --no-fund 2>&1 | tail -3 && info "依赖已更新"
+  fi
+  restart_all
+  info "升级完成，请验证 /admin 可访问"
+}
+
 # ---------- 主菜单 ----------
 while true; do
   echo ""
@@ -344,13 +566,18 @@ while true; do
   echo "  5) 查看运行状态"
   echo "  6) 查看服务日志"
   echo "  7) 系统体检"
-  echo "  8) 一键备份（DB+uploads）"
-  echo "  9) 从备份恢复"
-  echo " 10) 配置 OCR 通道密钥"
-  echo " 11) Android 构建环境检查"
+  echo "  8) 生成诊断包（发给开发者）"
+  echo "  9) 备份 / 恢复（二级菜单）"
+  echo " 10) 清理抓拍图（prune）"
+  echo " 11) 导出识别月报 CSV"
+  echo " 12) 配置 OCR 通道密钥"
+  echo " 13) Android 构建环境检查"
+  echo " 14) 管理员密码重置（无旧密码）"
+  echo " 15) H5 用户管理（二级菜单）"
+  echo " 16) 一键升级系统"
   echo "  0) 退出"
   echo "======================================"
-  read -rp "请选择 [0-11]： " choice
+  read -rp "请选择 [0-16]： " choice
   case "$choice" in
     1) change_password ;;
     2) change_port ;;
@@ -359,10 +586,15 @@ while true; do
     5) show_status ;;
     6) view_logs ;;
     7) doctor ;;
-    8) backup ;;
-    9) restore ;;
-    10) ocr_set ;;
-    11) build_check ;;
+    8) diag_report ;;
+    9) submenu_backup ;;
+    10) prune_snapshots ;;
+    11) export_report ;;
+    12) ocr_set ;;
+    13) build_check ;;
+    14) reset_admin_password ;;
+    15) submenu_users ;;
+    16) upgrade_me ;;
     0|q|Q) info "再见"; exit 0 ;;
     *) warn "无效选择，请重新输入" ;;
   esac

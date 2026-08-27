@@ -58,9 +58,23 @@ for (const mod of modules) {
   Object.defineProperties(config, Object.getOwnPropertyDescriptors(mod))
 }
 
+// 通用数据库辅助方法（供 qm 命令行等直接操作业务表使用）
+function dbRun(sql, params = []) {
+  return db.prepare(sql).run(...params)
+}
+function dbAll(sql, params = []) {
+  return db.prepare(sql).all(...params)
+}
+function dbGetOne(sql, params = []) {
+  return db.prepare(sql).get(...params)
+}
+
 // 读写方法（供系统设置接口调用）
 config.dbGet = dbGet
 config.dbSet = dbSet
+config.dbRun = dbRun
+config.dbAll = dbAll
+config.dbGetOne = dbGetOne
 config.migrateEnvToDb = migrateEnvToDb
 
 module.exports = config

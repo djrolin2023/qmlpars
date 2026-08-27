@@ -1,7 +1,17 @@
 {
-  "version": "1.1.14",
+  "version": "1.1.15",
   "updatedAt": "2026-08-27",
   "changelog": [
+    {
+      "version": "1.1.15",
+      "date": "2026-08-27",
+      "changes": [
+        "完成 tare.md 全部缺陷修复与 qm 增强：H5 内联车牌归属地数据(Bug#10)、批量增删事务(Bug#5)、build.gradle 显式签名(Bug#9)",
+        "install.sh 补全 IS-6/8/11/13（DEB822 换源、env 整行重写、qm 回退安装、JDK8 解析）",
+        "qm 控制面板扩展至 16 项：诊断包/备份二级菜单/清理抓拍/识别月报CSV/无密码重置/用户管理/一键升级",
+        "config.js 新增 dbRun/dbAll/dbGetOne 通用数据库辅助方法"
+      ]
+    },
     {
       "version": "1.1.14",
       "date": "2026-08-27",
