@@ -44,7 +44,7 @@ function renderRecent(rows) {
   if (!rows.length) { box.innerHTML = '<div class="empty">暂无识别记录</div>'; return; }
   box.innerHTML = rows.map(r => {
     const plate = escapeHtml(r.plateNo || '未知');
-    const ts = r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN', { hour12: false }) : '';
+    const ts = r.createdAt ? fmtDateFull(r.createdAt) : '';
     const conf = (r.confidence != null) ? Math.round(r.confidence * 100) + '%' : '';
     const typeCls = r.source === 'exit' ? 'exit' : (r.source === 'entry' ? 'entry' : 'unknown');
     const typeTxt = r.source === 'exit' ? '出口' : (r.source === 'entry' ? '入口' : '—');

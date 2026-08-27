@@ -774,6 +774,16 @@ export default config;
     res.download(filePath, name)
   })
 
+  // 公开下载指定历史安装包（落地页 / 扫码下载用，无需登录），路径穿越防护
+  router.get('/api/buildapp/download/:name', (req, res) => {
+    const name = path.basename(req.params.name) // 防目录穿越
+    const filePath = path.join(APP_OUT_DIR, name)
+    if (!fs.existsSync(filePath) || !name.toLowerCase().endsWith('.apk')) {
+      return res.status(404).json({ success: false, message: '安装包不存在' })
+    }
+    res.download(filePath, name)
+  })
+
   // 删除指定历史安装包（仅管理员），同步删除服务器文件；防目录穿越
   router.delete('/api/admin/buildapp/apks/:name', authMiddleware, (req, res) => {
     const name = path.basename(req.params.name) // 防目录穿越

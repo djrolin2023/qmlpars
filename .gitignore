@@ -52,3 +52,6 @@ buildapp.config.json
 # 在线升级临时文件
 .qm-upgrade/
 .qm-upgrade.lock
+
+# 不提交含隐私信息的本地笔记
+tare.md

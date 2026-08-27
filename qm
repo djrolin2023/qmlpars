@@ -71,6 +71,56 @@ press_return() {
   read -rp "$msg" _
 }
 
+# ---------- 17. 在场车辆 ----------
+show_present() {
+  local db="$QMLPARS_HOME/data/vehicles.db"
+  [ -f "$db" ] || { err "数据库不存在：$db"; press_return; return; }
+  echo -e "${BOLD}========== 近 30 分钟在场车辆 ==========${NC}"
+  local rows
+  rows=$(sqlite3 -noheader -separator '|' "$db" "
+    SELECT plateNo, channel, flag, MAX(createdAt)
+    FROM recognition_logs
+    WHERE createdAt >= datetime('now','localtime','-30 minutes')
+    GROUP BY plateNo ORDER BY MAX(createdAt) DESC LIMIT 100;" 2>/dev/null)
+  if [ -z "$rows" ]; then
+    warn "近 30 分钟无在场车辆记录"
+  else
+    local data=()
+    while IFS='|' read -r p ch fl t; do
+      local tag=""
+      [ "$fl" = "black" ] && tag="${RED}黑名单${NC}"
+      [ "$fl" = "white" ] && tag="${GREEN}白名单${NC}"
+      [ -z "$tag" ] && tag="普通"
+      data+=("$p|$ch|$tag|$t")
+    done <<< "$rows"
+    print_table "车牌|通道|类型|最近出现" "${data[@]}"
+  fi
+  echo -e "${BOLD}==========================================${NC}"
+  press_return
+}
+
+# ---------- 18. 黑白名单 ----------
+show_lists() {
+  local db="$QMLPARS_HOME/data/vehicles.db"
+  [ -f "$db" ] || { err "数据库不存在：$db"; press_return; return; }
+  for t in black white; do
+    local title="黑名单"; [ "$t" = "white" ] && title="白名单"
+    echo -e "${BOLD}========== $title ==========${NC}"
+    local rows
+    rows=$(sqlite3 -noheader -separator '|' "$db" "SELECT plateNo, reason, createdAt FROM vehicle_lists WHERE type='$t' ORDER BY createdAt DESC LIMIT 200;" 2>/dev/null)
+    if [ -z "$rows" ]; then
+      warn "（无记录）"
+    else
+      local data=()
+      while IFS='|' read -r p r c; do data+=("$p|${r:---}|$c"); done <<< "$rows"
+      print_table "车牌|备注|添加时间" "${data[@]}"
+    fi
+    echo ""
+  done
+  echo -e "${BOLD}======================================${NC}"
+  press_return
+}
+
 # ---------- 工具：重启服务 + nginx 重载 ----------
 restart_all() {
   if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "${SERVICE_NAME}.service"; then
@@ -703,9 +753,11 @@ while true; do
     "14|管理员密码重置|无旧密码时 root 紧急重置" \
     "15|H5 用户管理|增删改查 H5 用户（二级菜单）" \
     "16|一键升级系统|git pull + npm i + 重启" \
+    "17|在场车辆|近 30 分钟出现过的车辆" \
+    "18|黑白名单|查看黑/白名单车辆" \
     "0|退出|退出控制面板"
   echo -e "${BOLD}======================================${NC}"
-  read -rp "请选择 [0-16]： " choice
+  read -rp "请选择 [0-18]： " choice
   case "$choice" in
     1) change_password ;;
     2) change_port ;;
@@ -723,6 +775,8 @@ while true; do
     14) reset_admin_password ;;
     15) submenu_users ;;
     16) upgrade_me ;;
+    17) show_present ;;
+    18) show_lists ;;
     0|q|Q) info "再见"; exit 0 ;;
     *) warn "无效选择，请重新输入" ;;
   esac

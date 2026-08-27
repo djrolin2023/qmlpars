@@ -43,8 +43,25 @@ CREATE TABLE IF NOT EXISTS recognition_logs (
   confidence REAL,
   result TEXT,
   image TEXT,
+  userId TEXT,
+  userName TEXT,
+  username TEXT,
+  flag TEXT DEFAULT 'normal',
   createdAt TEXT DEFAULT (datetime('now','localtime'))
 );
+CREATE INDEX IF NOT EXISTS idx_recog_plate_channel_time ON recognition_logs(plateNo, channel, createdAt);
+
+-- 黑白名单：type='white' 白名单(放行/已知)  type='black' 黑名单(告警)
+CREATE TABLE IF NOT EXISTS vehicle_lists (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plateNo TEXT NOT NULL,
+  plateKey TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'black',
+  reason TEXT,
+  createdAt TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(plateKey, type)
+);
+CREATE INDEX IF NOT EXISTS idx_vl_plate ON vehicle_lists(plateKey);
 
 CREATE TABLE IF NOT EXISTS sys_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,6 +150,10 @@ try {
   // 兼容旧表：补加 username 列（记录操作人账号，展示为 账号/姓名）
   if (!cols.includes('username')) {
     db.exec('ALTER TABLE recognition_logs ADD COLUMN username TEXT')
+  }
+  // 兼容旧表：补加 flag 列（normal/white/black，标识黑白名单命中）
+  if (!cols.includes('flag')) {
+    db.exec("ALTER TABLE recognition_logs ADD COLUMN flag TEXT DEFAULT 'normal'")
   }
 } catch (e) {
   // 忽略

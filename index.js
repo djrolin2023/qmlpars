@@ -155,11 +155,43 @@ function userAuthMiddleware(req, res, next) {
 
 function genUserToken() { return crypto.randomBytes(24).toString('hex') }
 
+const { normalizePlate, toPlateKey } = require('./plate')
+// 同一车牌 + 同一通道在窗口期内重复识别将被去重（防抖），避免数据库被噪声刷爆
+const DEDUP_WINDOW_SEC = 300 // 5 分钟
+
 function logRecognition(plateNo, source, confidence, result, channel, image, userId, userName, username) {
+  const ch = channel || 'mini'
+  const norm = normalizePlate(plateNo)
+  const plateKey = norm ? toPlateKey(norm) : null
   try {
-    db.prepare('INSERT INTO recognition_logs (plateNo, source, channel, confidence, result, image, userId, userName, username) VALUES (?,?,?,?,?,?,?,?,?)')
-      .run(plateNo || '', source || '', channel || 'mini', confidence || 0, result || '', image || null, userId || null, userName || null, username || null)
-  } catch (e) { /* 忽略日志错误 */ }
+    // 1) 去重防抖：窗口期内同车牌+同通道已存在记录则跳过入库
+    if (plateKey) {
+      const dupRow = db.prepare(
+        `SELECT id FROM recognition_logs WHERE plateNo=? AND channel=? AND createdAt >= datetime('now','localtime','-${DEDUP_WINDOW_SEC} seconds') LIMIT 1`
+      ).get(norm, ch)
+      if (dupRow) {
+        // 命中去重：不重复写库，直接返回（仍保留本次识别结果供调用方）
+        return { deduped: true }
+      }
+    }
+    // 2) 黑白名单标记
+    let flag = 'normal'
+    if (plateKey) {
+      const white = db.prepare('SELECT id FROM vehicles WHERE plateKey=?').get(plateKey)
+      const black = db.prepare('SELECT id,reason FROM vehicle_lists WHERE plateKey=? AND type=?').get(plateKey, 'black')
+      if (black) {
+        flag = 'black'
+        // 黑名单告警：写入系统日志（便于 qm / 前端审计）
+        addSysLog('黑名单告警', norm, black.reason || '黑名单车辆出现', (username || userName || 'system'), null)
+      } else if (white) {
+        flag = 'white'
+      }
+    }
+    // 3) 入库
+    db.prepare('INSERT INTO recognition_logs (plateNo, source, channel, confidence, result, image, userId, userName, username, flag) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .run(norm || plateNo || '', source || '', ch, confidence || 0, result || '', image || null, userId || null, userName || null, username || null, flag)
+    return { deduped: false, flag }
+  } catch (e) { /* 忽略日志错误 */ return { deduped: false, error: String(e) } }
 }
 
 // 记录系统操作日志（登录/登出/编辑/删除等）

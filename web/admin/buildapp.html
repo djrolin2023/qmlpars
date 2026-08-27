@@ -214,6 +214,7 @@
         <div class="nav-item" data-tab="sign"><span class="ic" data-icon="sign"></span>签名配置</div>
         <div class="nav-item" data-tab="code"><span class="ic" data-icon="overview"></span>配置概览</div>
         <div class="nav-sep"></div>
+        <div class="nav-item" data-tab="distribute"><span class="ic" data-icon="qrcode"></span>分发下载</div>
         <div class="nav-item" data-tab="history"><span class="ic" data-icon="history"></span>历史安装包</div>
       </div>
 
@@ -414,6 +415,21 @@
           <div class="panel-nav">
             <button class="btn ghost" data-prev>← 上一步</button>
             <button class="btn primary" id="buildBtn">🚀 开始打包</button>
+          </div>
+        </div>
+
+        <!-- 分发下载（独立入口，含二维码） -->
+        <div class="panel" data-panel="distribute">
+          <h3>分发下载</h3>
+          <div class="panel-sub">扫码下载最新安装包到手机（二维码基于本机访问地址生成）</div>
+          <div class="op-bar" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;">
+            <button class="btn primary" id="refreshQrBtn">刷新二维码</button>
+            <button class="btn warn" id="restartSvcBtn">重启服务</button>
+          </div>
+          <div id="qrWrap" style="display:flex;flex-direction:column;align-items:flex-start;gap:10px;">
+            <div id="qrEmpty" class="default-note" style="display:none">暂无可用安装包，请先在「配置概览」点击「开始打包」，生成后回到此处刷新二维码。</div>
+            <img id="qrImg" alt="下载二维码" style="width:220px;height:220px;border-radius:12px;background:#fff;padding:10px;display:none;" />
+            <div id="qrMeta" style="color:#94a3b8;font-size:13px;"></div>
           </div>
         </div>
 
@@ -943,7 +959,7 @@
         try {
           let warn = ''
           try {
-            const latest = await fetch(API + '/api/buildapp/latest').then(r => r.json())
+            const latest = await fetch('/api/buildapp/latest').then(r => r.json())
             if (latest.success && latest.data && latest.data.outName === name) {
               warn = '\n\n⚠ 该安装包是当前「最新下载」指向的版本，删除后首页/落地页的下载按钮将失效，请确认。'
             }
@@ -953,6 +969,38 @@
           if (r.success) { loadApks() } else { alert(r.message || '删除失败') }
         } catch (e) { alert('删除异常：' + e.message) }
       }
+
+      // ===== 分发下载：二维码 + 重启服务 =====
+      const qrImg = $('qrImg'), qrEmpty = $('qrEmpty'), qrMeta = $('qrMeta')
+      async function loadQr() {
+        try {
+          const r = await fetch('/api/buildapp/latest').then(r => r.json())
+          if (!r.success || !r.data || !r.data.outName) {
+            qrImg.style.display = 'none'; qrMeta.textContent = ''; qrEmpty.style.display = 'block'
+            return
+          }
+          const data = r.data
+          const dlUrl = '/api/buildapp/download/' + encodeURIComponent(data.outName)
+          qrEmpty.style.display = 'none'
+          qrImg.style.display = 'block'
+          qrImg.src = '/api/buildapp/qrcode?url=' + encodeURIComponent(dlUrl) + '&size=240'
+          qrMeta.textContent = `包名：${data.appName || '-'}　版本：${data.version || '-'}　大小：${(data.size / 1024 / 1024).toFixed(2)} MB`
+        } catch (_) {
+          qrImg.style.display = 'none'; qrMeta.textContent = ''; qrEmpty.style.display = 'block'
+        }
+      }
+      $('refreshQrBtn').addEventListener('click', loadQr)
+      // 进入分发面板时自动刷新二维码
+      navItems.forEach(n => n.addEventListener('click', () => { if (n.dataset.tab === 'distribute') loadQr() }))
+      // 重启服务按钮
+      $('restartSvcBtn').addEventListener('click', async () => {
+        if (!confirm('确定要重启后端服务吗？\n重启期间页面会短暂不可用，systemd 将自动拉起服务。')) return
+        try {
+          const r = await api('/api/admin/restart', { method: 'POST' })
+          alert(r.message || '服务已重启，请稍候刷新页面')
+          setTimeout(() => location.reload(), 3500)
+        } catch (e) { alert('重启失败：' + (e.message || e)) }
+      })
 
       showStep(0)
     })()

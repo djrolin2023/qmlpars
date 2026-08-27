@@ -138,6 +138,16 @@ function formatNetRate(v) {
   return formatBytes(v) + '/s';
 }
 
+// 日期时间格式化（带中文星期），如：2026-08-28 周五 14:30:05
+function fmtDateFull(input) {
+  if (!input) return '';
+  const d = (input instanceof Date) ? input : new Date(input);
+  if (isNaN(d.getTime())) return String(input);
+  const w = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()];
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${w} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 function renderDepTag(dep) {
   const raw = (dep || '').toString().trim();
   if (!raw) return '<span class="muted">—</span>';

@@ -557,6 +557,55 @@ module.exports = function (ctx) {
     })
   })
 
+  // ============ 在场车辆 + 黑白名单 ============
+  // 7. 在场车辆：最近 N 分钟内出现过的车辆（按车牌去重，取最近一次）
+  router.get('/api/admin/present', authMiddleware, (req, res) => {
+    const mins = Math.max(1, Math.min(1440, parseInt(req.query.mins) || 30))
+    const rows = db.prepare(`
+      SELECT plateNo, channel, flag, MAX(createdAt) AS lastSeen,
+             (SELECT confidence FROM recognition_logs r2 WHERE r2.plateNo=rl.plateNo AND r2.createdAt=MAX(rl.createdAt)) AS confidence
+      FROM recognition_logs rl
+      WHERE createdAt >= datetime('now','localtime','-${mins} minutes')
+      GROUP BY plateNo
+      ORDER BY lastSeen DESC
+    `).all()
+    res.json({ success: true, count: rows.length, minutes: mins, items: rows })
+  })
+
+  // 8. 黑白名单列表
+  router.get('/api/admin/lists', authMiddleware, (req, res) => {
+    const type = req.query.type === 'white' ? 'white' : 'black'
+    const rows = db.prepare('SELECT id, plateNo, type, reason, createdAt FROM vehicle_lists WHERE type=? ORDER BY createdAt DESC').all(type)
+    res.json({ success: true, type, items: rows })
+  })
+
+  // 8.1 新增黑名单/白名单
+  router.post('/api/admin/lists', authMiddleware, (req, res) => {
+    const b = req.body || {}
+    const plateNo = normalizePlate(b.plateNo)
+    if (!plateNo) return res.status(400).json({ success: false, message: '车牌号不能为空' })
+    const type = b.type === 'white' ? 'white' : 'black'
+    const plateKey = toPlateKey(plateNo)
+    try {
+      db.prepare('INSERT INTO vehicle_lists (plateNo, plateKey, type, reason, createdAt) VALUES (?,?,?,?,?)')
+        .run(plateNo, plateKey, type, b.reason || null, nowLocal())
+      ctx.addSysLog('名单新增', `${type}:${plateNo}`, b.reason || null, req.admin.username, req.ip)
+      res.json({ success: true, message: '已添加' })
+    } catch (e) {
+      if (String(e).includes('UNIQUE')) return res.status(409).json({ success: false, message: '该车牌已在此名单中' })
+      res.status(500).json({ success: false, message: '添加失败：' + e })
+    }
+  })
+
+  // 8.2 删除名单项
+  router.delete('/api/admin/lists/:id', authMiddleware, (req, res) => {
+    const row = db.prepare('SELECT * FROM vehicle_lists WHERE id=?').get(req.params.id)
+    if (!row) return res.status(404).json({ success: false, message: '记录不存在' })
+    db.prepare('DELETE FROM vehicle_lists WHERE id=?').run(req.params.id)
+    ctx.addSysLog('名单删除', `${row.type}:${row.plateNo}`, null, req.admin.username, req.ip)
+    res.json({ success: true, message: '已删除' })
+  })
+
   // 6. 删除车辆
   router.delete('/api/admin/vehicles/:id', ...roleGate('admin', 'manager'), (req, res) => {
     const v = db.prepare('SELECT * FROM vehicles WHERE id = ?').get(req.params.id)
