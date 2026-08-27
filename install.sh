@@ -14,6 +14,19 @@
 # ============================================================
 set -e
 
+# IS-9：安全删除安装目录——仅当 HOME_DIR 落在受控前缀且非根/系统目录时才允许 rm -rf，
+# 避免交互误填 / 、/root、/wwwroot 父目录等导致整盘数据被删
+safe_rm_home() {
+  local d="$HOME_DIR"
+  case "$d" in
+    /|/root|/home|/usr|/var|/etc|/bin|/sbin|/www|/wwwroot|/opt) echo "!! 拒绝删除危险路径: $d"; exit 1 ;;
+  esac
+  case "$d" in
+    /wwwroot/*|/opt/*|/srv/*|/data/*|/home/*) rm -rf "$d" ;;
+    *) echo "!! HOME_DIR($d) 不在允许的删除前缀(/wwwroot /opt /srv /data /home)，拒绝删除以防误删"; exit 1 ;;
+  esac
+}
+
 # 隔离可能由 IDE/终端注入的 LD_LIBRARY_PATH（如 CodeBuddy CN 携带的 libstdc++ 会导致 node 崩溃）
 unset LD_LIBRARY_PATH
 unset LD_PRELOAD
@@ -210,7 +223,7 @@ install_android_chain() {
 
   # Node.js ≥18 校验（Capacitor 6 要求）
   if command -v node >/dev/null 2>&1; then
-    NODE_MAJOR="$(node -v | sed 's/v//;s/\..*//')"
+    NODE_MAJOR="$(node -v 2>/dev/null | sed 's/v//;s/\..*//' || echo 0)"
     if [ "$NODE_MAJOR" -ge 18 ]; then
       echo "==> Node.js $(node -v) 满足 ≥18 要求 ✓"
     else
@@ -327,7 +340,8 @@ PY
     # sdkmanager 依赖 java，确保 JAVA_HOME/bin 在 PATH 中
     [ -n "$JAVA_HOME" ] && export PATH="$JAVA_HOME/bin:$PATH"
     yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
-    if "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-34" "build-tools;34.0.0" >/dev/null 2>&1; then
+    # 注：platforms;android-34 已被 Google 标记过时下架，升级到 android-35（同步 variables.gradle compileSdk）
+    if "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-35" "build-tools;35.0.0" >/dev/null 2>&1; then
       echo "SDK 组件安装完成 ✓"
     else
       echo "WARN: SDK 组件安装失败（APP 打包将不可用，但服务不受影响）"
@@ -609,7 +623,7 @@ echo "==> 内部监听端口：$PORT"
 step_start "解压安装包到 $HOME_DIR"
 if [ -f "$SCRIPT_DIR/$PKG_NAME" ]; then
   echo "==> 检测到本地安装包 $PKG_NAME，解压到 $HOME_DIR"
-  rm -rf "$HOME_DIR"
+  safe_rm_home
   mkdir -p "$HOME_DIR"
   tar xzf "$SCRIPT_DIR/$PKG_NAME" -C "$HOME_DIR"
   SRC_DIR="$HOME_DIR"
@@ -635,7 +649,7 @@ else
     echo "!! 安装包（Release tar）下载失败，自动回退到 git clone 源码..."
     # 回退：直接从 Gitee / GitHub 克隆源码到安装目录（无需预打包 tar）
     GIT_OK=0
-    rm -rf "$HOME_DIR"
+    safe_rm_home
     mkdir -p "$HOME_DIR"
     # 依次尝试：gitee（国内快） -> github 代理加速（ghproxy） -> github 镜像（gitclone.com）
     for GIT_URL in "https://gitee.com/dj_rolin/qmlpars.git" "https://ghproxy.com/https://github.com/djrolin2023/qmlpars.git" "https://gitclone.com/github.com/djrolin2023/qmlpars.git"; do
@@ -659,7 +673,7 @@ else
     fi
     echo "==> 已从源码仓库克隆成功，跳过 tar 解压"
   else
-    rm -rf "$HOME_DIR"
+    safe_rm_home
     mkdir -p "$HOME_DIR"
     tar xzf "$TMP_PKG" -C "$HOME_DIR"
     SRC_DIR="$HOME_DIR"
@@ -689,8 +703,9 @@ chmod 600 "$SRC_DIR/.env" 2>/dev/null || true
 # 把域名、端口写入 .env
 set_env() {
   local key="$1" val="$2"
+  # 用 | 作 sed 分隔符：避免用户输入的密码/域名含 # 时 sed 命令 garbled
   if grep -q "^${key}=" "$SRC_DIR/.env" 2>/dev/null; then
-    sed -i "s#^${key}=.*#${key}=${val}#" "$SRC_DIR/.env"
+    sed -i "s|^${key}=.*|${key}=${val}|" "$SRC_DIR/.env"
   else
     echo "${key}=${val}" >> "$SRC_DIR/.env"
   fi
@@ -754,10 +769,11 @@ step_start "安装编译依赖与 npm 依赖"
 #  - sharp（二维码/图片处理依赖，qr-image 生成二维码也依赖本服务可用）需要 libvips
 echo "==> 安装系统编译依赖（better-sqlite3 / sharp 等原生模块需要）..."
 case "$PKG_MGR" in
-  apt) $PKG_INSTALL python3 make g++ build-essential libvips libvips-dev >/dev/null 2>&1 || true ;;
+  # 注意：Debian/Ubuntu 无 libvips 虚包，正确包名为 libvips42（运行时）+ libvips-dev（头文件）
+  apt) $PKG_INSTALL python3 make g++ build-essential libvips42 libvips-dev >/dev/null 2>&1 || true ;;
   dnf|yum) $PKG_INSTALL python3 make gcc-c++ vips vips-devel >/dev/null 2>&1 || true ;;
   zypper) $PKG_INSTALL python3 make gcc-c++ libvips-devel >/dev/null 2>&1 || true ;;
-  pacman) $PKG_INSTALL python make gcc libvips >/dev/null 2>&1 || true ;;
+  pacman) $PKG_INSTALL python3 make gcc libvips >/dev/null 2>&1 || true ;;
   apk) $PKG_INSTALL python3 make g++ vips-dev >/dev/null 2>&1 || true ;;
 esac
 
@@ -789,13 +805,14 @@ done
 # 校验关键依赖是否就位（缺一个就报错退出，避免部署后功能缺失）
 # 注：本项目用内置 crypto 做密码哈希，不依赖 bcryptjs
 echo "==> 校验关键运行依赖..."
-for dep in sharp qr-image better-sqlite3 express; do
+# 注：本项目已迁移到 Node ≥22.5 内置的 node:sqlite（见 db.js），不依赖 better-sqlite3
+for dep in sharp qr-image express; do
   if [ ! -d "node_modules/$dep" ]; then
     echo "!! 依赖缺失：$dep 未安装成功，项目将无法正常运行"
     exit 1
   fi
 done
-echo "   关键依赖均已就位：sharp / qr-image / better-sqlite3 / express"
+echo "   关键依赖均已就位：sharp / qr-image / express"
 step_done "安装编译依赖与 npm 依赖"
 
 ###########################################################
@@ -858,11 +875,16 @@ After=network.target
 
 [Service]
 Type=simple
+User=root
 WorkingDirectory=${SRC_DIR}
-ExecStart=/usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root ${NODE_BIN} ${SRC_DIR}/index.js
+# HOME 不硬编码 /root：非 root 用户安装时，env -i 隔离环境下 HOME 必须是运行用户的 home，
+# 否则 node:sqlite / gradle 等写入 $HOME/.cache 会 EPERM
+ExecStart=/usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=${HOME:-/root} ${NODE_BIN} ${SRC_DIR}/index.js
 Restart=always
 RestartSec=3
 Environment=NODE_ENV=production
+# IS-15：兜底加载 Android 构建链环境变量（文件不存在也不报错）
+EnvironmentFile=-/etc/qmlpars-android.env
 
 [Install]
 WantedBy=multi-user.target
@@ -944,6 +966,8 @@ nginx -t && systemctl reload nginx || systemctl restart nginx
 if [ "$IS_IP" -eq 1 ]; then
   echo "==> 检测到 IP 模式：仅 HTTP 反代，不申请证书"
   echo "    如需 HTTPS，可将证书放到 /etc/ssl/qmlpars/ 后手动修改 $NGINX_CONF"
+  # IS-14：IP 模式无证书，BASE_URL 必须为 http，否则后台显示 https://IP 导致 SSL 错误
+  set_env BASE_URL "http://$DOMAIN"
 else
   echo "==> 域名模式：尝试自动申请 Let's Encrypt 证书"
   CUSTOM_CRT="/etc/ssl/qmlpars/fullchain.pem"
@@ -972,7 +996,9 @@ server {
 }
 EOF
   else
-    if certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m admin@${DOMAIN} --redirect; then
+    # 邮箱用主域名（取最后两段），避免 admin@三级/四级子域名被邮件服务商判 spam
+    CERT_EMAIL="admin@$(echo "$DOMAIN" | awk -F. '{n=NF; print $(n-1)"."$n}')"
+    if certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$CERT_EMAIL" --redirect; then
       echo "==> Let's Encrypt 证书申请成功 ✓"
     else
       echo "!! 自动申请失败（可能域名未解析到本机 / 80端口未开放）。已保留 HTTP 反代，可稍后手动执行："
@@ -985,7 +1011,8 @@ EOF
   systemctl enable certbot.timer 2>/dev/null || true
   systemctl start certbot.timer 2>/dev/null || true
   # 兜底：crontab 每日尝试续期（certbot 仅在临近到期时才真正更新）
-  ( crontab -l 2>/dev/null | grep -v 'certbot renew' ; echo "0 3 * * * certbot renew --quiet --nginx && systemctl reload nginx" ) | crontab -
+  # 先尾加空行，避免与用户已有最后一条 crontab 粘连导致失效（IS-12）
+  ( crontab -l 2>/dev/null | grep -v 'certbot renew'; echo; echo "0 3 * * * certbot renew --quiet --nginx && systemctl reload nginx" ) | crontab -
   echo "==> 证书续期已配置（certbot.timer + 每日 3:00 cron 兜底）"
 fi
 
