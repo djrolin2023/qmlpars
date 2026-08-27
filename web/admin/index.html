@@ -38,16 +38,16 @@
         <button class="menu-toggle" id="menu-toggle" aria-label="菜单">☰</button>
         <span id="page-title">数据大屏</span>
         <div class="tb-right">
-          <span class="time-now" id="time-now">
-            <span class="time-date">--</span>
-            <span class="time-week">--</span>
-            <span class="time-clock">--:--:--</span>
+          <span class="time-now" id="time-now" style="display:inline-flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums;line-height:1;">
+            <span class="time-date" style="line-height:1;">--</span>
+            <span class="time-clock" style="line-height:1;">--:--:--</span>
+            <span class="time-week" style="color:#f5b14c;line-height:1;">--</span>
           </span>
+          <button id="topbar-restart" class="tb-restart hidden" title="重启服务（systemd 自动拉起）" style="margin-left:10px;padding:6px 14px;border:1px solid #3a8bff;background:transparent;color:#3a8bff;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;">重启服务</button>
           <div class="user-dropdown" id="user-dd">
             <button class="tb-user" id="tb-user">管理员</button>
             <div class="user-menu" id="user-menu">
               <a id="menu-chg-pass">修改密码</a>
-              <a id="menu-restart" class="restart-item hidden" title="重启后将由 systemd 自动拉起服务">重启服务</a>
               <a id="menu-logout">退出登录</a>
             </div>
           </div>
@@ -133,12 +133,17 @@
         }
       } catch (_) { /* 备案为非关键信息，失败静默 */ }
 
-      // 时钟
+      // 时钟（日期 + 星期 + 时间，分别填入对应 span）
+      const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
       const pad = n => String(n).padStart(2, '0');
       const tick = () => {
         const d = new Date();
-        const el = document.getElementById('time-now');
-        if (el) el.textContent = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+        const dateEl = document.getElementById('time-date');
+        const weekEl = document.getElementById('time-week');
+        const clockEl = document.getElementById('time-clock');
+        if (dateEl) dateEl.textContent = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+        if (weekEl) weekEl.textContent = WEEK[d.getDay()];
+        if (clockEl) clockEl.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
       };
       tick(); setInterval(tick, 1000);
 

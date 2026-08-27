@@ -1,0 +1,16 @@
+:root{ --bg:#0F1419; --card:#1D2733; --line:#2E3A4B; --glass:rgba(29,39,51,.55); --glass-border:rgba(120,200,255,.18); --neon:#00D4FF; --txt:#FFFFFF; --sub:#86909C; --ok:#36CFC9; --no:#F76560; --accent:#1890FF; --maxw:680px; }
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body{
+  margin:0; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif;
+  color:var(--txt);
+  background-color:#0B1118;
+  background-image:
+    radial-gradient(700px 480px at 10% -8%, rgba(0,180,255,.18), transparent 60%),
+    radial-gradient(620px 480px at 100% 0%, rgba(54,207,201,.13), transparent 55%),
+    radial-gradient(560px 560px at 85% 112%, rgba(0,120,255,.13), transparent 60%),
+    linear-gradient(rgba(120,200,255,.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120,200,255,.05) 1px, transparent 1px);
+  background-size: auto, auto, auto, 30px 30px, 30px 30px;
+  background-attachment: fixed;
+}

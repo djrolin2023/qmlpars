@@ -77,11 +77,14 @@ function compressImage(file, opts) {
 }
 let plateAreas = {};       // 全国车牌地区映射（省份简称 -> {province, cities}）
 
-// 加载全国车牌归属地映射
+// 加载全国车牌归属地映射（Bug#10：优先用 common.js 内联的 PLATE_AREAS_DATA，避免子路径 404）
 async function loadPlateAreas() {
+  if (typeof PLATE_AREAS_DATA !== 'undefined' && PLATE_AREAS_DATA) {
+    plateAreas = PLATE_AREAS_DATA;
+  }
   try {
     const r = await fetch('/admin/js/plate-areas.json', { cache: 'no-cache' });
-    if (r.ok) plateAreas = await r.json();
+    if (r.ok) { const d = await r.json(); if (d && typeof d === 'object') plateAreas = d; }
   } catch (e) { /* 不影响主流程 */ }
 }
 

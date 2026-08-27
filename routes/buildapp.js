@@ -12,7 +12,10 @@ module.exports = function (ctx) {
 
   const ROOT = ctx.root
   const APP_DIR = path.join(ROOT, 'android-app')
-  const WWW_DIR = path.join(ROOT, 'web', 'android')
+  // 安卓 H5 源目录（用户维护，按需与 web/h5 区分）；打包时拷贝到临时 staging 目录处理，避免污染源码
+  const ANDROID_SRC = path.join(ROOT, 'web', 'Android')
+  // staging 目录（构建过程产物，不进 git），注入 app-config / 修正路径后同步到 android-app/www
+  const WWW_DIR = path.join(ROOT, 'web', '.build-Android')
   const APP_OUT_DIR = path.join(ROOT, 'app', 'downloads')
   const KEYSTORE = path.join(APP_DIR, 'qianming.keystore')
   const VERSION_FILE = path.join(ROOT, 'version.json')
@@ -214,8 +217,10 @@ module.exports = function (ctx) {
   async function writeAppConfig(serverUrl) {
     const url = (serverUrl || '').replace(/\/+$/, '')
     const js = 'window.__API_BASE__=' + JSON.stringify(url) + ';\n'
+      + 'window.__CHANNEL__=' + JSON.stringify('qmlpars_APP') + ';\n'
       + 'window.APP_CONFIG=' + JSON.stringify({ serverUrl: url, buildAt: new Date().toISOString() }) + ';\n'
-    // web/h5 页面引用 ./app-config.js，即 www/app-config.js（与拷贝目录一致，已扁平化去掉 cpsb 层）
+    // 打包页面引用 ./app-config.js，即 www/app-config.js（与拷贝目录一致，已扁平化去掉 cpsb 层）
+    // __CHANNEL__='qmlpars_APP' 供前端识别记录上报渠道，使后台可区分「安卓APP」与「H5网页」来源
     await fsp.writeFile(path.join(WWW_DIR, 'app-config.js'), js)
   }
 
@@ -481,7 +486,7 @@ export default config;
         // APP 界面与 WEB 端完全一致：直接打包 web/h5 整目录到 www（扁平化，不再嵌 cpsb 层），
         // h5 页面内已统一使用相对路径（./css、./js 等），WEB 端 /cpsb 路由与 APP 端 / 根均可正确解析。
         // 仅额外注入 app-config.js 提供服务器地址，并把 /static 资源带进来（离线不 404）。
-        await copyDir(path.join(ROOT, 'web', 'h5'), WWW_DIR)
+        await copyDir(ANDROID_SRC, WWW_DIR)
         if (fs.existsSync(path.join(ROOT, 'static', 'images'))) {
           await copyDir(path.join(ROOT, 'static', 'images'), path.join(WWW_DIR, 'static', 'images'))
         }
@@ -494,8 +499,8 @@ export default config;
         // 引导首页（buildIndexHtml 内部跳转 index.html，扁平化后页面直接在根）
         await fsp.writeFile(path.join(WWW_DIR, 'index.html'), buildIndexHtml(appName))
         await writeAppConfig(serverUrl)
-        log('H5 资源已拷贝（web/h5 → www，已扁平化去掉 cpsb 层，与 WEB 端一致）')
-        // 复制包源位于 web/android；Capacitor 仍读取 android-app/www，这里同步过去
+        log('安卓 H5 资源已拷贝（web/android → www，已扁平化去掉 cpsb 层，渠道标记为 android）')
+        // 源为 web/android；Capacitor 仍读取 android-app/www，这里同步过去
         const CAP_WWW = path.join(APP_DIR, 'www')
         await fsp.rm(CAP_WWW, { recursive: true, force: true })
         await copyDir(WWW_DIR, CAP_WWW)

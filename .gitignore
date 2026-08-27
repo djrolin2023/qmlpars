@@ -55,3 +55,6 @@ buildapp.config.json
 
 # 不提交含隐私信息的本地笔记
 tare.md
+
+# 安卓 APP 打包 staging 目录（构建产物，非源码）
+web/.build-Android/

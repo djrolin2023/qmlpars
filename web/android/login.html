@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <script src="./app-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>登录 - {SITE}</title>
+<link rel="icon" href="/static/images/logo.png">
+<style>
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; margin:0; }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif;
+    background-color:#0B1118;
+    background-image:
+      radial-gradient(700px 480px at 10% -8%, rgba(0,180,255,.18), transparent 60%),
+      radial-gradient(620px 480px at 100% 0%, rgba(54,207,201,.13), transparent 55%),
+      radial-gradient(560px 560px at 85% 112%, rgba(0,120,255,.13), transparent 60%),
+      linear-gradient(rgba(120,200,255,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(120,200,255,.05) 1px, transparent 1px);
+    background-size: auto, auto, auto, 30px 30px, 30px 30px;
+    background-attachment: fixed;
+    color:#fff; min-height:100%; display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .wrap{ width:100%; max-width:400px; }
+  .brand{ text-align:center; margin-bottom:26px; }
+  .brand .brand-logo{ margin:0 auto 14px; display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .brand .brand-logo.brand-horizontal{ flex-direction:row; }
+  .brand .brand-logo-img{ max-width:160px; max-height:72px; object-fit:contain; }
+  .brand .brand-cap{ font-size:18px; font-weight:700; letter-spacing:.5px; color:#fff; }
+  .brand h1{ margin:0 0 6px; font-size:20px; letter-spacing:.5px; }
+  .brand p{ margin:0; color:#86909C; font-size:13px; }
+  .card{
+    background:rgba(29,39,51,.6); border:1px solid rgba(120,200,255,.22);
+    border-radius:20px; padding:28px 24px 24px; backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+    box-shadow:0 20px 60px rgba(0,130,200,.3);
+  }
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; font-size:13px; color:#86909C; margin-bottom:8px; }
+  .input-wrap{ position:relative; }
+  .input-wrap input{
+    width:100%; padding:13px 44px 13px 14px; font-size:15px; color:#fff;
+    background:rgba(11,20,36,.6); border:1px solid rgba(120,200,255,.18); border-radius:12px; outline:none;
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .input-wrap input:focus{ border-color:#00D4FF; box-shadow:0 0 0 3px rgba(0,212,255,.18); }
+  .input-wrap input::placeholder{ color:#5b6675; }
+  .pwd-toggle{
+    position:absolute; right:10px; top:50%; transform:translateY(-50%);
+    width:28px; height:28px; border:none; background:none; cursor:pointer; color:#86909C;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .pwd-toggle:hover{ color:#1890ff; }
+  .pwd-toggle svg{ width:20px; height:20px; }
+  .row-between{ display:flex; align-items:center; justify-content:space-between; margin:4px 0 18px; }
+  .auto-login{ display:flex; align-items:center; gap:7px; color:#c9d3df; font-size:13px; cursor:pointer; user-select:none; }
+  .auto-login input{ width:16px; height:16px; accent-color:#1890ff; cursor:pointer; }
+  .forgot{ color:#5b9bff; font-size:13px; text-decoration:none; }
+  .submit{
+    width:100%; padding:14px; border:none; border-radius:12px; cursor:pointer;
+    background:#1890ff; color:#fff;
+    font-size:16px; font-weight:700; letter-spacing:1px; transition:opacity .2s, transform .1s, background .2s;
+  }
+  .submit:hover{ opacity:.92; }
+  .submit:active{ transform:translateY(1px); }
+  .submit:disabled{ opacity:1; cursor:not-allowed; background:#33414f; color:#7a8794; }
+  .err{ min-height:18px; margin:10px 2px 0; color:#F76560; font-size:13px; text-align:left; }
+  .foot{ text-align:center; margin-top:22px; color:#5b6675; font-size:12px; line-height:1.7; }
+  .foot a{ color:#5b9bff; text-decoration:none; }
+  .foot .police{ height:16px; width:auto; vertical-align:middle; margin-right:4px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <div class="brand-logo" id="brandLogo"></div>
+      <h1 data-site>物业车辆识别系统</h1>
+      <p>物业车辆识别系统 · 用户登录</p>
+    </div>
+
+    <form class="card" id="loginForm" onsubmit="return false">
+      <div class="field">
+        <label for="loginUser">登录账号</label>
+        <div class="input-wrap">
+          <input id="loginUser" placeholder="账号 / 手机号 / 工号" autocomplete="username" autofocus>
+        </div>
+      </div>
+      <div class="field">
+        <label for="loginPass">密码</label>
+        <div class="input-wrap">
+          <input id="loginPass" type="password" placeholder="请输入密码" autocomplete="current-password">
+          <button type="button" class="pwd-toggle" id="pwdToggle" aria-label="显示/隐藏密码">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+      </div>
+      <div class="row-between">
+        <label class="auto-login"><input id="autoLogin" type="checkbox"> 自动登录</label>
+      </div>
+      <button type="submit" class="submit">登 录</button>
+      <div class="login-ip-tip" id="loginIpTip" style="display:none"></div>
+      <div class="err" id="loginErr"></div>
+    </form>
+
+    <div class="foot">
+      <span id="copyrightLine"></span><br>
+      <span id="beianLine"></span>
+    </div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script>
+    bindCpsbLogin();
+    applySiteName();
+    applyBrandLogo(document.getElementById('brandLogo'), 'icon');
+    applyFavicon();
+    applyBeian();
+  </script>
+</body>
+</html>

@@ -295,13 +295,14 @@ function bindLogout() {
 }
 
 function bindRestart() {
-  const item = document.getElementById('menu-restart');
-  if (!item) return;
   const role = localStorage.getItem('qmlpars_admin_role') || 'admin';
   // 仅 admin / manager 可见
-  if (role !== 'admin' && role !== 'manager') { item.style.display = 'none'; return; }
-  item.classList.remove('hidden');
-  item.onclick = async () => {
+  if (role !== 'admin' && role !== 'manager') {
+    const t = document.getElementById('topbar-restart');
+    if (t) t.style.display = 'none';
+    return;
+  }
+  const doRestart = async () => {
     if (!confirm('确定要重启后端服务吗？\n重启期间页面会短暂不可用，systemd 将自动拉起服务。')) return;
     try {
       const r = await api('/api/admin/restart', { method: 'POST' });
@@ -312,6 +313,8 @@ function bindRestart() {
       toast(isNetworkError(e) ? '重启请求失败，请检查网络' : '重启失败');
     }
   };
+  const tb = document.getElementById('topbar-restart');
+  if (tb) { tb.classList.remove('hidden'); tb.onclick = doRestart; }
 }
 
 function bindMenuToggle() {

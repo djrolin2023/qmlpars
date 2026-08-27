@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#1d2733">
+  <title>车辆管理</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="vehicles.css">
+  <style>
+    html,body{ margin:0; color:var(--text,#e8edf2); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+    .veh-page{ padding:12px 12px 16px; }
+    #siteFooter{ text-align:center; font-size:12px; color:var(--muted,#9fb0c0); padding:18px 10px 22px; line-height:1.7; }
+    #siteFooter a{ color:#9fc0ff; text-decoration:none; }
+    #siteFooter .police{ height:13px; vertical-align:-2px; margin-right:4px; }
+    .footer-logo{ margin:0 auto 10px; display:flex; justify-content:center; }
+    .footer-logo .brand-logo-img{ max-height:40px; max-width:160px; }
+  </style>
+</head>
+<body>
+  <div class="veh-page">
+    <div class="h5-wrap">
+      <div class="toolbar">
+        <div class="toolbar-row toolbar-search-row">
+          <input id="search" class="search-input" placeholder="搜索车牌 / 车主 / 电话">
+          <select id="dep-filter"><option value="">全部部门</option></select>
+          <button class="btn primary" id="query-btn">查询</button>
+        </div>
+        <div class="toolbar-row toolbar-action-row">
+          <button class="btn" id="refresh-btn">刷新</button>
+          <button class="btn primary add" id="add-btn">+ 新增车辆</button>
+          <button class="btn danger" id="batch-del-btn" style="display:none">批量删除</button>
+        </div>
+        <span id="sel-count" style="color:var(--muted,#9fb0c0);font-size:13px;margin-left:4px"></span>
+      </div>
+
+      <div class="panel" id="vehPanel" style="display:block;padding:0;overflow:auto">
+        <div class="plate-list" id="list"></div>
+        <div id="empty" class="empty" style="display:none">暂无车辆</div>
+      </div>
+
+      <div class="pager" id="pager"></div>
+    </div>
+
+    <!-- 详情模态框 -->
+    <div class="modal-mask" id="detailModal">
+      <div class="modal" style="width:min(420px,96vw)">
+        <div class="modal-head detail-head">
+          <div class="modal-plate-wrap"><span class="plate-no" id="dPlate">粤B12345</span></div>
+          <div class="modal-sub" id="dSub">归属地</div>
+          <div class="x" id="detail-close">×</div>
+        </div>
+        <div class="modal-body">
+          <div class="d-row d-row-owner">
+            <div class="d-label">车主</div>
+            <div class="d-value" id="dOwner">-</div>
+            <div class="d-thumb" id="dThumb" title="点击查看大图">
+              <img id="dThumbImg" alt="车辆缩略图" style="display:none">
+              <div class="d-thumb-empty" id="dThumbEmpty" aria-label="无车辆图片" title="暂无车辆图片">
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                  <path fill="currentColor" d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h.5a1.5 1.5 0 0 1 1.5 1.5V17a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4.5A1.5 1.5 0 0 1 4.5 11H5zm2.1 0h9.8l-1.1-3.2a.5.5.5 0 0 0-.47-.35H8.67a.5.5.5 0 0 0-.47.35L7.1 11zM7.5 14a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4zm9 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div class="d-row"><div class="d-label">电话</div><div class="d-value" id="dPhone">-</div></div>
+          <div class="d-row"><div class="d-label">部门</div><div class="d-value" id="dDept">-</div></div>
+          <div class="d-row"><div class="d-label">有效期</div><div class="d-value" id="dValid">-</div></div>
+          <div class="d-row"><div class="d-label">备注</div><div class="d-value" id="dRemark">-</div></div>
+        </div>
+        <div class="d-foot">
+          <button class="btn ghost danger-text" id="detail-del">删除</button>
+          <button class="btn ghost" id="detail-edit">编辑</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-mask" id="modal">
+      <div class="modal" id="modal-box">
+        <div class="modal-head"><span id="modal-title">新增车辆</span><span class="x" id="modal-close">×</span></div>
+        <div class="modal-body">
+          <div class="batch-single" id="batch-single">
+          <div class="form-row photo-row">
+            <div class="photo-col">
+              <label>车辆照片</label>
+              <div class="photo-box" id="v-photo-box">
+                <!-- iOS Safari 对 hidden/display:none 的 file input 调用 .click() 不弹相机，故用无障碍隐藏样式；
+                   capture="environment" 强制 iOS 打开后置摄像头拍照（Android 亦生效） -->
+              <input type="file" id="v-photo-file" accept="image/*" capture="environment"
+                     style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">
+                <div class="photo-placeholder" id="v-photo-empty">
+                  <div class="photo-plus" aria-label="拍照">
+                    <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  </div>
+                  <div class="photo-tip">点击拍照或从相册选择图片</div>
+                </div>
+                <div class="photo-loading" id="v-photo-loading" style="display:none">上传中…</div>
+                <div class="photo-done" id="v-photo-done" style="display:none">
+                  <img id="v-photo-img" alt="车辆照片">
+                  <button class="photo-remove" id="v-photo-remove" type="button" title="移除照片">×</button>
+                </div>
+              </div>
+            </div>
+            <div class="plate-col">
+              <div class="plate-field">
+                <label><span class="req">*</span>车牌号（上传照片后可自动识别）</label>
+                <input id="f-plate" placeholder="如 粤B12345" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" lang="en" inputmode="text">
+                <div class="plate-area-row">
+                  <span class="plate-area-hint" id="plate-area"></span>
+                  <span class="plate-dup-hint" id="plate-dup" style="display:none"></span>
+                </div>
+              </div>
+              <div class="owner-row">
+                <div class="owner-field">
+                  <label><span class="req">*</span>车主</label>
+                  <input id="f-owner" placeholder="车主姓名">
+                </div>
+                <div class="phone-field">
+                  <label>手机号</label>
+                  <input id="f-phone" placeholder="联系电话">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <label><span class="req">*</span>部门（输入后回车添加，可添加多个，点击 × 删除）</label>
+            <div class="tag-input-wrap" id="dep-tags-wrap">
+              <div class="tag-input-box" id="dep-tags"></div>
+              <input id="f-department" placeholder="输入部门后回车，或点击下方常用部门" autocomplete="off">
+            </div>
+            <div class="tag-suggest" id="dep-suggest"></div>
+          </div>
+          <div class="form-row">
+            <label>有效期（开始时间默认今天，结束时间留空为长期）</label>
+            <div class="date-range" id="valid-until-field">
+              <span class="date-rng-item"><span class="date-rng-cap">开始</span><input type="text" id="f-valid-start" readonly onclick="openDatePicker()" onfocus="openDatePicker()" placeholder="开始日期"></span>
+              <span class="date-rng-sep">~</span>
+              <span class="date-rng-item"><span class="date-rng-cap">结束</span><input type="text" id="f-valid-end" readonly onclick="openDatePicker()" onfocus="openDatePicker()" placeholder="结束日期"></span>
+              <button type="button" class="date-clear" id="valid-until-clear" onclick="clearValidUntil()" title="清除日期" style="display:none">×</button>
+            </div>
+            <div class="date-picker" id="date-picker">
+              <div class="dp-head">
+                <button type="button" class="dp-nav" onclick="dpShift(-1)">‹</button>
+                <span class="dp-title" id="dp-title"></span>
+                <button type="button" class="dp-nav" onclick="dpShift(1)">›</button>
+              </div>
+              <div class="dp-week">
+                <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+              </div>
+              <div class="dp-grid" id="dp-grid"></div>
+              <div class="dp-tip" id="dp-tip"></div>
+              <div class="dp-foot">
+                <button type="button" class="dp-btn" onclick="dpToday()">今天</button>
+                <button type="button" class="dp-btn" onclick="closeDatePicker()">完成</button>
+              </div>
+            </div>
+            <div class="valid-duration" id="valid-duration"></div>
+            <div class="hint">不填写结束时间表示长期有效；填写结束时间后，将自动显示有效期时长</div>
+          </div>
+          <div class="form-row">
+            <label>备注</label>
+            <textarea id="f-remark" rows="3" placeholder="备注信息（选填）"></textarea>
+          </div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" id="modal-cancel">取消</button>
+          <button class="btn primary" id="modal-save">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="lightbox" id="lightbox"><img id="lightbox-img" alt="大图"></div>
+  </div>
+
+  <!-- 页脚（与车牌页一致：LOGO + 版权 + 使用说明/隐私 + 备案） -->
+  <footer id="siteFooter">
+    <span id="copyrightLine"></span><br>
+    <a href="javascript:void(0)" id="openUsage">使用说明</a> &nbsp;|&nbsp;
+    <a href="javascript:void(0)" id="openPrivacy">隐私权限</a><br>
+    <span id="beianLine"></span>
+  </footer>
+
+  <!-- 使用说明 / 隐私权限 模态框 -->
+  <div class="modal-mask" id="usageModal" style="position:fixed;inset:0;align-items:center;justify-content:center;background:rgba(6,11,20,.92);backdrop-filter:blur(6px);padding:20px">
+    <div class="modal" style="width:min(680px,94vw);max-height:86vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px">
+      <div class="modal-head" style="font-size:17px;font-weight:700;color:#fff;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+        <span>使用说明</span><span class="x" id="usageModalX" style="cursor:pointer;font-size:22px;line-height:1;color:var(--sub)">×</span>
+      </div>
+      <div class="modal-body" style="color:var(--sub);font-size:14px;line-height:1.8">
+        <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+          <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">一、车辆管理</h3>
+          <p style="margin:0">通过“新增车辆”可以添加、编辑、删除车辆信息，支持单条录入与批量录入。可填写车牌号、车主、部门、手机号、有效期与备注。</p>
+        </div>
+        <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+          <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">二、账号说明</h3>
+          <p style="margin:0">点击顶部“当前用户”可展开下拉菜单，进行“修改密码”或“退出登录”。如忘记密码，请联系管理员重置。</p>
+        </div>
+        <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px">
+          <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">三、注意事项</h3>
+          <p style="margin:0">车辆与账号数据存储于您部署本系统的服务器本地数据库中。您可以随时查看、修改或删除录入的车辆数据。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="privacyModal" style="position:fixed;inset:0;align-items:center;justify-content:center;background:rgba(6,11,20,.92);backdrop-filter:blur(6px);padding:20px">
+    <div class="modal" style="width:min(680px,94vw);max-height:86vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px">
+      <div class="modal-head" style="font-size:17px;font-weight:700;color:#fff;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+        <span>隐私权限</span><span class="x" id="privacyModalX" style="cursor:pointer;font-size:22px;line-height:1;color:var(--sub)">×</span>
+      </div>
+      <div class="modal-body" style="color:var(--sub);font-size:14px;line-height:1.8">
+        <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+          <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">一、信息收集与使用</h3>
+          <p style="margin:0">本系统仅收集您主动录入的车牌、车主、联系方式等车辆管理信息，用于识别、登记与查询。</p>
+        </div>
+        <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+          <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">二、数据存储</h3>
+          <p style="margin:0">车辆与账号数据存储于您部署本系统的服务器本地数据库中，不会主动向第三方传输。数据安全由部署方负责管理。</p>
+        </div>
+        <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px">
+          <h3 style="margin:0 0 8px;color:var(--accent);font-size:15px">三、您的权利</h3>
+          <p style="margin:0">您可以随时查看、修改或删除您录入的车辆数据；停止使用后可联系管理员清除账号及相关信息。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/common.js?v=20260826g"></script>
+  <script src="js/admin-bridge.js?v=20260826g"></script>
+  <script src="js/h5-vehicles.js?v=20260826g"></script>
+  <script>
+  (function(){
+    // 不再做顶层拦截：无论 iframe 还是独立打开都直接渲染车辆列表。
+    // 无 admin token 时 /api/admin/vehicles 返回 401，loadVehicles 内部会显示"登录已失效，点击重新登录"（用户主动点击才顶层跳）。
+    // 这样 H5 主页的车辆管理 Tab 不会再被顶层跳转带走整个 webview，恢复用户原本期望的列表 UI。
+    applySiteName && applySiteName();
+    applyBeian && applyBeian();
+    initDetailModal && initDetailModal();
+    initVehicles && initVehicles();
+
+    function openDoc(id){ var m=document.getElementById(id); if(m) m.classList.add('show'); }
+    function closeDoc(id){ var m=document.getElementById(id); if(m) m.classList.remove('show'); }
+    ['usageModal','privacyModal'].forEach(function(id){
+      var m=document.getElementById(id); if(!m) return;
+      var x=m.querySelector('.x'); if(x) x.addEventListener('click', function(){ closeDoc(id); });
+      m.addEventListener('click', function(e){ if(e.target===m) closeDoc(id); });
+    });
+    var ou=document.getElementById('openUsage'), op=document.getElementById('openPrivacy');
+    if(ou) ou.addEventListener('click', function(){ openDoc('usageModal'); });
+    if(op) op.addEventListener('click', function(){ openDoc('privacyModal'); });
+  })();
+  </script>
+</body>
+</html>

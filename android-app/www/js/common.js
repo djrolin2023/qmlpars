@@ -6,7 +6,7 @@ function esc(s){
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-const channel=getQuery('channel')||'app'; // app / web / mini
+const channel=getQuery('channel')||window.__CHANNEL__||'h5'; // URL ?channel= 优先；打包安卓时为 qmlpars_APP；否则 H5 网页
 // 后端动态 base：优先 APP_CONFIG.serverUrl（打包注入），其次 __API_BASE__，再回退同源
 // 统一去掉末尾斜杠，避免与后续 '/api/...' 拼接出 '//api'（服务器地址带不带 / 都能正常打开）
 const _rawApi = (window.APP_CONFIG && window.APP_CONFIG.serverUrl) || window.__API_BASE__ || location.origin;
@@ -284,7 +284,16 @@ async function doLogin(username, password, autoLogin){
         if(el){ el.textContent = '本次登录来源 IP：' + j.data.loginIp; el.style.display='block'; }
       } catch(_){}
     }
-    return {ok:true, redirect: getQuery('redirect') || '/cpsb/index.html'};
+    // —— redirect 安全过滤：拒绝跨协议 / 跨域跳转（防御开放重定向钓鱼）
+    const rawRedirect = getQuery('redirect') || 'index.html';
+    let safeRedirect = 'index.html';
+    try {
+      const u = new URL(rawRedirect, location.origin);
+      if (u.origin === location.origin) safeRedirect = u.toString();
+    } catch (_) {}
+    if (/^\/(?!\/)[\w\u4e00-\u9fa5./?&=%#-]*$/.test(rawRedirect)) safeRedirect = rawRedirect;
+    else if (/^[\w\u4e00-\u9fa5./?&=%#-]+\.html(\?.*)?(#.*)?$/i.test(rawRedirect)) safeRedirect = rawRedirect;
+    return {ok:true, redirect: safeRedirect};
   }
   return {ok:false, msg:j.message||'登录失败'};
 }
@@ -307,11 +316,24 @@ function bindCpsbLogin(){
     if(auto){
       checkLogin().then(ok=>{
         if(ok){
-          const params=getQuery();
-          let redirect=params.get('redirect')||'/cpsb/index.html';
+          // —— getQuery(name) 为单参数函数，此处不能无参调用（否则返回 undefined 引发 TypeError）
+          const rawRedirect = getQuery('redirect') || 'index.html';
+          // 开放重定向防护：仅允许站内相对路径 / 同域绝对路径，拒绝带协议或 // 的外部跳转
+          let redirect = 'index.html';
+          try {
+            const u = new URL(rawRedirect, location.origin);
+            if (u.origin === location.origin) redirect = u.toString();
+          } catch (_) { /* 非法 URL 走默认 */ }
+          if (/^\/(?!\/)[\w\u4e00-\u9fa5./?&=%#-]*$/.test(rawRedirect)) {
+            // 合法站内相对路径（开头单个 /，后不接 //，避免 //evil.com 这种协议相对 URL）
+            redirect = rawRedirect;
+          } else if (/^[\w\u4e00-\u9fa5./?&=%#-]+\.html(\?.*)?(#.*)?$/i.test(rawRedirect)) {
+            // 合法同目录 html 跳转（如 index.html?foo=bar）
+            redirect = rawRedirect;
+          }
           location.replace(redirect);
         }
-      });
+      }).catch(()=>{ /* checkLogin 网络异常时不阻断页面，让用户手动登录 */ });
     }
     const uEl=document.getElementById('loginUser');
     const aEl=document.getElementById('autoLogin');
@@ -409,12 +431,53 @@ function imgUrlWithToken(url){
   return url + (url.indexOf('?')>=0 ? '&' : '?') + 'token=' + encodeURIComponent(t);
 }
 
-/* ============ 归属地（车牌 → 省·市，复用 /admin/js/plate-areas.json） ============ */
-let _plateAreas = {};
+/* ============ 归属地（车牌 → 省·市） ============
+ * Bug#10 修复：原代码 fetch('/admin/js/plate-areas.json') 在 H5 部署于子路径
+ * （如 /cpsb/xxx.html）时，若该路径未被反代到 web/admin/ 就会 404。
+ * 改为内联数据（同源、零网络依赖），彻底消除 404；同时保留 fetch 兜底兼容。 */
+const PLATE_AREAS_DATA = {
+  "京": { "province": "北京市", "cities": { "A": "北京市" } },
+  "津": { "province": "天津市", "cities": { "A": "天津市" } },
+  "沪": { "province": "上海市", "cities": { "A": "上海市", "B": "上海市", "C": "上海市", "D": "上海市" } },
+  "渝": { "province": "重庆市", "cities": { "A": "重庆市", "B": "重庆市", "C": "重庆市", "F": "重庆市" } },
+  "冀": { "province": "河北省", "cities": { "A": "石家庄", "B": "唐山", "C": "秦皇岛", "D": "邯郸", "E": "邢台", "F": "保定", "G": "张家口", "H": "承德", "J": "沧州", "R": "廊坊", "S": "衡水", "T": "衡水" } },
+  "豫": { "province": "河南省", "cities": { "A": "郑州", "B": "开封", "C": "洛阳", "D": "平顶山", "E": "安阳", "F": "鹤壁", "G": "新乡", "H": "焦作", "J": "濮阳", "K": "许昌", "L": "漯河", "M": "三门峡", "N": "商丘", "P": "周口", "Q": "驻马店", "R": "南阳", "S": "信阳", "U": "洛阳", "V": "商丘" } },
+  "云": { "province": "云南省", "cities": { "A": "昆明", "C": "昭通", "D": "曲靖", "E": "楚雄", "F": "玉溪", "G": "红河", "H": "文山", "J": "普洱", "K": "西双版纳", "L": "大理", "M": "保山", "N": "德宏", "P": "丽江", "Q": "怒江", "R": "迪庆", "S": "临沧" } },
+  "辽": { "province": "辽宁省", "cities": { "A": "沈阳", "B": "大连", "C": "鞍山", "D": "抚顺", "E": "本溪", "F": "丹东", "G": "锦州", "H": "营口", "J": "阜新", "K": "辽阳", "L": "盘锦", "M": "铁岭", "N": "朝阳", "P": "葫芦岛" } },
+  "黑": { "province": "黑龙江省", "cities": { "A": "哈尔滨", "B": "齐齐哈尔", "C": "牡丹江", "D": "佳木斯", "E": "大庆", "F": "伊春", "G": "鸡西", "H": "鹤岗", "J": "双鸭山", "K": "七台河", "L": "松花江", "M": "绥化", "N": "黑河", "P": "大兴安岭", "R": "农垦" } },
+  "湘": { "province": "湖南省", "cities": { "A": "长沙", "B": "株洲", "C": "湘潭", "D": "衡阳", "E": "邵阳", "F": "岳阳", "G": "张家界", "H": "益阳", "J": "常德", "K": "娄底", "L": "郴州", "M": "永州", "N": "怀化", "U": "湘西" } },
+  "皖": { "province": "安徽省", "cities": { "A": "合肥", "B": "芜湖", "C": "蚌埠", "D": "淮南", "E": "马鞍山", "F": "淮北", "G": "铜陵", "H": "安庆", "J": "黄山", "K": "阜阳", "L": "宿州", "M": "滁州", "N": "六安", "P": "宣城", "Q": "巢湖", "R": "池州" } },
+  "鲁": { "province": "山东省", "cities": { "A": "济南", "B": "青岛", "C": "淄博", "D": "枣庄", "E": "东营", "F": "烟台", "G": "潍坊", "H": "济宁", "J": "泰安", "K": "威海", "L": "日照", "M": "莱芜", "N": "临沂", "P": "德州", "Q": "聊城", "R": "临沂", "S": "菏泽", "U": "青岛", "V": "潍坊", "Y": "烟台" } },
+  "新": { "province": "新疆维吾尔自治区", "cities": { "A": "乌鲁木齐", "B": "昌吉", "C": "石河子", "D": "奎屯", "E": "博尔塔拉", "F": "伊犁", "G": "塔城", "H": "阿勒泰", "J": "克拉玛依", "K": "吐鲁番", "L": "哈密", "M": "巴音郭楞", "N": "阿克苏", "P": "克孜勒苏", "Q": "喀什", "R": "和田" } },
+  "苏": { "province": "江苏省", "cities": { "A": "南京", "B": "无锡", "C": "徐州", "D": "常州", "E": "苏州", "F": "南通", "G": "连云港", "H": "淮安", "J": "盐城", "K": "扬州", "L": "镇江", "M": "泰州", "N": "宿迁" } },
+  "浙": { "province": "浙江省", "cities": { "A": "杭州", "B": "宁波", "C": "温州", "D": "绍兴", "E": "湖州", "F": "嘉兴", "G": "金华", "H": "衢州", "J": "台州", "K": "丽水", "L": "舟山" } },
+  "赣": { "province": "江西省", "cities": { "A": "南昌", "B": "赣州", "C": "宜春", "D": "吉安", "E": "上饶", "F": "抚州", "G": "九江", "H": "景德镇", "J": "萍乡", "K": "新余", "L": "鹰潭" } },
+  "鄂": { "province": "湖北省", "cities": { "A": "武汉", "B": "黄石", "C": "十堰", "D": "荆州", "E": "宜昌", "F": "襄阳", "G": "鄂州", "H": "荆门", "J": "黄冈", "K": "孝感", "L": "咸宁", "M": "仙桃", "N": "潜江", "P": "神农架", "Q": "恩施", "R": "天门", "S": "随州" } },
+  "桂": { "province": "广西壮族自治区", "cities": { "A": "南宁", "B": "柳州", "C": "桂林", "D": "梧州", "E": "北海", "F": "崇左", "G": "来宾", "H": "桂林", "J": "贺州", "K": "玉林", "L": "百色", "M": "河池", "N": "钦州", "P": "防城港", "R": "贵港" } },
+  "甘": { "province": "甘肃省", "cities": { "A": "兰州", "B": "嘉峪关", "C": "金昌", "D": "白银", "E": "天水", "F": "酒泉", "G": "张掖", "H": "武威", "J": "定西", "K": "陇南", "L": "平凉", "M": "庆阳", "N": "临夏", "P": "甘南" } },
+  "晋": { "province": "山西省", "cities": { "A": "太原", "B": "大同", "C": "阳泉", "D": "长治", "E": "晋城", "F": "朔州", "H": "忻州", "J": "吕梁", "K": "晋中", "L": "临汾", "M": "运城" } },
+  "蒙": { "province": "内蒙古自治区", "cities": { "A": "呼和浩特", "B": "包头", "C": "乌海", "D": "赤峰", "E": "呼伦贝尔", "F": "兴安盟", "G": "通辽", "H": "锡林郭勒盟", "J": "乌兰察布", "K": "鄂尔多斯", "L": "巴彦淖尔", "M": "阿拉善盟" } },
+  "陕": { "province": "陕西省", "cities": { "A": "西安", "B": "铜川", "C": "宝鸡", "D": "咸阳", "E": "渭南", "F": "汉中", "G": "安康", "H": "商洛", "J": "延安", "K": "榆林", "U": "西安" } },
+  "吉": { "province": "吉林省", "cities": { "A": "长春", "B": "吉林", "C": "四平", "D": "辽源", "E": "通化", "F": "白山", "G": "白城", "H": "延边", "J": "松原" } },
+  "闽": { "province": "福建省", "cities": { "A": "福州", "B": "莆田", "C": "泉州", "D": "厦门", "E": "漳州", "F": "龙岩", "G": "三明", "H": "南平", "J": "宁德", "K": "省直系统" } },
+  "贵": { "province": "贵州省", "cities": { "A": "贵阳", "B": "六盘水", "C": "遵义", "D": "铜仁", "E": "黔西南", "F": "毕节", "G": "安顺", "H": "黔东南", "J": "黔南" } },
+  "粤": { "province": "广东省", "cities": { "A": "广州", "B": "深圳", "C": "珠海", "D": "汕头", "E": "佛山", "F": "韶关", "G": "湛江", "H": "肇庆", "J": "江门", "K": "茂名", "L": "惠州", "M": "梅州", "N": "汕尾", "P": "河源", "Q": "阳江", "R": "清远", "S": "东莞", "T": "中山", "U": "潮州", "V": "揭阳", "W": "云浮", "X": "顺德", "Y": "南海", "Z": "番禺" } },
+  "青": { "province": "青海省", "cities": { "A": "西宁", "B": "海东", "C": "海北", "D": "黄南", "E": "海南", "F": "果洛", "G": "玉树", "H": "海西" } },
+  "藏": { "province": "西藏自治区", "cities": { "A": "拉萨", "B": "昌都", "C": "山南", "D": "日喀则", "E": "那曲", "F": "阿里", "G": "林芝", "H": "区直系统" } },
+  "川": { "province": "四川省", "cities": { "A": "成都", "B": "绵阳", "C": "自贡", "D": "攀枝花", "E": "泸州", "F": "德阳", "H": "广元", "J": "遂宁", "K": "内江", "L": "乐山", "M": "资阳", "Q": "宜宾", "R": "南充", "S": "达州", "T": "雅安", "U": "阿坝", "V": "甘孜", "W": "凉山", "X": "广安", "Y": "巴中", "Z": "眉山" } },
+  "宁": { "province": "宁夏回族自治区", "cities": { "A": "银川", "B": "石嘴山", "C": "吴忠", "D": "固原", "E": "中卫" } },
+  "琼": { "province": "海南省", "cities": { "A": "海口", "B": "三亚", "C": "琼北", "D": "琼南", "E": "洋浦", "F": "儋州" } },
+  "使": { "province": "大使馆", "cities": { "": "外国驻华大使馆" } },
+  "领": { "province": "领事馆", "cities": { "": "领事馆" } }
+};
+let _plateAreas = PLATE_AREAS_DATA;
 async function loadPlateAreas(){
+  // 优先使用内联数据（零网络依赖，避免子路径部署 404）
+  _plateAreas = PLATE_AREAS_DATA;
+  // 兜底：若将来内联与远程不一致，尝试 fetch 同步（失败不影响）
   try{
     const r = await fetch('/admin/js/plate-areas.json', { cache:'no-cache' });
-    if(r.ok) _plateAreas = await r.json();
+    if(r.ok){ const d = await r.json(); if(d && typeof d === 'object') _plateAreas = d; }
   }catch(e){ /* 离线/无数据时不阻塞 */ }
 }
 function plateArea(plate){
