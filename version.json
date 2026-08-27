@@ -1,7 +1,16 @@
 {
-  "version": "1.1.15",
+  "version": "1.1.16",
   "updatedAt": "2026-08-27",
   "changelog": [
+    {
+      "version": "1.1.16",
+      "date": "2026-08-27",
+      "changes": [
+        "新增 Docker 部署支持：多阶段 Dockerfile(runtime/builder双Tag)、docker-compose.yml(4服务)、entrypoint.sh、.env.docker.example、nginx模板、scripts/up.sh 一键安装",
+        "install.sh 升级 whiptail/dialog 三级降级 TUI：tui_input/tui_password/tui_gauge 封装，无 whiptail 时完全等价原文本交互（零回归）",
+        "qm 与 install.sh 共享 TUI 风格，统一交互体验"
+      ]
+    },
     {
       "version": "1.1.15",
       "date": "2026-08-27",

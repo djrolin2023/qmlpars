@@ -31,6 +31,64 @@ safe_rm_home() {
 unset LD_LIBRARY_PATH
 unset LD_PRELOAD
 
+# ================= TUI 封装（whiptail → dialog → 纯文本三级降级）=================
+# 报告 §8 要求 installer 增加交互界面。为保证无 whiptail 的老机器不退化，
+# 所有函数都实现 fallback：TUI_BIN 为空时直接退回原 read/echo 行为。
+NEWT_COLORS='root=,blue'   # 品牌蓝主题（仅 whiptail 生效）
+tui_ensure() {
+  if command -v whiptail >/dev/null 2>&1; then TUI_BIN=whiptail
+  elif command -v dialog >/dev/null 2>&1; then TUI_BIN=dialog
+  else TUI_BIN=""; fi
+  # 非交互终端（管道/面板）强制文本
+  [ -t 0 ] || TUI_BIN=""
+  export TUI_BIN
+}
+tui_ensure
+
+# 文本输入框：tui_input <prompt> [default] -> 写入 REPLY
+tui_input() {
+  local prompt="$1" def="$2"
+  if [ -z "$TUI_BIN" ]; then
+    if [ -n "$def" ]; then printf '%s（回车沿用：%s）： ' "$prompt" "$def"
+    else printf '%s： ' "$prompt"; fi
+    read -r REPLY
+    REPLY="${REPLY:-$def}"
+    return
+  fi
+  REPLY="$( $TUI_BIN --title "乾明车牌识别" --inputbox "$prompt" 10 70 "$def" 3>&1 1>&2 2>&3 )" || REPLY="$def"
+}
+# 密码框：tui_password <prompt> -> REPLY
+tui_password() {
+  local prompt="$1"
+  if [ -z "$TUI_BIN" ]; then
+    local char pass=""
+    printf '%s（输入不回显）： ' "$prompt"
+    while IFS= read -r -s -n1 char; do
+      [[ $char == $'\0' || $char == $'\n' ]] && break
+      [[ $char == $'\177' ]] && { pass="${pass%?}"; continue; }
+      pass+="$char"; printf '*'
+    done; echo
+    REPLY="$pass"; return
+  fi
+  REPLY="$( $TUI_BIN --title "乾明车牌识别" --passwordbox "$prompt" 10 70 3>&1 1>&2 2>&3 )" || REPLY=""
+}
+
+# 阶段进度条（只对 whiptail 有效；无 TUI 时退化为 printf，零回归）
+tui_gauge_begin() {
+  [ -z "$TUI_BIN" ] && { echo; return; }
+  { for ((i=0;i<=100;i++)); do echo "$i"; sleep 0.03; done; } | $TUI_BIN --title "乾明车牌识别" --gauge "准备中…" 8 60 0 &
+  TUI_GAUGE_PID=$!
+}
+tui_gauge_set() {
+  local pct="$1" text="$2"
+  [ -z "$TUI_BIN" ] && { printf '\r[%s%%] %s' "$pct" "$text" >/dev/tty 2>/dev/null || printf '[%s%%] %s\n' "$pct" "$text"; return; }
+  [ -n "$TUI_GAUGE_PID" ] && { echo "$pct"; sleep 0.03; } > /proc/$TUI_GAUGE_PID/fd/0 2>/dev/null || true
+}
+tui_gauge_end() {
+  [ -z "$TUI_BIN" ] && return
+  [ -n "$TUI_GAUGE_PID" ] && { echo 100; sleep 0.1; } > /proc/$TUI_GAUGE_PID/fd/0 2>/dev/null; kill $TUI_GAUGE_PID 2>/dev/null; wait $TUI_GAUGE_PID 2>/dev/null
+}
+
 # ---------- 命令行参数解析 ----------
 #   --no-android-sdk   跳过 Android SDK / JDK 构建链安装（该机仅运行服务，不打包 APP）
 #   --android-only     仅安装安卓构建链（不重装服务/重置密码），用于构建机就绪验证
@@ -45,14 +103,20 @@ done
 
 # ---------- 阶段式进度指示（全中文） ----------
 TOTAL_STEPS=13
+# 启动 TUI 进度条（无 whiptail 时 tui_gauge_begin 为空操作，零回归）
+tui_gauge_begin 100
 CUR_STEP=0
 step_start() {
   CUR_STEP=$((CUR_STEP+1))
   printf "\n[%d/%d] %s ...\n" "$CUR_STEP" "$TOTAL_STEPS" "$1"
+  tui_gauge_set $((CUR_STEP*100/TOTAL_STEPS)) "$1"
 }
 step_done() {
   printf "[%d/%d] %s ... 完成 ✓\n" "$CUR_STEP" "$TOTAL_STEPS" "$1"
+  tui_gauge_set $((CUR_STEP*100/TOTAL_STEPS)) "$1 完成"
 }
+# 安装结束后关闭进度条
+step_finish() { tui_gauge_end; }
 
 # 包名与模式：install_data.sh 会设置 QMLPARS_PKG_NAME=qmlpars_data.tar.gz + QMLPARS_DATA_MODE=1
 PKG_NAME="${QMLPARS_PKG_NAME:-qmlpars.tar.gz}"
@@ -568,47 +632,53 @@ if [ ! -t 0 ]; then
 else
   echo
   if [ "$DATA_MODE" = "1" ] && [ -n "$OLD_DOMAIN" ]; then
-    read -rp "请输入访问域名或服务器IP（回车沿用原配置：${OLD_DOMAIN}）： " DOMAIN
-    DOMAIN="${DOMAIN:-$OLD_DOMAIN}"
+    tui_input "请输入访问域名或服务器IP（回车沿用原配置）" "$OLD_DOMAIN"
+    DOMAIN="${REPLY:-$OLD_DOMAIN}"
   else
-    read -rp "请输入访问域名或服务器IP（不要带端口，如 qmlpars.example.com 或 1.2.3.4）： " DOMAIN
+    tui_input "请输入访问域名或服务器IP（不要带端口，如 qmlpars.example.com 或 1.2.3.4）" ""
     while [ -z "$DOMAIN" ]; do
-      read -rp "域名/IP 不能为空，请重新输入： " DOMAIN
+      tui_input "域名/IP 不能为空，请重新输入" ""
+      DOMAIN="$REPLY"
     done
   fi
   echo "==> 访问域名/IP：$DOMAIN"
 
   DEFAULT_HOME="/wwwroot/qmlpars"
-  read -rp "请输入安装目录 [默认 $DEFAULT_HOME]： " HOME_DIR
-  HOME_DIR="${HOME_DIR:-$DEFAULT_HOME}"
+  tui_input "请输入安装目录" "$DEFAULT_HOME"
+  HOME_DIR="${REPLY:-$DEFAULT_HOME}"
   echo "==> 安装目录：$HOME_DIR"
 
   PORT_DEF="${OLD_PORT:-7081}"
   PORT=""
-  read -rp "请输入内部监听端口 [默认 $PORT_DEF]： " PORT
-  PORT="${PORT:-$PORT_DEF}"
+  tui_input "请输入内部监听端口" "$PORT_DEF"
+  PORT="${REPLY:-$PORT_DEF}"
   while ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; do
     PORT_DEF="${OLD_PORT:-7081}"
-    read -rp "端口必须是 1-65535 的数字，请重新输入 [默认 $PORT_DEF]： " PORT
-    PORT="${PORT:-$PORT_DEF}"
+    tui_input "端口必须是 1-65535 的数字，请重新输入" "$PORT_DEF"
+    PORT="${REPLY:-$PORT_DEF}"
   done
   echo "==> 内部监听端口：$PORT"
 
-  # 交互式设置管理员初始密码（* 号回显；提示/星号直写终端，避免被命令替换吞掉）
+  # 交互式设置管理员初始密码（* 号回显；支持 whiptail/dialog 密码框）
   read_admin_password() {
     local prompt="$1" char pass=""
     while true; do
       pass=""
-      printf '%s' "$prompt" >"$TTY_OUT"
-      while IFS= read -r -s -n1 char; do
-        if [ -z "$char" ]; then
-          break
-        elif [ "$char" = $'\177' ] || [ "$char" = $'\b' ]; then
-          if [ -n "$pass" ]; then pass="${pass%?}"; printf '\b \b' >"$TTY_OUT"; fi
-        else
-          pass+="$char"; printf '*' >"$TTY_OUT"
-        fi
-      done
+      if [ -n "$TUI_BIN" ]; then
+        tui_password "$prompt"
+        pass="$REPLY"
+      else
+        printf '%s' "$prompt" >"$TTY_OUT"
+        while IFS= read -r -s -n1 char; do
+          if [ -z "$char" ]; then
+            break
+          elif [ "$char" = $'\177' ] || [ "$char" = $'\b' ]; then
+            if [ -n "$pass" ]; then pass="${pass%?}"; printf '\b \b' >"$TTY_OUT"; fi
+          else
+            pass+="$char"; printf '*' >"$TTY_OUT"
+          fi
+        done
+      fi
       echo >"$TTY_OUT"
       if [ ${#pass} -lt 6 ]; then
         echo "!! 密码至少 6 位，请重新输入" >"$TTY_OUT"
@@ -1080,4 +1150,5 @@ echo "============================================================"
 echo " 提示：车牌识别需在后台「系统设置」填写百度或腾讯 OCR 密钥后方可使用。"
 echo ""
 step_done "生成安装信息面板"
+step_finish
 echo "所有步骤已完成，系统可正常使用。"
