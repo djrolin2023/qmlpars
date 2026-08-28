@@ -373,6 +373,9 @@
   if (window.applyBeian) applyBeian();
   if (window.applySiteName) applySiteName();
   if (window.applyFavicon) applyFavicon();
+  // 拉取最新安装包信息与历史记录（此前函数已定义但未触发，导致页面无安装包）
+  loadLatest();
+  loadHistory();
 </script>
 </body>
 </html>
