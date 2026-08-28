@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+android-plate.html<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -103,7 +103,8 @@
 
     <div class="foot">
       <span id="copyrightLine"></span><br>
-      <span id="beianLine"></span>
+      <span id="beianLine"></span><br>
+      <span id="appVersionLine" class="app-version-line"></span>
     </div>
   </div>
 
@@ -114,6 +115,15 @@
     applyBrandLogo(document.getElementById('brandLogo'), 'icon');
     applyFavicon();
     applyBeian();
+    // 版本号行：APP 打包时通过 app-config.js 注入 APP_CONFIG.version；H5 无注入则隐藏
+    (function(){
+      var el=document.getElementById('appVersionLine');
+      if(!el) return;
+      var cfg=window.APP_CONFIG||{};
+      var v=(cfg.version||'').trim();
+      if(!v){ el.style.display='none'; return; }
+      el.textContent = 'v' + v;
+    })();
   </script>
 </body>
 </html>

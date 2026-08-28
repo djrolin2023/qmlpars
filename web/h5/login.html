@@ -103,7 +103,8 @@
 
     <div class="foot">
       <span id="copyrightLine"></span><br>
-      <span id="beianLine"></span>
+      <span id="beianLine"></span><br>
+      <span id="appVersionLine" class="app-version-line"></span>
     </div>
   </div>
 
@@ -114,6 +115,19 @@
     applyBrandLogo(document.getElementById('brandLogo'), 'icon');
     applyFavicon();
     applyBeian();
+    // 系统版本号：H5 网页端通过 /version.json 读取（与关于页一致），不依赖 APP 打包注入
+    (function(){
+      var el=document.getElementById('appVersionLine');
+      if(!el) return;
+      fetch('/version.json', { cache: 'no-store' })
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(j){
+          var v = (j && j.version || '').trim();
+          if(!v){ el.style.display='none'; return; }
+          el.textContent = 'v' + v;
+        })
+        .catch(function(){ el.style.display='none'; });
+    })();
   </script>
 </body>
 </html>

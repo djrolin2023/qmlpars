@@ -90,7 +90,7 @@
     // 兜底：任何异常导致校验卡死时，最多 10s 强制跳登录，绝不停留在“正在校验登录”
     var guardTimer = setTimeout(function(){
       if(authEl) authEl.remove();
-      location.replace('login.html?redirect=' + encodeURIComponent('./'));
+      location.replace('login.html?redirect=' + encodeURIComponent('index.html'));
     }, 10000);
 
     (async function(){
@@ -110,7 +110,7 @@
         }
         if(!(await checkLogin())){
           clearTimeout(guardTimer);
-          location.replace('login.html?redirect=' + encodeURIComponent('./'));
+          location.replace('login.html?redirect=' + encodeURIComponent('index.html'));
           return;
         }
         clearTimeout(guardTimer);
@@ -130,7 +130,7 @@
           authEl.innerHTML = '<div style="text-align:center;padding:40px 20px;max-width:340px;margin:0 auto;">'
             + '<div style="font-size:16px;font-weight:700;color:#ff7875;margin-bottom:10px;">页面初始化失败</div>'
             + '<div style="color:#94a3b8;font-size:13px;line-height:1.6;word-break:break-all;">' + msg + '</div>'
-            + '<div style="margin-top:16px;"><a href="login.html?redirect=' + encodeURIComponent('./') + '" style="color:#36cfc9;">前往登录</a></div>'
+            + '<div style="margin-top:16px;"><a href="login.html?redirect=' + encodeURIComponent('index.html') + '" style="color:#36cfc9;">前往登录</a></div>'
             + '</div>';
         }
       }

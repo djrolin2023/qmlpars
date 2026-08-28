@@ -12,14 +12,18 @@ const app = express()
 app.set('trust proxy', true)
 // CORS：APP（Capacitor androidScheme='https'）的源是 https://localhost，
 // 浏览器同源请求 origin 为空，无需 CORS 头。
-// 默认仅允许 APP 源（https://localhost）与同源（无 origin）；如需跨域 Web 访问，
-// 显式设置 CORS_ORIGIN（逗号分隔的可信源）；设置 CORS_ORIGIN=* 才放开全部。
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://localhost'
+// 默认放开所有跨域源（*）。本项目所有接口均带 x-user-token / x-admin-token 鉴权，
+// CORS 只是跨域栅栏，放开不影响安全。APP 内 webview（http://localhost / capacitor://localhost / null origin）
+// 必须被 CORS 放行才能登录与请求数据。如需收紧，设置环境变量 CORS_ORIGIN 为逗号分隔的可信源。
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*'
 app.use((req, res, next) => {
   const origin = req.headers.origin
-  // 同源（无 origin 头，如浏览器直接访问本站）或显式放开的源才返回 CORS 头
-  if (!origin || origin === CORS_ORIGIN || (CORS_ORIGIN === '*')) {
-    res.setHeader('Access-Control-Allow-Origin', origin || '*')
+  if (CORS_ORIGIN === '*') {
+    // 通配符不能与 Allow-Credentials: true 共存，本项目用自定义 token 头、不依赖 cookie，故不设 credentials
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Vary', 'Origin')
+  } else if (!origin || origin === CORS_ORIGIN) {
+    res.setHeader('Access-Control-Allow-Origin', origin || CORS_ORIGIN)
     res.setHeader('Vary', 'Origin')
   } else {
     const allowList = CORS_ORIGIN.split(',').map(s => s.trim())
@@ -287,6 +291,19 @@ app.get(['/app', '/app/'], (req, res) => {
   // 兜底：若 app/index.html 不存在或 static 未配置命中，发送宣传/下载页
   res.sendFile(path.join(appPageDir, 'index.html'))
 })
+
+// Android APP 端：安卓打包后的 www 目录挂载在 /Android，与后端 API 同源，
+// 避免 capacitor://localhost 跨域时 Android WebView 返回 type=basic + body 不可读的假响应。
+const androidWwwDir = path.join(__dirname, 'android-app', 'www')
+fs.mkdirSync(androidWwwDir, { recursive: true })
+app.use('/Android', express.static(androidWwwDir, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+    }
+  }
+}))
+app.get('/Android', (req, res) => res.redirect('/Android/login.html'))
 
 // 引导页（根路径 / 与 /index.html）
 app.get(['/', '/index.html'], (req, res) => res.sendFile(path.join(__dirname, 'index.html')))

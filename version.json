@@ -1,7 +1,15 @@
 {
-  "version": "1.1.20",
-  "updatedAt": "2026-08-27",
+  "version": "1.1.28",
+  "updatedAt": "2026-08-28",
   "changelog": [
+    {
+      "version": "1.1.28",
+      "date": "2026-08-28",
+      "changes": [
+        "修复：APP 登录成功后跳转错误——login.html 加载路径为 /Android/login.html，redirect=index.html 是相对路径，原代码用 location.origin 作为 base 解析导致跳转到根路径 /（引导页）；改为用 location.href 作为 base，正确解析为 /Android/index.html",
+        "修复：H5/APP 登录成功后直接跳转到车牌识别主页，不再进入引导页"
+      ]
+    },
     {
       "version": "1.1.16",
       "date": "2026-08-27",

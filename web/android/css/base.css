@@ -1,8 +1,0 @@
-/* base.css 聚合入口：下级样式按需拆分为独立文件，本文件仅做 @import 汇总，
-   因此所有现有页面 <link rel="stylesheet" href=".../css/base.css"> 无需改动。
-   加载顺序：变量/全局 → 页面框架 → 通用组件 → 摄像头 → 扫描结果。 */
-@import url('tokens.css');
-@import url('layout.css');
-@import url('components.css');
-@import url('camera.css');
-@import url('scan-result.css');

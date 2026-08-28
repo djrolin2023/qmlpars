@@ -265,11 +265,24 @@ function bindChangePwdEvents(){
 }
 
 async function doLogin(username, password, autoLogin){
-  const r=await fetch(API+'/api/auth/login',{
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({username,password})
-  });
-  const j=await r.json();
+  let r;
+  try {
+    r = await fetch(API+'/api/auth/login',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username,password})
+    });
+  } catch (e) {
+    // 网络错误/CORS 拒绝/超时等：返回友好提示而非抛错让按钮永远卡在"登录中..."
+    return {ok:false, msg:'网络异常，请检查网络后重试(' + (e && e.message ? e.message : '未知错误') + ')'};
+  }
+  let j;
+  try { j = await r.json(); } catch(e) {
+    // 拿到原始 body 帮排查：opaqueredirect / opaqueresponse / 截断等
+    let raw = '';
+    try { raw = await r.text(); } catch(_){}
+    return {ok:false, msg:'服务器返回异常(' + r.status + ',type=' + (r.type||'?') + ',body=' + (raw||'<不可读>').slice(0,80) + ')'};
+  }
+  if(!j){ return {ok:false, msg:'服务器返回为空'}; }
   if(j.success && j.data && j.data.token){
     setUserToken(j.data.token);
     // 自动登录：记住账号并标记，下次直接进入；未勾选则不标记
@@ -288,7 +301,10 @@ async function doLogin(username, password, autoLogin){
     const rawRedirect = getQuery('redirect') || 'index.html';
     let safeRedirect = 'index.html';
     try {
-      const u = new URL(rawRedirect, location.origin);
+      // 注意 base 用 location.href（当前页面完整 URL），不能用 location.origin：
+      // 页面在 /Android/login.html 时，redirect=./ 用 origin 作 base 会解析成根路径 /（引导页），
+      // 用 href 作 base 则正确解析为 /Android/（APP 主页）。
+      const u = new URL(rawRedirect, location.href);
       if (u.origin === location.origin) safeRedirect = u.toString();
     } catch (_) {}
     if (/^\/(?!\/)[\w\u4e00-\u9fa5./?&=%#-]*$/.test(rawRedirect)) safeRedirect = rawRedirect;
@@ -321,7 +337,7 @@ function bindCpsbLogin(){
           // 开放重定向防护：仅允许站内相对路径 / 同域绝对路径，拒绝带协议或 // 的外部跳转
           let redirect = 'index.html';
           try {
-            const u = new URL(rawRedirect, location.origin);
+            const u = new URL(rawRedirect, location.href);
             if (u.origin === location.origin) redirect = u.toString();
           } catch (_) { /* 非法 URL 走默认 */ }
           if (/^\/(?!\/)[\w\u4e00-\u9fa5./?&=%#-]*$/.test(rawRedirect)) {
